@@ -1,0 +1,69 @@
+# .gitignore for common binary files
+
+# --- Executables and Compiled Code ---
+# Operating System specific executables
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Object files and libraries
+*.o
+*.a
+*.obj
+*.lib
+
+# --- Archives ---
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
+*.iso
+*.dmg
+
+# --- Documents ---
+# Note: Sometimes you want to track these, but often they are generated assets.
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+*.odt
+
+# --- Images ---
+# You might want to track some images (e.g. for a website),
+# but ignore others (e.g. generated diagrams). Adjust as needed.
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.webp
+*.psd
+
+# --- Audio & Video ---
+*.mp3
+*.wav
+*.flac
+*.ogg
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+
+# --- Databases & Logs ---
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# --- Language-specific build artifacts ---
+*.class  # Java
+*.pyc    # Python
+*.jar
+main
