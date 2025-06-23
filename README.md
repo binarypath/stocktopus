@@ -30,3 +30,40 @@ This abstraction allows for:
    ```sh
    git clone [https://github.com/stocktopus-dev/stocktopus.git](https://github.com/stocktopus-dev/stocktopus.git)
    cd stocktopus
+   ```
+
+```mermaid
+graph TD
+    subgraph "1. Setup & Configuration"
+        A["User starts app via terminal"] --> B("main.go");
+        C("config.yaml") -- "Is loaded by" --> D["config.Load()"];
+    end
+
+    subgraph "2. Application"
+        B -- "Wires up components" --> E["app.Run()"];
+        D -- "Provides settings" --> E;
+        E -- "Initializes and runs" --> F["TUI (Bubble Tea)"];
+        E -- "Initializes and runs" --> G["Core Engine"];
+    end
+
+    subgraph "3. Live Data Loop (Concurrent)"
+        G -- "Manages" --> H["State<br>(map of previous ticks)"];
+        G -- "Triggers every X secs" --> I("Ticker Goroutine");
+        I --> J("Worker Goroutines");
+        J -- "Use interface" --> K("StockProvider");
+        K --> L["Polygon.io API"];
+        L -- "Returns data" --> J;
+        J -- "Sends results via Go Channel" --> G;
+    end
+
+    subgraph "4. Screening Logic"
+        G -- "For each stock, sends data to" --> M["Lua VM (gopher-lua)"];
+        N("screener.lua") -- "Is loaded and executed by" --> M;
+        M -- "Returns true/false" --> G;
+    end
+
+    subgraph "5. Output"
+        G -- "Sends matching stocks to" --> F;
+        F -- "Renders list to" --> O["User's Terminal Screen"];
+    end
+```
