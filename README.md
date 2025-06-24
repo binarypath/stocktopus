@@ -47,7 +47,7 @@ graph TD
     end
 
     subgraph "3. Live Data Loop (Concurrent)"
-        G -- "Manages" --> H["State<br>(map of previous ticks)"];
+        G -- "Manages" --> H["State&#10;(map of previous ticks)"];
         G -- "Triggers every X secs" --> I("Ticker Goroutine");
         I --> J("Worker Goroutines");
         J -- "Use interface" --> K("StockProvider");
