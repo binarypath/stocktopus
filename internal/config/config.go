@@ -1,18 +1,27 @@
 package config
 
-import "time"
+import (
+	"gopkg.in/yaml.v3"
+	"os"
+)
 
 // Config holds all configuration for the application.
 type Config struct {
-	RefreshInterval time.Duration
-	// Future API keys would go here
-	// AlphaVantageAPIKey string
+	APIKey         string   `yaml:"apiKey"`
+	RefreshSeconds int      `yaml:"refreshSeconds"`
+	Tickers        []string `yaml:"tickers"`
 }
 
-// Load creates and returns a new configuration object.
-// In a real app, this would load from a file (e.g., config.yaml) or env variables.
-func Load() *Config {
-	return &Config{
-		RefreshInterval: 1 * time.Minute, // Default to 1 minute
+// Load reads configuration from a file and unmarshals it.
+func Load(path string) (*Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
 	}
+
+	var cfg Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
 }

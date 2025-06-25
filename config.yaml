@@ -1,0 +1,8 @@
+apiKey: "YOUR_POLYGON_API_KEY_HERE"
+refreshSeconds: 15
+tickers:
+  - "AAPL"
+  - "GOOGL"
+  - "TSLA"
+  - "MSFT"
+  - "NVDA"
