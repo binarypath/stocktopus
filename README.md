@@ -56,13 +56,72 @@ graph TD
     end
 ```
 # Getting Started
+
 ## Prerequisites
-Go 1.22 or later
-##Installation & Usage
-Clone the repository:
-Bash
+- Go 1.22 or later (https://go.dev/dl/)
+- A Polygon.io API key (https://polygon.io/)
+
+## Installation & Usage
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/binarypath/stocktopus.git
+   cd stocktopus
+   ```
+
+2. **Configure your environment:**
+   - Copy `config.yaml` and update the following fields:
+     - `apiKey`: Your Polygon.io API key
+     - `refreshSeconds`: (Optional) How often to refresh data (default: 15)
+     - `tickers`: List of stock tickers to track
+
+3. **Run the application:**
+   ```bash
+   go run ./cmd/stocktopus
+   ```
+   Or build and run:
+   ```bash
+   go build -o stocktopus ./cmd/stocktopus
+   ./stocktopus
+   ```
+
+4. **Customize screening logic:**
+   - Edit the `scripts/screener.lua` file to define your own stock screening rules using Lua.
+
+## Configuration
+- All configuration is handled via `config.yaml` in the project root.
+- No environment variables are required by default.
+- Example `config.yaml`:
+  ```yaml
+  apiKey: "YOUR_POLYGON_API_KEY_HERE"
+  refreshSeconds: 15
+  tickers:
+    - "AAPL"
+    - "GOOGL"
+    - "TSLA"
+    - "MSFT"
+    - "NVDA"
+  ```
+
+## Docker Support
+*Docker support is not currently implemented. If you would like to contribute a Dockerfile or containerization instructions, please open a pull request!*
+
+# Developer Guide
+
+## Running Tests
+To run all tests:
 ```bash
-git clone https://github.com/binarypath/stocktopus.git
-cd stocktopus
-(Instructions to be added)
+go test ./...
 ```
+
+## Contributing
+- Fork the repository and create a feature branch.
+- Add or update tests for your changes.
+- Open a pull request with a clear description of your changes.
+
+# Lua Scripting Example
+See `scripts/screener.lua` for an example of how to write your own screening logic in Lua.
+
+# Troubleshooting
+- Ensure your `config.yaml` is present and contains a valid Polygon API key.
+- If you encounter issues, please open an issue on GitHub with details and logs.
