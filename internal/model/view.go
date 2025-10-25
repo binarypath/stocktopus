@@ -1,11 +1,20 @@
 package model
 
+import (
+	"fmt"
+	"strings"
+)
+
+// UiModel represents the UI state for displaying stock data
+// LEGACY: This is deprecated - TUI package should handle view logic
 type UiModel struct {
-	stocks    []models.StockTick
+	stocks    []Stock // Using legacy Stock struct
 	isLoading bool
 	err       error
 }
 
+// View renders the UI model as a string
+// LEGACY: This should be moved to TUI package
 func (m UiModel) View() string {
 	// If there's an error, just show that
 	if m.err != nil {

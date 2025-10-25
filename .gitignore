@@ -67,3 +67,26 @@
 *.pyc    # Python
 *.jar
 main
+stocktopus  # Project binary
+
+# --- Go Specific ---
+*.test      # Go test binaries
+*.out       # Go output files
+vendor/     # Go dependency directory
+
+# --- Secrets & Environment Variables ---
+.env*       # Environment files (contains API keys!)
+*.key
+*.pem
+
+# --- OS & Editor Files ---
+.DS_Store   # macOS
+Thumbs.db   # Windows
+*.tmp
+*.swp
+*~
+
+# --- IDE & Editor Directories ---
+.vscode/
+.idea/
+*.iml
