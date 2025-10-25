@@ -1,4 +1,45 @@
-apiKey: "YOUR_POLYGON_API_KEY_HERE"
+# Stocktopus Configuration
+
+# Provider Configuration
+provider:
+  # Provider selection: "alphavantage", "polygon", "fmp"
+  name: polygon
+
+  # API Authentication (use environment variables for security)
+  apiKey: ${STOCK_API_KEY}
+
+  # HTTP Configuration
+  baseURL: ""  # Optional: Override default provider endpoint
+  timeout: 30s
+
+  # Provider-specific options
+  options:
+    # Polygon-specific
+    adjusted: "true"  # Adjust for splits/dividends
+
+# Rate Limiting Configuration
+rateLimit:
+  enabled: true
+  strategy: token_bucket  # or "leaky_bucket"
+  maxRequests: 100
+  window: 1m
+
+# Retry Configuration
+retry:
+  enabled: true
+  maxAttempts: 3
+  initialBackoff: 100ms
+  maxBackoff: 10s
+  multiplier: 2.0
+  jitter: true
+
+# Circuit Breaker Configuration
+circuitBreaker:
+  enabled: true
+  maxFailures: 5
+  resetTimeout: 60s
+
+# Application Settings
 refreshSeconds: 15
 tickers:
   - "AAPL"
