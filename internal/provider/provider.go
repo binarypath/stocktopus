@@ -35,8 +35,3 @@ type StockProvider interface {
 	HealthCheck(ctx context.Context) error
 }
 
-// Legacy interface - kept for backward compatibility
-// TODO: Remove once all code migrated to StockProvider
-type MarketDataProvider interface {
-	FetchStocks() ([]model.Stock, error)
-}

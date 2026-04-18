@@ -1,0 +1,69 @@
+{{template "layout" .}}
+{{define "content"}}
+<div class="page-header">
+    <h1>Debug Console</h1>
+    <div class="debug-controls">
+        <button onclick="clearLog()">Clear</button>
+        <label><input type="checkbox" id="autoscroll" checked> Auto-scroll</label>
+    </div>
+</div>
+<div class="debug-console" id="debug-console">
+    <div id="log-entries">
+        {{range .Entries}}
+        <div class="log-entry log-{{.Level}}">
+            <span class="log-time">{{.Time}}</span>
+            <span class="log-level">{{.Level}}</span>
+            <span class="log-msg">{{.Message}}</span>
+            {{if .Attrs}}<span class="log-attrs">{{.Attrs}}</span>{{end}}
+        </div>
+        {{end}}
+    </div>
+</div>
+
+<script>
+    let debugWs;
+
+    function connectDebug() {
+        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        debugWs = new WebSocket(proto + '//' + location.host + '/ws/debug');
+
+        debugWs.onopen = function() {
+            document.getElementById('conn-status').textContent = 'Connected';
+            document.getElementById('conn-status').classList.add('connected');
+        };
+
+        debugWs.onclose = function() {
+            document.getElementById('conn-status').textContent = 'Disconnected';
+            document.getElementById('conn-status').classList.remove('connected');
+            setTimeout(connectDebug, 2000);
+        };
+
+        debugWs.onerror = function() {
+            debugWs.close();
+        };
+
+        debugWs.onmessage = function(event) {
+            const msg = JSON.parse(event.data);
+            if (msg.type === 'html' && msg.html) {
+                const entries = document.getElementById('log-entries');
+                entries.insertAdjacentHTML('afterbegin', msg.html);
+
+                // Trim old entries
+                while (entries.children.length > 500) {
+                    entries.removeChild(entries.lastChild);
+                }
+
+                if (document.getElementById('autoscroll').checked) {
+                    entries.firstElementChild.scrollIntoView({behavior: 'smooth'});
+                }
+            }
+        };
+    }
+
+    function clearLog() {
+        document.getElementById('log-entries').innerHTML = '';
+    }
+
+    connectDebug();
+</script>
+{{end}}
