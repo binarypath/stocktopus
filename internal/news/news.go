@@ -149,6 +149,79 @@ func (c *Client) GetHistoricalEOD(ctx context.Context, symbol, from, to string) 
 	return items, nil
 }
 
+// fetchJSON is a generic helper that fetches a URL and returns raw JSON bytes.
+func (c *Client) fetchJSON(ctx context.Context, endpoint string, params url.Values) (json.RawMessage, error) {
+	if params == nil {
+		params = url.Values{}
+	}
+	params.Set("apikey", c.apiKey)
+
+	reqURL := c.baseURL + endpoint + "?" + params.Encode()
+	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API %d: %s", resp.StatusCode, string(body))
+	}
+
+	return json.RawMessage(body), nil
+}
+
+// GetProfile returns the company profile for a symbol.
+func (c *Client) GetProfile(ctx context.Context, symbol string) (json.RawMessage, error) {
+	params := url.Values{"symbol": {symbol}}
+	return c.fetchJSON(ctx, "/stable/profile", params)
+}
+
+// GetKeyMetrics returns key financial metrics.
+func (c *Client) GetKeyMetrics(ctx context.Context, symbol string) (json.RawMessage, error) {
+	params := url.Values{"symbol": {symbol}, "limit": {"1"}}
+	return c.fetchJSON(ctx, "/stable/key-metrics", params)
+}
+
+// GetRatiosTTM returns trailing twelve month ratios.
+func (c *Client) GetRatiosTTM(ctx context.Context, symbol string) (json.RawMessage, error) {
+	params := url.Values{"symbol": {symbol}}
+	return c.fetchJSON(ctx, "/stable/ratios-ttm", params)
+}
+
+// GetIncomeStatement returns annual income statements.
+func (c *Client) GetIncomeStatement(ctx context.Context, symbol string, limit int) (json.RawMessage, error) {
+	params := url.Values{"symbol": {symbol}, "period": {"annual"}, "limit": {strconv.Itoa(limit)}}
+	return c.fetchJSON(ctx, "/stable/income-statement", params)
+}
+
+// GetBalanceSheet returns annual balance sheets.
+func (c *Client) GetBalanceSheet(ctx context.Context, symbol string, limit int) (json.RawMessage, error) {
+	params := url.Values{"symbol": {symbol}, "period": {"annual"}, "limit": {strconv.Itoa(limit)}}
+	return c.fetchJSON(ctx, "/stable/balance-sheet-statement", params)
+}
+
+// GetCashFlow returns annual cash flow statements.
+func (c *Client) GetCashFlow(ctx context.Context, symbol string, limit int) (json.RawMessage, error) {
+	params := url.Values{"symbol": {symbol}, "period": {"annual"}, "limit": {strconv.Itoa(limit)}}
+	return c.fetchJSON(ctx, "/stable/cash-flow-statement", params)
+}
+
+// GetAnalystEstimates returns forward analyst estimates.
+func (c *Client) GetAnalystEstimates(ctx context.Context, symbol string, limit int) (json.RawMessage, error) {
+	params := url.Values{"symbol": {symbol}, "period": {"annual"}, "limit": {strconv.Itoa(limit)}}
+	return c.fetchJSON(ctx, "/stable/analyst-estimates", params)
+}
+
 // Category represents a news feed type.
 type Category string
 

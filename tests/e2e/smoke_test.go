@@ -193,6 +193,50 @@ func TestSmoke_NewsAPI(t *testing.T) {
 	}
 }
 
+func TestSmoke_SecurityProfile(t *testing.T) {
+	resp := get(t, "/api/security/AAPL/profile")
+	defer resp.Body.Close()
+	assertStatus(t, resp, 200)
+
+	var data []map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&data)
+	if len(data) == 0 {
+		t.Fatal("expected profile data")
+	}
+	if data[0]["companyName"] == nil {
+		t.Error("expected companyName field")
+	}
+}
+
+func TestSmoke_SecurityMetrics(t *testing.T) {
+	resp := get(t, "/api/security/AAPL/metrics")
+	defer resp.Body.Close()
+	assertStatus(t, resp, 200)
+
+	var data map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&data)
+	if data["metrics"] == nil && data["ratios"] == nil {
+		t.Error("expected metrics or ratios data")
+	}
+}
+
+func TestSmoke_SecurityFinancials(t *testing.T) {
+	types := []string{"income", "balance", "cashflow"}
+	for _, typ := range types {
+		t.Run(typ, func(t *testing.T) {
+			resp := get(t, "/api/security/AAPL/financials?type="+typ)
+			defer resp.Body.Close()
+			assertStatus(t, resp, 200)
+		})
+	}
+}
+
+func TestSmoke_SecurityEstimates(t *testing.T) {
+	resp := get(t, "/api/security/AAPL/estimates")
+	defer resp.Body.Close()
+	assertStatus(t, resp, 200)
+}
+
 func TestSmoke_NewsCategories(t *testing.T) {
 	categories := []string{"press-releases", "articles", "stock", "crypto", "forex", "general"}
 	for _, cat := range categories {

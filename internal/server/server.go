@@ -121,6 +121,10 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/news/{category}", s.handleNewsAPI)
 	mux.HandleFunc("GET /api/search", s.handleSearch)
 	mux.HandleFunc("GET /api/chart/eod/{symbol}", s.handleChartEOD)
+	mux.HandleFunc("GET /api/security/{symbol}/profile", s.handleSecurityProfile)
+	mux.HandleFunc("GET /api/security/{symbol}/metrics", s.handleSecurityMetrics)
+	mux.HandleFunc("GET /api/security/{symbol}/financials", s.handleSecurityFinancials)
+	mux.HandleFunc("GET /api/security/{symbol}/estimates", s.handleSecurityEstimates)
 
 	// WebSocket
 	mux.HandleFunc("GET /ws", s.handleWebSocket)
@@ -222,6 +226,79 @@ func (s *Server) handleNewsAPI(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(items)
+}
+
+func (s *Server) handleSecurityProfile(w http.ResponseWriter, r *http.Request) {
+	s.proxyFMP(w, r, func(sym string) (json.RawMessage, error) {
+		return s.news.GetProfile(r.Context(), sym)
+	})
+}
+
+func (s *Server) handleSecurityMetrics(w http.ResponseWriter, r *http.Request) {
+	symbol := r.PathValue("symbol")
+	metrics, err1 := s.news.GetKeyMetrics(r.Context(), symbol)
+	ratios, err2 := s.news.GetRatiosTTM(r.Context(), symbol)
+
+	result := map[string]json.RawMessage{}
+	if err1 == nil {
+		result["metrics"] = metrics
+	}
+	if err2 == nil {
+		result["ratios"] = ratios
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+func (s *Server) handleSecurityFinancials(w http.ResponseWriter, r *http.Request) {
+	symbol := r.PathValue("symbol")
+	typ := r.URL.Query().Get("type")
+	limit := 4
+
+	var data json.RawMessage
+	var err error
+	switch typ {
+	case "income":
+		data, err = s.news.GetIncomeStatement(r.Context(), symbol, limit)
+	case "balance":
+		data, err = s.news.GetBalanceSheet(r.Context(), symbol, limit)
+	case "cashflow":
+		data, err = s.news.GetCashFlow(r.Context(), symbol, limit)
+	default:
+		data, err = s.news.GetIncomeStatement(r.Context(), symbol, limit)
+	}
+
+	if err != nil {
+		s.logger.Error("financials fetch failed", "symbol", symbol, "type", typ, "error", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(data)
+}
+
+func (s *Server) handleSecurityEstimates(w http.ResponseWriter, r *http.Request) {
+	s.proxyFMP(w, r, func(sym string) (json.RawMessage, error) {
+		return s.news.GetAnalystEstimates(r.Context(), sym, 5)
+	})
+}
+
+// proxyFMP is a helper for simple pass-through FMP API handlers.
+func (s *Server) proxyFMP(w http.ResponseWriter, r *http.Request, fetch func(string) (json.RawMessage, error)) {
+	symbol := r.PathValue("symbol")
+	data, err := fetch(symbol)
+	if err != nil {
+		s.logger.Error("fmp proxy failed", "symbol", symbol, "error", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(data)
 }
 
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
