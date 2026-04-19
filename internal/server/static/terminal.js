@@ -12,14 +12,15 @@
     let selectedSecurity = localStorage.getItem('stocktopus-security') || '';
     const commandHistory = [];
     let historyIndex = -1;
+    let newsFilterSecurity = '';
 
     // ── Commands ──
 
     const COMMANDS = {
         watchlist:  { path: '/watchlist',       needsSecurity: false, usage: 'watchlist',           desc: 'real-time price table for tracked securities' },
         graph:      { path: '/stock/{symbol}',  needsSecurity: true,  usage: 'graph <SECURITY>',    desc: 'show stock price chart for SECURITY' },
-        info:       { path: '/stock/{symbol}',  needsSecurity: true,  usage: 'info <SECURITY>',     desc: 'deep-dive company fundamentals for SECURITY' },
-        news:       { path: '/news',            needsSecurity: false, usage: 'news',                desc: 'market news, press releases, and articles' },
+        info:       { path: '/security/{symbol}', needsSecurity: true, usage: 'info <SECURITY>',     desc: 'deep-dive company fundamentals for SECURITY' },
+        news:       { path: '/news',            needsSecurity: false, usage: 'news [SECURITY]',     desc: 'market news — optionally filter by security', optionalSecurity: true },
         screener:   { path: '/screener',        needsSecurity: false, usage: 'screener',            desc: 'filter and scan stocks by criteria' },
         debug:      { path: '/debug',           needsSecurity: false, usage: 'debug',               desc: 'live server log console' },
     };
@@ -49,6 +50,13 @@
             resolved = resolved.toUpperCase();
             path = path.replace('{symbol}', resolved);
             setSecurity(resolved);
+        }
+
+        // Handle optional security (e.g. news MSFT)
+        if (cmd.optionalSecurity && security) {
+            newsFilterSecurity = security.toUpperCase();
+        } else if (cmd.optionalSecurity) {
+            newsFilterSecurity = '';
         }
 
         try {
@@ -239,43 +247,140 @@
 
     // ── News ──
 
+    var NEWS_CATEGORIES = ['press-releases', 'articles', 'stock', 'crypto', 'forex', 'general'];
+
+    var newsCurrentCategory = '';
+    var newsCurrentPage = 0;
+    var newsLoading = false;
+    var newsExhausted = false;
+    var NEWS_PAGE_SIZE = 30;
+
     function initNews() {
         var tabs = document.getElementById('news-tabs');
         if (!tabs) return;
 
         tabs.querySelectorAll('.news-tab').forEach(function (tab) {
             tab.onclick = function () {
+                if (tab.classList.contains('dimmed')) return;
                 tabs.querySelectorAll('.news-tab').forEach(function (t) { t.classList.remove('active'); });
                 tab.classList.add('active');
                 fetchNews(tab.dataset.category);
             };
         });
 
-        // Default: load press-releases
+        // Infinite scroll
+        var container = document.getElementById('news-cards');
+        if (container) {
+            container.addEventListener('scroll', function () {
+                if (newsLoading || newsExhausted) return;
+                var threshold = container.scrollHeight - container.scrollTop - container.clientHeight;
+                if (threshold < 200) {
+                    fetchNewsNextPage();
+                }
+            });
+        }
+
+        // If filtering by security, probe all tabs for results to dim empty ones
+        if (newsFilterSecurity) {
+            probeNewsTabs();
+        }
+
+        // Default: load first tab
         fetchNews('press-releases');
     }
 
+    function probeNewsTabs() {
+        var tabs = document.getElementById('news-tabs');
+        if (!tabs) return;
+
+        NEWS_CATEGORIES.forEach(function (cat) {
+            var tab = tabs.querySelector('[data-category="' + cat + '"]');
+            if (!tab) return;
+
+            var params = 'limit=1';
+            if (newsFilterSecurity) {
+                params += '&symbol=' + encodeURIComponent(newsFilterSecurity);
+            }
+
+            fetch('/api/news/' + cat + '?' + params)
+                .then(function (r) { return r.json(); })
+                .then(function (items) {
+                    if (!items || items.length === 0) {
+                        tab.classList.add('dimmed');
+                    } else {
+                        tab.classList.remove('dimmed');
+                    }
+                })
+                .catch(function () {
+                    tab.classList.add('dimmed');
+                });
+        });
+    }
+
     function fetchNews(category) {
+        newsCurrentCategory = category;
+        newsCurrentPage = 0;
+        newsLoading = false;
+        newsExhausted = false;
+
         var container = document.getElementById('news-cards');
         if (!container) return;
         container.innerHTML = '<p class="empty-state">Loading...</p>';
 
-        var params = 'limit=30';
-        if (category === 'press-releases' && selectedSecurity) {
-            params += '&symbol=' + encodeURIComponent(selectedSecurity);
+        fetchNewsPage(category, 0, function (items) {
+            if (!items || items.length === 0) {
+                container.innerHTML = '<p class="empty-state">No news available</p>';
+                newsExhausted = true;
+                return;
+            }
+            container.innerHTML = items.map(renderNewsCard).join('');
+            if (items.length < NEWS_PAGE_SIZE) newsExhausted = true;
+        });
+    }
+
+    function fetchNewsNextPage() {
+        if (newsLoading || newsExhausted || !newsCurrentCategory) return;
+        newsCurrentPage++;
+
+        var container = document.getElementById('news-cards');
+        if (!container) return;
+
+        // Add loading indicator at bottom
+        var loader = document.createElement('div');
+        loader.className = 'news-loader';
+        loader.id = 'news-loader';
+        loader.textContent = 'Loading more...';
+        container.appendChild(loader);
+
+        fetchNewsPage(newsCurrentCategory, newsCurrentPage, function (items) {
+            var el = document.getElementById('news-loader');
+            if (el) el.remove();
+
+            if (!items || items.length === 0) {
+                newsExhausted = true;
+                return;
+            }
+            container.insertAdjacentHTML('beforeend', items.map(renderNewsCard).join(''));
+            if (items.length < NEWS_PAGE_SIZE) newsExhausted = true;
+        });
+    }
+
+    function fetchNewsPage(category, page, callback) {
+        newsLoading = true;
+        var params = 'limit=' + NEWS_PAGE_SIZE + '&page=' + page;
+        if (newsFilterSecurity) {
+            params += '&symbol=' + encodeURIComponent(newsFilterSecurity);
         }
 
         fetch('/api/news/' + category + '?' + params)
             .then(function (resp) { return resp.json(); })
             .then(function (items) {
-                if (!items || items.length === 0) {
-                    container.innerHTML = '<p class="empty-state">No news available</p>';
-                    return;
-                }
-                container.innerHTML = items.map(renderNewsCard).join('');
+                newsLoading = false;
+                callback(items);
             })
             .catch(function (err) {
-                container.innerHTML = '<p class="empty-state">Failed to load news: ' + err.message + '</p>';
+                newsLoading = false;
+                callback([]);
             });
     }
 
@@ -323,17 +428,15 @@
         if (selectedSecurity) input.value = selectedSecurity;
 
         input.addEventListener('input', function () {
-            const query = input.value.trim().toUpperCase();
+            const query = input.value.trim();
             if (!query) {
                 dropdown.classList.add('hidden');
                 return;
             }
-            // Filter from subscribed securities
-            const matches = Array.from(subscribedSecurities).filter(function (s) {
-                return s.startsWith(query);
+            searchSecurities(query, function (results) {
+                renderSecurityDropdown(results, dropdown);
+                dropdownIndex = -1;
             });
-            renderSecurityDropdown(matches, dropdown);
-            dropdownIndex = -1;
         });
 
         input.addEventListener('keydown', function (e) {
@@ -350,7 +453,7 @@
             } else if (e.key === 'Enter') {
                 e.preventDefault();
                 if (dropdownIndex >= 0 && items[dropdownIndex]) {
-                    selectSecurity(items[dropdownIndex].textContent);
+                    selectSecurity(items[dropdownIndex].dataset.symbol);
                 } else {
                     const sec = input.value.trim().toUpperCase();
                     if (sec) selectSecurity(sec);
@@ -376,20 +479,36 @@
         }
     }
 
-    function renderSecurityDropdown(items, dropdown) {
-        if (items.length === 0) {
+    var searchTimer = null;
+
+    function searchSecurities(query, callback) {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(function () {
+            fetch('/api/search?q=' + encodeURIComponent(query))
+                .then(function (r) { return r.json(); })
+                .then(callback)
+                .catch(function () { callback([]); });
+        }, 200);
+    }
+
+    function renderSecurityDropdown(results, dropdown) {
+        if (!results || results.length === 0) {
             dropdown.classList.add('hidden');
             return;
         }
-        dropdown.innerHTML = items.map(function (s) {
-            return '<div class="security-option">' + s + '</div>';
+        dropdown.innerHTML = results.map(function (r) {
+            return '<div class="security-option" data-symbol="' + escapeHtml(r.symbol) + '">'
+                + '<span class="sec-sym">' + escapeHtml(r.symbol) + '</span>'
+                + '<span class="sec-name">' + escapeHtml(r.name) + '</span>'
+                + '<span class="sec-exchange">' + escapeHtml(r.exchange) + '</span>'
+                + '</div>';
         }).join('');
         dropdown.classList.remove('hidden');
 
         dropdown.querySelectorAll('.security-option').forEach(function (el) {
             el.onmousedown = function (e) {
                 e.preventDefault();
-                selectSecurity(el.textContent);
+                selectSecurity(el.dataset.symbol);
                 dropdown.classList.add('hidden');
             };
         });
@@ -436,15 +555,31 @@
             } else if (e.key === 'Tab' && !dropdown.classList.contains('hidden')) {
                 e.preventDefault();
                 if (cmdDropdownIndex >= 0 && items[cmdDropdownIndex]) {
-                    acceptCmdCompletion(items[cmdDropdownIndex].dataset.cmd);
+                    var item = items[cmdDropdownIndex];
+                    if (item.dataset.symbol) {
+                        input.value = item.dataset.cmd + ' ' + item.dataset.symbol;
+                    } else {
+                        acceptCmdCompletion(item.dataset.cmd);
+                    }
                 } else if (items.length === 1) {
                     acceptCmdCompletion(items[0].dataset.cmd);
                 }
             } else if (e.key === 'Enter') {
                 e.preventDefault();
-                // If dropdown is visible and an item is highlighted, complete it first
+                // If dropdown is visible and a security result is highlighted, execute it
                 if (!dropdown.classList.contains('hidden') && cmdDropdownIndex >= 0 && items[cmdDropdownIndex]) {
-                    acceptCmdCompletion(items[cmdDropdownIndex].dataset.cmd);
+                    var item = items[cmdDropdownIndex];
+                    if (item.dataset.symbol) {
+                        hideCmdDropdown();
+                        commandHistory.push(item.dataset.cmd + ' ' + item.dataset.symbol);
+                        historyIndex = commandHistory.length;
+                        input.value = '';
+                        setSecurity(item.dataset.symbol);
+                        onViewLeave(currentView);
+                        navigate(item.dataset.cmd, item.dataset.symbol);
+                        return;
+                    }
+                    acceptCmdCompletion(item.dataset.cmd);
                     return;
                 }
                 hideCmdDropdown();
@@ -456,6 +591,14 @@
                 input.value = '';
 
                 const parsed = parseCommand(raw);
+                // If command not recognized, treat input as a security and go to info
+                if (!COMMANDS[parsed.command]) {
+                    var sec = raw.toUpperCase();
+                    setSecurity(sec);
+                    onViewLeave(currentView);
+                    navigate('info', sec);
+                    return;
+                }
                 const security = parsed.args[0] || '';
                 onViewLeave(currentView);
                 navigate(parsed.command, security);
@@ -536,12 +679,66 @@
     }
 
     function filterAndShowCommands(value) {
-        var raw = value.trim().toLowerCase();
-        var cmdPart = raw.split(/\s+/)[0];
+        var raw = value.trim();
+        var parts = raw.split(/\s+/);
+        var cmdPart = parts[0].toLowerCase();
+
+        // If we have a recognized command that accepts a security and there's a space,
+        // switch to security autocomplete in the command dropdown
+        var cmd = COMMANDS[cmdPart];
+        if (parts.length >= 2 && cmd && (cmd.needsSecurity || cmd.optionalSecurity)) {
+            var secQuery = parts.slice(1).join(' ');
+            if (secQuery) {
+                searchSecurities(secQuery, function (results) {
+                    renderCmdSecurityDropdown(results, cmdPart);
+                });
+            } else {
+                hideCmdDropdown();
+            }
+            return;
+        }
+
         var matches = Object.keys(COMMANDS).filter(function (name) {
             return !cmdPart || name.startsWith(cmdPart);
         });
+
+        // If no commands match, fall back to security search
+        if (matches.length === 0 && cmdPart) {
+            searchSecurities(raw, function (results) {
+                renderCmdSecurityDropdown(results, 'info');
+            });
+            return;
+        }
+
         renderCmdDropdown(matches);
+    }
+
+    function renderCmdSecurityDropdown(results, cmdName) {
+        var dropdown = document.getElementById('cmd-dropdown');
+        if (!results || results.length === 0) {
+            hideCmdDropdown();
+            return;
+        }
+        dropdown.innerHTML = results.map(function (r) {
+            return '<div class="cmd-option cmd-security-option" data-cmd="' + cmdName + '" data-symbol="' + escapeHtml(r.symbol) + '">'
+                + '<span class="cmd-option-usage">' + escapeHtml(r.symbol) + '</span>'
+                + '<span class="cmd-option-desc">' + escapeHtml(r.name) + ' · ' + escapeHtml(r.exchange) + '</span>'
+                + '</div>';
+        }).join('');
+        dropdown.classList.remove('hidden');
+        cmdDropdownIndex = -1;
+
+        dropdown.querySelectorAll('.cmd-security-option').forEach(function (el) {
+            el.onmousedown = function (e) {
+                e.preventDefault();
+                var input = document.getElementById('cmd-input');
+                hideCmdDropdown();
+                setSecurity(el.dataset.symbol);
+                onViewLeave(currentView);
+                navigate(el.dataset.cmd, el.dataset.symbol);
+                input.value = '';
+            };
+        });
     }
 
     // ── Keyboard Shortcuts ──
