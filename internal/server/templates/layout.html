@@ -24,8 +24,9 @@
         {{template "content" .}}
     </main>
     <footer class="terminal-footer">
+        <span id="vim-mode" class="footer-mode">NORMAL</span>
         <span id="current-view" class="footer-view">{{.Active}}</span>
-        <span class="footer-help">/ or Esc to focus command bar</span>
+        <span class="footer-help">/ cmd &middot; s security &middot; hjkl nav &middot; : chart cmd</span>
         <div id="clock" class="footer-clocks"></div>
     </footer>
     <script src="/static/terminal.js"></script>

@@ -9,6 +9,11 @@
     var symbol = container.dataset.symbol;
     if (!symbol) return;
 
+    // ── Persisted Range ──
+
+    var RANGE_KEY = 'stocktopus-chart-range';
+    var defaultRange = localStorage.getItem(RANGE_KEY) || '1M';
+
     // ── Create Chart ──
 
     var chart = LightweightCharts.createChart(container, {
@@ -40,6 +45,9 @@
         handleScale: true,
     });
 
+    // Expose chart for vim keybindings
+    window._stocktopusChart = chart;
+
     // ── Candlestick Series ──
 
     var candleSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
@@ -64,16 +72,33 @@
 
     // ── Range Buttons ──
 
+    function setActiveRangeBtn(range) {
+        var rangeBar = document.getElementById('chart-range-bar');
+        if (!rangeBar) return;
+        rangeBar.querySelectorAll('.chart-range-btn').forEach(function (b) {
+            b.classList.toggle('active', b.dataset.range === range);
+        });
+    }
+
     var rangeBar = document.getElementById('chart-range-bar');
     if (rangeBar) {
         rangeBar.querySelectorAll('.chart-range-btn').forEach(function (btn) {
             btn.onclick = function () {
-                rangeBar.querySelectorAll('.chart-range-btn').forEach(function (b) { b.classList.remove('active'); });
-                btn.classList.add('active');
-                loadRange(btn.dataset.range);
+                setRange(btn.dataset.range);
             };
         });
     }
+
+    // ── Set Range (callable from vim : commands) ──
+
+    function setRange(range) {
+        localStorage.setItem(RANGE_KEY, range);
+        setActiveRangeBtn(range);
+        loadRange(range);
+    }
+
+    // Expose for vim : commands
+    window._stocktopusSetRange = setRange;
 
     // ── Data Loading ──
 
@@ -130,7 +155,8 @@
     window.addEventListener('resize', resizeChart);
     resizeChart();
 
-    // ── Default Load ──
+    // ── Default Load (from persisted range) ──
 
-    loadRange('1M');
+    setActiveRangeBtn(defaultRange);
+    loadRange(defaultRange);
 })();

@@ -1,68 +1,108 @@
 # Stocktopus
-A console-based application that continuously scans for stocks meeting user-defined criteria, displaying a live, real-time list directly in your terminal.
 
-## Core Features
-- Live Terminal UI: A clean, responsive interface built with Bubble Tea that updates in real-time without flicker.
-- Dynamic Screening with Lua: Define your own complex, stateful screening logic using simple Lua scripts. Test new strategies without ever needing to recompile the application.
-- Concurrent & Efficient: Fetches data for multiple stocks concurrently using Go's lightweight goroutines to minimize latency and ensure a responsive experience.
-- Provider-Agnostic Architecture: Built with a clean, interface-based architecture that allows for multiple market data providers to be easily integrated or swapped out.
+A Bloomberg terminal-inspired stock monitoring web app with real-time quotes, news feeds, candlestick charts, and vim-style keyboard navigation.
 
-# Project Architecture
-The application is designed as a set of decoupled components, orchestrated by a central engine. This separation of concerns makes the system highly testable and extensible. The architecture is visualized in the diagram below.
+## Features
 
-## Core Engine (internal/engine)
+- **Command Bar**: Type commands like `graph AAPL`, `news MSFT`, `watchlist` to navigate. Autocomplete for both commands and securities (searches by ticker and company name).
+- **Real-Time Watchlist**: Subscribe to securities and get live quote updates via WebSocket with flash animations on price changes.
+- **Candlestick Charts**: Professional OHLCV charts powered by TradingView Lightweight Charts with 1W/1M/3M/6M range selectors and volume overlay.
+- **News Feed**: Six categories (Press Releases, Articles, Stock, Crypto, Forex, General) with security filtering, tabbed interface, and infinite scroll.
+- **Security Search**: FMP-powered search by ticker and company name, available in both the command bar and security selector.
+- **Vim Keybindings**: Modal navigation (Normal/Insert) with `hjkl` movement, number keys for tab switching, `:` commands for chart ranges. Vimium-compatible.
+- **Multi-Timezone Clocks**: ET, UTC, UK, and JST times in the footer for market awareness.
 
-The Engine is the heart of the application. It maintains the state of each tracked stock (e.g., the previous tick's data) and runs the main loop, coordinating data fetching, screening, and UI updates at a configurable interval.
+## Architecture
 
-## Provider Model (internal/provider)
-To decouple the application from any single data source, we use a StockProvider interface. Any data provider (Polygon.io, Alpha Vantage, or a mock for testing) can be used as long as it satisfies this interface. This makes testing trivial and allows for future expansion.
-
-## Lua Scripting VM (internal/vm)
-This is the "brain" of the screener. Instead of hardcoding filter logic, the Engine passes stock data to an embedded Lua virtual machine. The VM executes a user-provided screener.lua script, which returns a simple true or false to determine if a stock should be displayed. This provides ultimate flexibility.
-
-## Terminal UI (internal/tui)
-The user interface is a responsive, real-time dashboard built using the excellent Bubble Tea framework. It receives a list of matching stocks from the Engine and renders them to the terminal, handling all display logic, layouts, and color-coding.
-
-# Architecture Diagram
 ```mermaid
 graph TD
-    subgraph "1 Setup & Configuration"
-        A["User starts app via terminal"] --> B("`main.go`");
-        C("config.yaml") -- "Is loaded by" --> D["`config.Load()`"];
+    subgraph "Client (Browser)"
+        UI["Terminal UI<br/>Command Bar + Views"]
+        WS["WebSocket Client"]
+        LC["Lightweight Charts"]
     end
-    subgraph "2 Application"
-        B -- "Wires up components" --> E["`app.Run()`"];
-        D -- "Provides settings" --> E;
-        E -- "Initializes and runs" --> F["TUI (Bubble Tea)"];
-        E -- "Initializes and runs" --> G["Core Engine"];
+
+    subgraph "Server (Go)"
+        SRV["HTTP Server<br/>net/http + ServeMux"]
+        HUB["Hub<br/>Pub/Sub WebSocket"]
+        POLL["Poller<br/>Demand-based quotes"]
+        NEWS["News Client<br/>FMP stable API"]
     end
-    subgraph "3 Live Data Loop (Concurrent)"
-        G -- "Manages" --> H["`state&#10;(map of previous ticks)`"];
-        G -- "Triggers every X secs" --> I("Ticker Goroutine");
-        I --> J("Worker Goroutines");
-        J -- "Use interface" --> K("StockProvider");
-        K --> L["Polygon.io API"];
-        L -- "Returns data" --> J;
-        J -- "Sends results via Go Channel" --> G;
+
+    subgraph "External"
+        FMP["Financial Modeling Prep<br/>Quotes, News, Search, EOD"]
     end
-    subgraph "4 Screening Logic"
-        G -- "For each stock, sends data to" --> M["Lua VM (gopher-lua)"];
-        N("screener.lua") -- "Is loaded and executed by" --> M;
-        M -- "Returns true/false" --> G;
-    end
-    subgraph "5 Output"
-        G -- "Sends matching stocks to" --> F;
-        F -- "Renders list to" --> O["User's Terminal Screen"];
-    end
+
+    UI -- "SPA fragment fetch" --> SRV
+    WS -- "subscribe/unsubscribe" --> HUB
+    HUB -- "quote updates" --> WS
+    HUB -- "first subscriber" --> POLL
+    POLL -- "GetQuotes" --> FMP
+    SRV -- "news, search, chart" --> NEWS
+    NEWS --> FMP
+    LC -- "/api/chart/eod" --> SRV
 ```
-# Getting Started
-## Prerequisites
-Go 1.22 or later
-##Installation & Usage
-Clone the repository:
-Bash
+
+## Project Structure
+
+```
+cmd/stocktopus/          # Entry point
+internal/
+  hub/                   # WebSocket pub-sub hub
+  news/                  # FMP news, search, and chart data client
+  poller/                # Demand-based quote poller
+  provider/              # StockProvider interface + implementations (FMP, Polygon, AlphaVantage)
+  server/                # HTTP server, routes, templates, static assets
+  model/                 # Data models (Quote, NewsItem, OHLCV)
+tests/
+  e2e/                   # E2E smoke tests (build tag: e2e)
+  contract/              # Provider contract tests
+worklog/                 # Development notes
+```
+
+## Getting Started
+
+### Prerequisites
+- Go 1.23+
+- [FMP API key](https://financialmodelingprep.com/) (set as `STOCK_API_KEY` env var)
+
+### Run
 ```bash
 git clone https://github.com/binarypath/stocktopus.git
 cd stocktopus
-(Instructions to be added)
+export STOCK_API_KEY=your_api_key
+make dev
 ```
+
+Open `http://localhost:8080` in your browser.
+
+### Commands
+```
+make build    # Build to bin/stocktopus
+make dev      # Build and run
+make test     # Unit tests
+make smoke    # E2E smoke tests (requires STOCK_API_KEY)
+make clean    # Remove bin/
+```
+
+## Keyboard Reference
+
+| Key | Mode | Action |
+|-----|------|--------|
+| `Esc` | Insert | Return to Normal mode |
+| `Esc` | Normal | Focus command bar (Insert) |
+| `/` | Normal | Focus command bar |
+| `s` | Normal | Focus security selector |
+| `:` | Normal | Chart command mode (`:1w`, `:1m`, `:3m`, `:6m`) |
+| `h/j/k/l` | Normal | Navigate (view-dependent) |
+| `Enter` | Normal | Activate selection |
+| `g` | Normal | Go to graph for selected security (watchlist) |
+| `1-6` | Normal | Jump to news tab by number |
+
+## Data Provider
+
+Uses [Financial Modeling Prep](https://financialmodelingprep.com/) stable API for:
+- Real-time quotes (`/stable/quote`, `/stable/batch-quote`)
+- Historical EOD data (`/stable/historical-price-eod/full`)
+- News across 6 categories (`/stable/news/*`)
+- Security search by ticker and name (`/stable/search-symbol`, `/stable/search-name`)
