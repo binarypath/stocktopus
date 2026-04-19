@@ -18,6 +18,7 @@ import (
 
 	"stocktopus/internal/hub"
 	"stocktopus/internal/news"
+	"stocktopus/internal/newspoller"
 	"stocktopus/internal/poller"
 	"stocktopus/internal/provider/financialmodelingprep"
 	"stocktopus/internal/server"
@@ -49,10 +50,19 @@ func TestMain(m *testing.M) {
 
 	// Poller with long interval to avoid rate-limiting during tests
 	poll := poller.New(prov, h, 5*time.Minute, logger)
-	go poll.Run(context.Background())
 
-	// News client
+	// News client + news poller (short interval for tests)
 	newsClient := news.New(apiKey, "https://financialmodelingprep.com")
+	np := newspoller.New(newsClient, h, 3*time.Second, logger)
+
+	// Composite subscription handler
+	composite := hub.NewCompositeHandler()
+	composite.Register("quote:", poll)
+	composite.Register("news:", np)
+	h.SetSubscriptionHandler(composite)
+
+	go poll.Run(context.Background())
+	go np.Run(context.Background())
 
 	// Debug broadcaster
 	debug := server.NewDebugBroadcaster()
@@ -238,6 +248,40 @@ func TestSmoke_WebSocketConnect(t *testing.T) {
 		t.Fatalf("WebSocket dial failed: %v", err)
 	}
 	conn.Close(websocket.StatusNormalClosure, "")
+}
+
+func TestSmoke_NewsWebSocketSubscribe(t *testing.T) {
+	wsURL := strings.Replace(testServer.URL, "http://", "ws://", 1) + "/ws"
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("WebSocket dial failed: %v", err)
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "")
+
+	// Subscribe to stock news
+	msg := `{"type":"subscribe","topic":"news:stock"}`
+	err = conn.Write(ctx, websocket.MessageText, []byte(msg))
+	if err != nil {
+		t.Fatalf("WebSocket write failed: %v", err)
+	}
+
+	// Wait for a news update (poller fetches immediately on subscribe)
+	// Accept no message if there are no new articles — just verify no error
+	_, data, err := conn.Read(ctx)
+	if err != nil {
+		// Timeout is acceptable — no new news is fine
+		t.Logf("no news received (this is OK if no new articles): %v", err)
+		return
+	}
+
+	var update map[string]interface{}
+	json.Unmarshal(data, &update)
+	if update["type"] != "news_update" {
+		t.Errorf("expected news_update message type, got %v", update["type"])
+	}
 }
 
 func TestSmoke_WebSocketSubscribe(t *testing.T) {

@@ -474,15 +474,28 @@ body {
 .news-card {
     background: var(--bg-secondary);
     border: 1px solid var(--border);
+    border-left: 3px solid transparent;
     border-radius: 4px;
     padding: 12px 14px;
     display: flex;
     flex-direction: column;
     gap: 6px;
+    opacity: 0.6;
 }
 
 .news-card:hover {
     border-color: var(--text-muted);
+    border-left-color: var(--text-muted);
+    opacity: 0.8;
+}
+
+.news-card.news-unread {
+    border-left-color: var(--orange);
+    opacity: 1;
+}
+
+.news-card.news-unread .news-card-title a {
+    color: var(--orange);
 }
 
 .news-card-title {
@@ -520,6 +533,26 @@ body {
     display: -webkit-box;
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
+}
+
+.spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--border);
+    border-top-color: var(--orange);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-left: 6px;
+}
+
+.spinner.hidden {
+    display: none;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 
 .news-loader {
