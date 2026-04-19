@@ -105,6 +105,11 @@ func (s *Server) loadTemplates() error {
 	return nil
 }
 
+// ExportRoutes registers all routes on the given mux. Used by tests.
+func (s *Server) ExportRoutes(mux *http.ServeMux) {
+	s.registerRoutes(mux)
+}
+
 func (s *Server) registerRoutes(mux *http.ServeMux) {
 	// Static files
 	staticFS := http.FileServer(http.Dir(staticDir()))
