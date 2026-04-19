@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stocktopus/internal/hub"
+	"stocktopus/internal/news"
 	"stocktopus/internal/poller"
 	"stocktopus/internal/provider"
 	"stocktopus/internal/provider/alphavantage"
@@ -64,7 +65,10 @@ func main() {
 	go poll.Run(appCtx)
 
 	// Server
-	srv, err := server.New(server.Config{Port: 8080, Host: "localhost"}, h, debug, logger)
+	// News client
+	newsClient := news.New(apiKey, "https://financialmodelingprep.com")
+
+	srv, err := server.New(server.Config{Port: 8080, Host: "localhost"}, h, debug, poll, newsClient, logger)
 	if err != nil {
 		slog.Error("failed to create server", "error", err)
 		os.Exit(1)

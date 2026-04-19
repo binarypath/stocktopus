@@ -8,9 +8,11 @@ import (
 	"log/slog"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"stocktopus/internal/hub"
+	"stocktopus/internal/news"
 )
 
 type Config struct {
@@ -30,6 +32,11 @@ func (c Config) Addr() string {
 	return fmt.Sprintf("%s:%d", host, port)
 }
 
+// SymbolLister returns the symbols currently being tracked.
+type SymbolLister interface {
+	ActiveSymbols() []string
+}
+
 type Server struct {
 	config     Config
 	logger     *slog.Logger
@@ -37,14 +44,18 @@ type Server struct {
 	pages      map[string]*template.Template
 	hub        *hub.Hub
 	debug      *DebugBroadcaster
+	symbols    SymbolLister
+	news       *news.Client
 }
 
-func New(cfg Config, h *hub.Hub, debug *DebugBroadcaster, logger *slog.Logger) (*Server, error) {
+func New(cfg Config, h *hub.Hub, debug *DebugBroadcaster, symbols SymbolLister, newsClient *news.Client, logger *slog.Logger) (*Server, error) {
 	s := &Server{
-		config: cfg,
-		logger: logger,
-		hub:    h,
-		debug:  debug,
+		config:  cfg,
+		logger:  logger,
+		hub:     h,
+		debug:   debug,
+		symbols: symbols,
+		news:    newsClient,
 	}
 
 	if err := s.loadTemplates(); err != nil {
@@ -82,7 +93,7 @@ func (s *Server) loadTemplates() error {
 	layoutPath := filepath.Join(templatesDir(), "layout.html")
 	s.pages = make(map[string]*template.Template)
 
-	pageNames := []string{"watchlist", "stock", "screener", "feed", "debug"}
+	pageNames := []string{"watchlist", "stock", "screener", "feed", "debug", "news"}
 	for _, page := range pageNames {
 		pagePath := filepath.Join(templatesDir(), page+".html")
 		t, err := template.ParseFiles(layoutPath, pagePath)
@@ -101,6 +112,8 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 
 	// API
 	mux.HandleFunc("GET /api/health", s.handleHealth)
+	mux.HandleFunc("GET /api/symbols", s.handleSymbols)
+	mux.HandleFunc("GET /api/news/{category}", s.handleNewsAPI)
 
 	// WebSocket
 	mux.HandleFunc("GET /ws", s.handleWebSocket)
@@ -112,6 +125,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /stock/{symbol}", s.handleStock)
 	mux.HandleFunc("GET /screener", s.handleScreener)
 	mux.HandleFunc("GET /feed", s.handleFeed)
+	mux.HandleFunc("GET /news", s.handleNews)
 	mux.HandleFunc("GET /debug", s.handleDebug)
 }
 
@@ -128,7 +142,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleWatchlist(w http.ResponseWriter, r *http.Request) {
-	s.renderPage(w, "watchlist.html", map[string]any{
+	s.renderPage(w, r, "watchlist.html", map[string]any{
 		"Title":  "Watchlist",
 		"Active": "watchlist",
 	})
@@ -136,36 +150,91 @@ func (s *Server) handleWatchlist(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleStock(w http.ResponseWriter, r *http.Request) {
 	symbol := r.PathValue("symbol")
-	s.renderPage(w, "stock.html", map[string]any{
+	s.renderPage(w, r, "stock.html", map[string]any{
 		"Title":  symbol,
-		"Active": "stock",
+		"Active": "graph",
 		"Symbol": symbol,
 	})
 }
 
 func (s *Server) handleScreener(w http.ResponseWriter, r *http.Request) {
-	s.renderPage(w, "screener.html", map[string]any{
+	s.renderPage(w, r, "screener.html", map[string]any{
 		"Title":  "Screener",
 		"Active": "screener",
 	})
 }
 
 func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
-	s.renderPage(w, "feed.html", map[string]any{
+	s.renderPage(w, r, "feed.html", map[string]any{
 		"Title":  "Feed",
 		"Active": "feed",
 	})
 }
 
-func (s *Server) renderPage(w http.ResponseWriter, name string, data map[string]any) {
+func (s *Server) handleNews(w http.ResponseWriter, r *http.Request) {
+	s.renderPage(w, r, "news.html", map[string]any{
+		"Title":  "News",
+		"Active": "news",
+	})
+}
+
+func (s *Server) handleNewsAPI(w http.ResponseWriter, r *http.Request) {
+	cat := news.Category(r.PathValue("category"))
+	symbol := r.URL.Query().Get("symbol")
+	limit := 20
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if n, err := strconv.Atoi(l); err == nil && n > 0 && n <= 100 {
+			limit = n
+		}
+	}
+	page := 0
+	if p := r.URL.Query().Get("page"); p != "" {
+		if n, err := strconv.Atoi(p); err == nil && n >= 0 {
+			page = n
+		}
+	}
+
+	items, err := s.news.GetNews(r.Context(), cat, symbol, page, limit)
+	if err != nil {
+		s.logger.Error("news fetch failed", "category", cat, "error", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(items)
+}
+
+func (s *Server) handleSymbols(w http.ResponseWriter, r *http.Request) {
+	var syms []string
+	if s.symbols != nil {
+		syms = s.symbols.ActiveSymbols()
+	}
+	if syms == nil {
+		syms = []string{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(syms)
+}
+
+func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, name string, data map[string]any) {
 	t, ok := s.pages[name]
 	if !ok {
 		s.logger.Error("template not found", "template", name)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+
+	// Fragment mode: return only the content block for SPA navigation
+	templateName := "layout"
+	if r.Header.Get("X-Fragment") == "true" {
+		templateName = "content"
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := t.ExecuteTemplate(w, "layout", data); err != nil {
+	if err := t.ExecuteTemplate(w, templateName, data); err != nil {
 		s.logger.Error("template render failed", "template", name, "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}

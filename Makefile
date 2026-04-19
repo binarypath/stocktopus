@@ -1,7 +1,7 @@
 .PHONY: dev build test clean
 
-dev:
-	go run ./cmd/stocktopus
+dev: build
+	./bin/stocktopus
 
 build:
 	go build -o bin/stocktopus ./cmd/stocktopus

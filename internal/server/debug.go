@@ -88,7 +88,7 @@ func (db *DebugBroadcaster) removeClient(conn *websocket.Conn) {
 
 func (s *Server) handleDebug(w http.ResponseWriter, r *http.Request) {
 	entries := s.debug.RecentEntries()
-	s.renderPage(w, "debug.html", map[string]any{
+	s.renderPage(w, r, "debug.html", map[string]any{
 		"Title":   "Debug Console",
 		"Active":  "debug",
 		"Entries": entries,

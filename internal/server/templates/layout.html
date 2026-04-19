@@ -4,23 +4,30 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stocktopus — {{.Title}}</title>
-    <script src="/static/htmx.min.js"></script>
-    <script src="/static/htmx-ws.js"></script>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=2">
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-brand">Stocktopus</div>
-        <div class="nav-links">
-            <a href="/watchlist" class="nav-link{{if eq .Active "watchlist"}} active{{end}}">Watchlist</a>
-            <a href="/screener" class="nav-link{{if eq .Active "screener"}} active{{end}}">Screener</a>
-            <a href="/feed" class="nav-link{{if eq .Active "feed"}} active{{end}}">Feed</a>
-            <a href="/debug" class="nav-link{{if eq .Active "debug"}} active{{end}}">Debug</a>
+    <header class="terminal-header">
+        <span class="brand">STOCKTOPUS</span>
+        <div class="cmd-bar">
+            <span class="cmd-prompt">&gt;</span>
+            <input id="cmd-input" class="cmd-input" type="text" placeholder="enter command..." autocomplete="off" spellcheck="false" autofocus>
+            <div id="cmd-dropdown" class="cmd-dropdown hidden"></div>
         </div>
-        <div class="nav-status" id="conn-status">Disconnected</div>
-    </nav>
-    <main class="content">
+        <div class="security-selector">
+            <input id="security-input" class="security-input" type="text" placeholder="SYM" autocomplete="off" spellcheck="false">
+            <div id="security-dropdown" class="security-dropdown hidden"></div>
+        </div>
+        <div id="conn-status" class="conn-status">DISCONNECTED</div>
+    </header>
+    <main id="view-container" class="terminal-content" data-view="{{.Active}}">
         {{template "content" .}}
     </main>
+    <footer class="terminal-footer">
+        <span id="current-view" class="footer-view">{{.Active}}</span>
+        <span class="footer-help">/ or Esc to focus command bar</span>
+        <div id="clock" class="footer-clocks"></div>
+    </footer>
+    <script src="/static/terminal.js"></script>
 </body>
 </html>{{end}}

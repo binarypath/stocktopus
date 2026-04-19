@@ -107,6 +107,11 @@ func (p *Poller) activeSymbols() []string {
 	return symbols
 }
 
+// ActiveSymbols returns the symbols currently being polled (exported for API).
+func (p *Poller) ActiveSymbols() []string {
+	return p.activeSymbols()
+}
+
 func (p *Poller) fetchAndPublish(ctx context.Context, symbols []string) {
 	quotes, err := p.provider.GetQuotes(ctx, symbols)
 	if err != nil {
@@ -152,7 +157,7 @@ type quoteRowData struct {
 	PriceClass    string
 }
 
-const quoteRowTemplate = `<tr id="quote-{{.Symbol}}" hx-swap-oob="true"><td><a href="/stock/{{.Symbol}}">{{.Symbol}}</a></td><td class="{{.PriceClass}}">{{.Price}}</td><td class="{{.PriceClass}}">{{.Change}}</td><td class="{{.PriceClass}}">{{.ChangePercent}}</td><td>{{.Volume}}</td><td>{{.Updated}}</td></tr>`
+const quoteRowTemplate = `<tr id="quote-{{.Symbol}}" hx-swap-oob="true"><td><span class="sym-link" data-symbol="{{.Symbol}}">{{.Symbol}}</span></td><td class="{{.PriceClass}}">{{.Price}}</td><td class="{{.PriceClass}}">{{.Change}}</td><td class="{{.PriceClass}}">{{.ChangePercent}}</td><td>{{.Volume}}</td><td>{{.Updated}}</td></tr>`
 
 func topicToSymbol(topic string) string {
 	if strings.HasPrefix(topic, "quote:") {

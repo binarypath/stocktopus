@@ -2,16 +2,16 @@
 {{define "content"}}
 <div class="page-header">
     <h1>Watchlist</h1>
-    <form id="add-symbol-form" class="add-symbol-form" onsubmit="return addSymbol(event)">
-        <input type="text" id="symbol-input" placeholder="Add symbol (e.g. AAPL)" autocomplete="off" spellcheck="false">
-        <button type="submit">Add</button>
+    <form id="add-security-form" class="add-security-form">
+        <input type="text" id="wl-security-input" placeholder="Add security (e.g. AAPL)" autocomplete="off" spellcheck="false">
+        <button type="submit">+</button>
     </form>
 </div>
 <div class="watchlist">
     <table class="quote-table">
         <thead>
             <tr>
-                <th>Symbol</th>
+                <th>Security</th>
                 <th>Price</th>
                 <th>Change</th>
                 <th>Change %</th>
@@ -22,81 +22,6 @@
         <tbody id="quote-body">
         </tbody>
     </table>
-    <p id="empty-state" class="empty-state">Add symbols to start tracking</p>
+    <p id="empty-state" class="empty-state">Add securities to start tracking</p>
 </div>
-
-<script>
-    let ws;
-    const subscribedSymbols = new Set();
-
-    function connect() {
-        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        ws = new WebSocket(proto + '//' + location.host + '/ws');
-
-        ws.onopen = function() {
-            document.getElementById('conn-status').textContent = 'Connected';
-            document.getElementById('conn-status').classList.add('connected');
-            // Resubscribe on reconnect
-            subscribedSymbols.forEach(sym => {
-                ws.send(JSON.stringify({type: 'subscribe', topic: 'quote:' + sym}));
-            });
-        };
-
-        ws.onclose = function() {
-            document.getElementById('conn-status').textContent = 'Disconnected';
-            document.getElementById('conn-status').classList.remove('connected');
-            setTimeout(connect, 2000);
-        };
-
-        ws.onerror = function() {
-            ws.close();
-        };
-
-        ws.onmessage = function(event) {
-            const msg = JSON.parse(event.data);
-            if (msg.type === 'html' && msg.html) {
-                handleHTMLSwap(msg.html);
-            }
-        };
-    }
-
-    function handleHTMLSwap(html) {
-        const temp = document.createElement('div');
-        temp.innerHTML = html;
-        const row = temp.firstElementChild;
-        if (!row || !row.id) return;
-
-        const existing = document.getElementById(row.id);
-        const tbody = document.getElementById('quote-body');
-
-        if (existing) {
-            // Flash effect on update
-            existing.replaceWith(row);
-            row.classList.add('flash');
-            setTimeout(() => row.classList.remove('flash'), 600);
-        } else {
-            tbody.appendChild(row);
-            document.getElementById('empty-state').style.display = 'none';
-        }
-    }
-
-    function addSymbol(event) {
-        event.preventDefault();
-        const input = document.getElementById('symbol-input');
-        const symbol = input.value.trim().toUpperCase();
-        if (!symbol || subscribedSymbols.has(symbol)) {
-            input.value = '';
-            return false;
-        }
-
-        subscribedSymbols.add(symbol);
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({type: 'subscribe', topic: 'quote:' + symbol}));
-        }
-        input.value = '';
-        return false;
-    }
-
-    connect();
-</script>
 {{end}}
