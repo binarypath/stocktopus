@@ -12,6 +12,96 @@ import (
 	"time"
 )
 
+// SearchResult represents a security from the FMP search API.
+type SearchResult struct {
+	Symbol   string `json:"symbol"`
+	Name     string `json:"name"`
+	Currency string `json:"currency"`
+	Exchange string `json:"exchange"`
+}
+
+// SearchSymbol searches for securities by ticker and company name in parallel,
+// merging and deduplicating the results.
+func (c *Client) SearchSymbol(ctx context.Context, query string, limit int) ([]SearchResult, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+
+	type result struct {
+		items []SearchResult
+		err   error
+	}
+
+	ch := make(chan result, 2)
+
+	// Search by ticker
+	go func() {
+		items, err := c.searchEndpoint(ctx, "/stable/search-symbol", query, limit)
+		ch <- result{items, err}
+	}()
+
+	// Search by name
+	go func() {
+		items, err := c.searchEndpoint(ctx, "/stable/search-name", query, limit)
+		ch <- result{items, err}
+	}()
+
+	seen := make(map[string]bool)
+	var merged []SearchResult
+
+	for i := 0; i < 2; i++ {
+		r := <-ch
+		if r.err != nil {
+			continue
+		}
+		for _, item := range r.items {
+			if !seen[item.Symbol] {
+				seen[item.Symbol] = true
+				merged = append(merged, item)
+			}
+		}
+	}
+
+	if len(merged) > limit {
+		merged = merged[:limit]
+	}
+	return merged, nil
+}
+
+func (c *Client) searchEndpoint(ctx context.Context, endpoint, query string, limit int) ([]SearchResult, error) {
+	params := url.Values{}
+	params.Set("query", query)
+	params.Set("limit", strconv.Itoa(limit))
+	params.Set("apikey", c.apiKey)
+
+	reqURL := c.baseURL + endpoint + "?" + params.Encode()
+	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("search API %d: %s", resp.StatusCode, string(body))
+	}
+
+	var results []SearchResult
+	if err := json.Unmarshal(body, &results); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
 // Category represents a news feed type.
 type Category string
 
@@ -57,13 +147,28 @@ func (c *Client) GetNews(ctx context.Context, cat Category, symbol string, page,
 
 	switch cat {
 	case Stock:
-		endpoint = "/stable/news/stock-latest"
+		if symbol != "" {
+			endpoint = "/stable/news/stock"
+			params.Set("symbols", symbol)
+		} else {
+			endpoint = "/stable/news/stock-latest"
+		}
 		params.Set("page", strconv.Itoa(page))
 	case Crypto:
-		endpoint = "/stable/news/crypto-latest"
+		if symbol != "" {
+			endpoint = "/stable/news/crypto"
+			params.Set("symbols", symbol)
+		} else {
+			endpoint = "/stable/news/crypto-latest"
+		}
 		params.Set("page", strconv.Itoa(page))
 	case Forex:
-		endpoint = "/stable/news/forex-latest"
+		if symbol != "" {
+			endpoint = "/stable/news/forex"
+			params.Set("symbols", symbol)
+		} else {
+			endpoint = "/stable/news/forex-latest"
+		}
 		params.Set("page", strconv.Itoa(page))
 	case General:
 		endpoint = "/stable/news/general-latest"
@@ -71,7 +176,7 @@ func (c *Client) GetNews(ctx context.Context, cat Category, symbol string, page,
 	case PressReleases:
 		endpoint = "/stable/news/press-releases"
 		if symbol != "" {
-			params.Set("symbol", symbol)
+			params.Set("symbols", symbol)
 		}
 		params.Set("page", strconv.Itoa(page))
 	case Articles:

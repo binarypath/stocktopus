@@ -93,7 +93,7 @@ func (s *Server) loadTemplates() error {
 	layoutPath := filepath.Join(templatesDir(), "layout.html")
 	s.pages = make(map[string]*template.Template)
 
-	pageNames := []string{"watchlist", "stock", "screener", "feed", "debug", "news"}
+	pageNames := []string{"watchlist", "stock", "security", "screener", "feed", "debug", "news"}
 	for _, page := range pageNames {
 		pagePath := filepath.Join(templatesDir(), page+".html")
 		t, err := template.ParseFiles(layoutPath, pagePath)
@@ -114,6 +114,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/symbols", s.handleSymbols)
 	mux.HandleFunc("GET /api/news/{category}", s.handleNewsAPI)
+	mux.HandleFunc("GET /api/search", s.handleSearch)
 
 	// WebSocket
 	mux.HandleFunc("GET /ws", s.handleWebSocket)
@@ -123,6 +124,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /{$}", s.handleIndex)
 	mux.HandleFunc("GET /watchlist", s.handleWatchlist)
 	mux.HandleFunc("GET /stock/{symbol}", s.handleStock)
+	mux.HandleFunc("GET /security/{symbol}", s.handleSecurity)
 	mux.HandleFunc("GET /screener", s.handleScreener)
 	mux.HandleFunc("GET /feed", s.handleFeed)
 	mux.HandleFunc("GET /news", s.handleNews)
@@ -153,6 +155,15 @@ func (s *Server) handleStock(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, "stock.html", map[string]any{
 		"Title":  symbol,
 		"Active": "graph",
+		"Symbol": symbol,
+	})
+}
+
+func (s *Server) handleSecurity(w http.ResponseWriter, r *http.Request) {
+	symbol := r.PathValue("symbol")
+	s.renderPage(w, r, "security.html", map[string]any{
+		"Title":  symbol + " — Info",
+		"Active": "info",
 		"Symbol": symbol,
 	})
 }
@@ -205,6 +216,24 @@ func (s *Server) handleNewsAPI(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(items)
+}
+
+func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+	results, err := s.news.SearchSymbol(r.Context(), query, 10)
+	if err != nil {
+		s.logger.Error("search failed", "query", query, "error", err)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
 }
 
 func (s *Server) handleSymbols(w http.ResponseWriter, r *http.Request) {

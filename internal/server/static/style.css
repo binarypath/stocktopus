@@ -169,14 +169,14 @@ body {
     position: absolute;
     top: 100%;
     left: 0;
-    right: 0;
+    min-width: 300px;
     background: var(--bg-secondary);
     border: 1px solid var(--border);
-    border-top: none;
-    border-radius: 0 0 3px 3px;
-    max-height: 200px;
+    border-radius: 0 0 6px 6px;
+    max-height: 250px;
     overflow-y: auto;
     z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
 .security-dropdown.hidden {
@@ -184,16 +184,36 @@ body {
 }
 
 .security-option {
-    padding: 4px 8px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 10px;
     cursor: pointer;
-    color: var(--text-primary);
     font-size: 12px;
 }
 
 .security-option:hover,
 .security-option.active {
     background: var(--bg-tertiary);
+}
+
+.sec-sym {
     color: var(--blue);
+    font-weight: 700;
+    min-width: 70px;
+}
+
+.sec-name {
+    color: var(--text-secondary);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sec-exchange {
+    color: var(--text-muted);
+    font-size: 10px;
 }
 
 /* ── Connection Status ── */
@@ -404,6 +424,12 @@ body {
     background: var(--bg-tertiary);
 }
 
+.news-tab.dimmed {
+    color: var(--text-muted);
+    opacity: 0.4;
+    cursor: default;
+}
+
 .news-cards {
     display: flex;
     flex-direction: column;
@@ -461,6 +487,13 @@ body {
     display: -webkit-box;
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
+}
+
+.news-loader {
+    text-align: center;
+    padding: 12px;
+    color: var(--text-muted);
+    font-size: 12px;
 }
 
 /* ── Stock / Graph View ── */
