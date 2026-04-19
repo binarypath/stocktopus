@@ -110,6 +110,7 @@
     // ── View Lifecycle ──
 
     function onViewEnter(view) {
+        clearVimSelection();
         if (view === 'watchlist') initWatchlist();
         if (view === 'news') initNews();
         if (view === 'debug') initDebug();
@@ -603,6 +604,18 @@
                 const raw = input.value.trim();
                 if (!raw) return;
 
+                // Handle : chart commands (e.g. :1w, :1m, :3m, :6m)
+                if (raw.charAt(0) === ':') {
+                    var chartCmd = raw.substring(1).toLowerCase();
+                    var rangeMap = { '1w': '1W', '1m': '1M', '3m': '3M', '6m': '6M' };
+                    if (rangeMap[chartCmd] && window._stocktopusSetRange) {
+                        window._stocktopusSetRange(rangeMap[chartCmd]);
+                    }
+                    input.value = '';
+                    enterNormalMode();
+                    return;
+                }
+
                 commandHistory.push(raw);
                 historyIndex = commandHistory.length;
                 input.value = '';
@@ -758,34 +771,228 @@
         });
     }
 
-    // ── Keyboard Shortcuts ──
+    // ── Vim Mode ──
 
+    var vimSelectedIndex = -1;
     var securityBeforeEdit = '';
 
-    document.addEventListener('keydown', function (e) {
-        const active = document.activeElement;
-        const isInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
+    function isInsertMode() {
+        var el = document.activeElement;
+        return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+    }
 
-        if (e.key === 'Escape') {
-            // If in security input, restore previous value and return to cmd bar
-            var secInput = document.getElementById('security-input');
-            if (active === secInput) {
-                secInput.value = securityBeforeEdit;
-                document.getElementById('security-dropdown').classList.add('hidden');
-            }
-            document.getElementById('cmd-input').focus();
-            e.preventDefault();
-        } else if (e.key === 's' && !isInput) {
-            e.preventDefault();
-            var secInput = document.getElementById('security-input');
-            securityBeforeEdit = secInput.value;
-            secInput.value = '';
-            secInput.focus();
-        } else if (e.key === '/' && !isInput) {
-            document.getElementById('cmd-input').focus();
-            e.preventDefault();
-        }
+    function enterNormalMode() {
+        if (document.activeElement) document.activeElement.blur();
+        updateModeIndicator();
+    }
+
+    function updateModeIndicator() {
+        var el = document.getElementById('vim-mode');
+        if (!el) return;
+        var mode = isInsertMode() ? 'insert' : 'normal';
+        el.textContent = mode.toUpperCase();
+        el.className = 'footer-mode ' + mode;
+    }
+
+    // Update indicator on focus/blur changes
+    document.addEventListener('focusin', updateModeIndicator);
+    document.addEventListener('focusout', function () {
+        setTimeout(updateModeIndicator, 10);
     });
+
+    function clearVimSelection() {
+        document.querySelectorAll('.vim-selected').forEach(function (el) {
+            el.classList.remove('vim-selected');
+        });
+        vimSelectedIndex = -1;
+    }
+
+    function vimSelect(items, index) {
+        clearVimSelection();
+        if (index < 0 || index >= items.length) return;
+        vimSelectedIndex = index;
+        items[index].classList.add('vim-selected');
+        items[index].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+
+    // ── Per-View Vim Handlers ──
+
+    var vimHandlers = {
+        watchlist: {
+            getItems: function () { return document.querySelectorAll('#quote-body tr'); },
+            move: function (dir) {
+                var items = this.getItems();
+                if (items.length === 0) return;
+                if (dir === 'j') vimSelectedIndex = Math.min(vimSelectedIndex + 1, items.length - 1);
+                else if (dir === 'k') vimSelectedIndex = Math.max(vimSelectedIndex - 1, 0);
+                vimSelect(items, vimSelectedIndex);
+            },
+            activate: function () {
+                var items = this.getItems();
+                if (vimSelectedIndex < 0 || vimSelectedIndex >= items.length) return;
+                var sym = items[vimSelectedIndex].querySelector('[data-symbol]');
+                if (sym) {
+                    setSecurity(sym.dataset.symbol);
+                    onViewLeave(currentView);
+                    navigate('info', sym.dataset.symbol);
+                }
+            },
+            graph: function () {
+                var items = this.getItems();
+                if (vimSelectedIndex < 0 || vimSelectedIndex >= items.length) return;
+                var sym = items[vimSelectedIndex].querySelector('[data-symbol]');
+                if (sym) {
+                    setSecurity(sym.dataset.symbol);
+                    onViewLeave(currentView);
+                    navigate('graph', sym.dataset.symbol);
+                }
+            }
+        },
+        graph: {
+            move: function (dir) {
+                var chart = window._stocktopusChart;
+                if (!chart) return;
+                var ts = chart.timeScale();
+                if (dir === 'h') ts.scrollToPosition(ts.scrollPosition() - 3, false);
+                else if (dir === 'l') ts.scrollToPosition(ts.scrollPosition() + 3, false);
+            },
+            activate: function () {}
+        },
+        news: {
+            getItems: function () { return document.querySelectorAll('#news-cards .news-card'); },
+            getAllTabs: function () { return Array.from(document.querySelectorAll('#news-tabs .news-tab')); },
+            getTabs: function () {
+                return this.getAllTabs().filter(function (t) {
+                    return !t.classList.contains('dimmed');
+                });
+            },
+            move: function (dir) {
+                if (dir === 'h' || dir === 'l') {
+                    // Tab navigation
+                    var tabs = this.getTabs();
+                    if (tabs.length === 0) return;
+                    var activeIdx = tabs.findIndex(function (t) { return t.classList.contains('active'); });
+                    if (dir === 'l') activeIdx = Math.min(activeIdx + 1, tabs.length - 1);
+                    else activeIdx = Math.max(activeIdx - 1, 0);
+                    tabs[activeIdx].click();
+                    clearVimSelection();
+                    return;
+                }
+                // Card navigation
+                var items = this.getItems();
+                if (items.length === 0) return;
+                if (dir === 'j') vimSelectedIndex = Math.min(vimSelectedIndex + 1, items.length - 1);
+                else if (dir === 'k') vimSelectedIndex = Math.max(vimSelectedIndex - 1, 0);
+                vimSelect(items, vimSelectedIndex);
+            },
+            jumpToTab: function (n) {
+                var tabs = this.getAllTabs();
+                if (n < 0 || n >= tabs.length) return;
+                var tab = tabs[n];
+                if (tab.classList.contains('dimmed')) return;
+                tab.click();
+                clearVimSelection();
+            },
+            activate: function () {
+                var items = this.getItems();
+                if (vimSelectedIndex < 0 || vimSelectedIndex >= items.length) return;
+                var link = items[vimSelectedIndex].querySelector('.news-card-title a');
+                if (link) window.open(link.href, '_blank', 'noopener');
+            }
+        },
+        debug: {
+            move: function (dir) {
+                var console = document.getElementById('debug-console');
+                if (!console) return;
+                if (dir === 'j') console.scrollTop += 60;
+                else if (dir === 'k') console.scrollTop -= 60;
+            },
+            activate: function () {}
+        }
+    };
+
+    // ── Global Keydown ──
+
+    // Use capture phase to intercept keys before browser extensions (e.g. Vimium)
+    document.addEventListener('keydown', function (e) {
+        var active = document.activeElement;
+        var insert = isInsertMode();
+
+        // Escape toggles: insert → normal, normal → insert (focus command bar)
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            if (insert) {
+                // If in security input, restore previous value
+                var secInput = document.getElementById('security-input');
+                if (active === secInput) {
+                    secInput.value = securityBeforeEdit;
+                    document.getElementById('security-dropdown').classList.add('hidden');
+                }
+                // If in cmd input, close dropdown
+                if (active === document.getElementById('cmd-input')) {
+                    var dd = document.getElementById('cmd-dropdown');
+                    if (!dd.classList.contains('hidden')) {
+                        hideCmdDropdown();
+                    }
+                }
+                enterNormalMode();
+            } else {
+                // Normal mode: Escape focuses command bar (enter insert)
+                document.getElementById('cmd-input').focus();
+            }
+            return;
+        }
+
+        // In insert mode, let the input handle everything
+        if (insert) return;
+
+        // ── Normal Mode Keys ──
+
+        var handler = vimHandlers[currentView];
+
+        switch (e.key) {
+            case '/':
+                e.preventDefault();
+                document.getElementById('cmd-input').focus();
+                return;
+            case 's':
+                e.preventDefault();
+                var secInput = document.getElementById('security-input');
+                securityBeforeEdit = secInput.value;
+                secInput.value = '';
+                secInput.focus();
+                return;
+            case ':':
+                e.preventDefault();
+                var cmdInput = document.getElementById('cmd-input');
+                cmdInput.value = ':';
+                cmdInput.focus();
+                // Move cursor after the colon
+                cmdInput.setSelectionRange(1, 1);
+                return;
+            case 'h':
+            case 'j':
+            case 'k':
+            case 'l':
+                e.preventDefault();
+                if (handler && handler.move) handler.move(e.key);
+                return;
+            case 'Enter':
+                e.preventDefault();
+                if (handler && handler.activate) handler.activate();
+                return;
+            case 'g':
+                e.preventDefault();
+                if (handler && handler.graph) handler.graph();
+                return;
+            case '1': case '2': case '3': case '4': case '5': case '6':
+                if (handler && handler.jumpToTab) {
+                    e.preventDefault();
+                    handler.jumpToTab(parseInt(e.key) - 1);
+                }
+                return;
+        }
+    }, true); // capture phase — intercepts before Vimium and other extensions
 
     // ── Browser History ──
 

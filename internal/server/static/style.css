@@ -261,6 +261,25 @@ body {
     flex-shrink: 0;
 }
 
+.footer-mode {
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+}
+
+.footer-mode.normal {
+    color: var(--green);
+    background: rgba(0, 204, 102, 0.15);
+}
+
+.footer-mode.insert {
+    color: var(--orange);
+    background: rgba(255, 136, 0, 0.15);
+}
+
 .footer-view {
     color: var(--orange);
     font-weight: 700;
@@ -411,6 +430,20 @@ body {
     font-size: 12px;
     padding: 5px 12px;
     cursor: pointer;
+}
+
+.tab-key {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0 4px;
+    margin-right: 4px;
+    line-height: 1.4;
+    vertical-align: baseline;
 }
 
 .news-tab:hover {
@@ -604,6 +637,14 @@ body {
 .log-ERROR .log-level { color: var(--red); }
 .log-ERROR .log-msg { color: var(--red); }
 .log-DEBUG .log-level { color: var(--text-muted); }
+
+/* ── Vim Selection ── */
+
+.vim-selected {
+    background: var(--bg-tertiary) !important;
+    outline: 1px solid var(--orange);
+    outline-offset: -1px;
+}
 
 /* ── Flash Animations ── */
 
