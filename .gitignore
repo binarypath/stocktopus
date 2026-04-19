@@ -73,6 +73,7 @@ stocktopus  # Project binary
 *.test      # Go test binaries
 *.out       # Go output files
 vendor/     # Go dependency directory
+bin/        # Build output directory
 
 # --- Secrets & Environment Variables ---
 .env*       # Environment files (contains API keys!)
