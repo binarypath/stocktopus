@@ -975,6 +975,120 @@
                 if (link) window.open(link.href, '_blank', 'noopener');
             }
         },
+        info: {
+            // focus: 'main' = main tabs, 'sub' = sub-tabs, 'content' = scrolling
+            _focus: 'main',
+            getAllTabs: function () { return Array.from(document.querySelectorAll('#info-tabs .info-tab')); },
+            getActiveTab: function () {
+                var el = document.querySelector('#info-tabs .info-tab.active');
+                return el ? el.dataset.tab : '';
+            },
+            hasSubTabs: function () {
+                return this.getActiveTab() === 'financials' && window._infoFinSubTabs && window._infoFinSubTabs().length > 0;
+            },
+            isNewsTab: function () { return this.getActiveTab() === 'news'; },
+            getNewsCards: function () { return document.querySelectorAll('#info-content .news-card'); },
+            move: function (dir) {
+                var hasSub = this.hasSubTabs();
+
+                if (dir === 'k') {
+                    // If on news tab in content mode, navigate cards up
+                    if (this._focus === 'content' && this.isNewsTab()) {
+                        if (vimSelectedIndex > 0) {
+                            var cards = this.getNewsCards();
+                            vimSelectedIndex = Math.max(vimSelectedIndex - 1, 0);
+                            vimSelect(cards, vimSelectedIndex);
+                            return;
+                        }
+                        // At top of cards, move focus back to main tabs
+                        clearVimSelection();
+                        this._focus = 'main';
+                        this._highlightFocus();
+                        return;
+                    }
+                    // Move up through layers: content → sub → main
+                    if (this._focus === 'content' && hasSub) {
+                        this._focus = 'sub';
+                    } else if (this._focus === 'content' || this._focus === 'sub') {
+                        this._focus = 'main';
+                    }
+                    this._highlightFocus();
+                    return;
+                }
+                if (dir === 'j') {
+                    // Move down through layers: main → sub → content
+                    if (this._focus === 'main' && hasSub) {
+                        this._focus = 'sub';
+                        this._highlightFocus();
+                    } else {
+                        this._focus = 'content';
+                        this._highlightFocus();
+                        if (this.isNewsTab()) {
+                            var cards = this.getNewsCards();
+                            if (cards.length > 0) {
+                                vimSelectedIndex = Math.min(vimSelectedIndex + 1, cards.length - 1);
+                                vimSelect(cards, vimSelectedIndex);
+                            }
+                        } else {
+                            var content = document.getElementById('info-content');
+                            if (content) content.scrollTop += 60;
+                        }
+                    }
+                    return;
+                }
+                if (dir === 'h' || dir === 'l') {
+                    if (this._focus === 'sub' && hasSub) {
+                        var subTabs = window._infoFinSubTabs();
+                        var activeIdx = subTabs.findIndex(function (t) { return t.classList.contains('active'); });
+                        if (dir === 'l') activeIdx = Math.min(activeIdx + 1, subTabs.length - 1);
+                        else activeIdx = Math.max(activeIdx - 1, 0);
+                        subTabs[activeIdx].click();
+                        return;
+                    }
+                    // Main tabs
+                    this._focus = 'main';
+                    var tabs = this.getAllTabs();
+                    if (tabs.length === 0) return;
+                    var activeIdx = tabs.findIndex(function (t) { return t.classList.contains('active'); });
+                    if (dir === 'l') activeIdx = Math.min(activeIdx + 1, tabs.length - 1);
+                    else activeIdx = Math.max(activeIdx - 1, 0);
+                    tabs[activeIdx].click();
+                    this._highlightFocus();
+                    return;
+                }
+            },
+            _highlightFocus: function () {
+                // Visual indicator of which tab row has focus
+                var mainTabs = document.getElementById('info-tabs');
+                var subTabs = document.getElementById('fin-sub-tabs');
+                if (mainTabs) mainTabs.classList.toggle('tab-row-focused', this._focus === 'main');
+                if (subTabs) subTabs.classList.toggle('tab-row-focused', this._focus === 'sub');
+            },
+            jumpToTab: function (n) {
+                this._focus = 'main';
+                if (window._infoJumpToTab) window._infoJumpToTab(n);
+                this._highlightFocus();
+            },
+            jumpToSubTab: function (n) {
+                if (this.hasSubTabs() && window._infoFinJumpToSub) {
+                    this._focus = 'sub';
+                    window._infoFinJumpToSub(n);
+                    this._highlightFocus();
+                }
+            },
+            refresh: function () {
+                if (window._infoRefresh) window._infoRefresh();
+            },
+            activate: function () {
+                if (this.isNewsTab()) {
+                    var cards = this.getNewsCards();
+                    if (vimSelectedIndex >= 0 && vimSelectedIndex < cards.length) {
+                        var link = cards[vimSelectedIndex].querySelector('.news-card-title a');
+                        if (link) window.open(link.href, '_blank', 'noopener');
+                    }
+                }
+            }
+        },
         debug: {
             move: function (dir) {
                 var console = document.getElementById('debug-console');
@@ -1059,6 +1173,23 @@
             case 'g':
                 e.preventDefault();
                 if (handler && handler.graph) handler.graph();
+                return;
+            case 'r':
+                e.preventDefault();
+                if (handler && handler.refresh) handler.refresh();
+                return;
+            case '?':
+                e.preventDefault();
+                if (window._infoToggleHelp) window._infoToggleHelp();
+                return;
+            case 'i':
+                if (handler && handler.jumpToSubTab) { e.preventDefault(); handler.jumpToSubTab(0); }
+                return;
+            case 'b':
+                if (handler && handler.jumpToSubTab) { e.preventDefault(); handler.jumpToSubTab(1); }
+                return;
+            case 'c':
+                if (handler && handler.jumpToSubTab) { e.preventDefault(); handler.jumpToSubTab(2); }
                 return;
             case '1': case '2': case '3': case '4': case '5': case '6':
                 if (handler && handler.jumpToTab) {
