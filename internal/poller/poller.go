@@ -39,7 +39,6 @@ func New(p provider.StockProvider, h *hub.Hub, interval time.Duration, logger *s
 		symbols:  make(map[string]int),
 	}
 
-	h.SetSubscriptionHandler(poller)
 	return poller
 }
 

@@ -13,6 +13,9 @@
     const commandHistory = [];
     let historyIndex = -1;
     let newsFilterSecurity = '';
+    var newsCurrentTopic = '';
+    var newsSeenURLs = new Set();
+    var newsReadURLs = new Set();
 
     // ── Commands ──
 
@@ -121,6 +124,9 @@
             debugWs.close();
             debugWs = null;
         }
+        if (view === 'news') {
+            unsubscribeNewsTopic();
+        }
     }
 
     // ── WebSocket Manager (quotes) ──
@@ -134,6 +140,10 @@
             subscribedSecurities.forEach(function (sym) {
                 ws.send(JSON.stringify({ type: 'subscribe', topic: 'quote:' + sym }));
             });
+            // Resubscribe to active news topic
+            if (newsCurrentTopic) {
+                ws.send(JSON.stringify({ type: 'subscribe', topic: newsCurrentTopic }));
+            }
         };
 
         ws.onclose = function () {
@@ -147,6 +157,8 @@
             const msg = JSON.parse(event.data);
             if (msg.type === 'html' && msg.html) {
                 handleQuoteHTML(msg.html);
+            } else if (msg.type === 'news_update' && msg.payload) {
+                handleNewsUpdate(msg.topic, msg.payload);
             }
         };
     }
@@ -307,6 +319,46 @@
         fetchNews('press-releases');
     }
 
+    function subscribeNewsTopic(category) {
+        // Unsubscribe previous
+        if (newsCurrentTopic && ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'unsubscribe', topic: newsCurrentTopic }));
+        }
+        newsCurrentTopic = 'news:' + category;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'subscribe', topic: newsCurrentTopic }));
+        }
+    }
+
+    function unsubscribeNewsTopic() {
+        if (newsCurrentTopic && ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'unsubscribe', topic: newsCurrentTopic }));
+        }
+        newsCurrentTopic = '';
+    }
+
+    function handleNewsUpdate(topic, items) {
+        if (currentView !== 'news') return;
+        // Only handle updates for the active tab
+        var expectedTopic = 'news:' + newsCurrentCategory;
+        if (topic !== expectedTopic) return;
+
+        var container = document.getElementById('news-cards');
+        if (!container) return;
+
+        var newCards = [];
+        for (var i = items.length - 1; i >= 0; i--) {
+            var item = items[i];
+            if (newsSeenURLs.has(item.url)) continue;
+            newsSeenURLs.add(item.url);
+            newCards.push(renderNewsCard(item));
+        }
+
+        if (newCards.length > 0) {
+            container.insertAdjacentHTML('afterbegin', newCards.join(''));
+        }
+    }
+
     function probeNewsTabs() {
         var tabs = document.getElementById('news-tabs');
         if (!tabs) return;
@@ -341,6 +393,9 @@
         newsLoading = false;
         newsExhausted = false;
 
+        // Subscribe to live updates for this category
+        subscribeNewsTopic(category);
+
         var container = document.getElementById('news-cards');
         if (!container) return;
         container.innerHTML = '<p class="empty-state">Loading...</p>';
@@ -351,7 +406,8 @@
                 newsExhausted = true;
                 return;
             }
-            container.innerHTML = items.map(renderNewsCard).join('');
+            items.forEach(function (item) { newsSeenURLs.add(item.url); });
+            container.innerHTML = items.map(function (item) { return renderNewsCard(item); }).join('');
             if (items.length < NEWS_PAGE_SIZE) newsExhausted = true;
         });
     }
@@ -378,13 +434,26 @@
                 newsExhausted = true;
                 return;
             }
-            container.insertAdjacentHTML('beforeend', items.map(renderNewsCard).join(''));
+            items.forEach(function (item) { newsSeenURLs.add(item.url); });
+            container.insertAdjacentHTML('beforeend', items.map(function (item) { return renderNewsCard(item); }).join(''));
             if (items.length < NEWS_PAGE_SIZE) newsExhausted = true;
         });
     }
 
+    function markNewsRead(card) {
+        card.classList.remove('news-unread');
+        var url = card.dataset.url;
+        if (url) newsReadURLs.add(url);
+    }
+
+    function showNewsSpinner(show) {
+        var el = document.getElementById('news-spinner');
+        if (el) el.classList.toggle('hidden', !show);
+    }
+
     function fetchNewsPage(category, page, callback) {
         newsLoading = true;
+        showNewsSpinner(true);
         var params = 'limit=' + NEWS_PAGE_SIZE + '&page=' + page;
         if (newsFilterSecurity) {
             params += '&symbol=' + encodeURIComponent(newsFilterSecurity);
@@ -394,15 +463,18 @@
             .then(function (resp) { return resp.json(); })
             .then(function (items) {
                 newsLoading = false;
+                showNewsSpinner(false);
                 callback(items);
             })
             .catch(function (err) {
                 newsLoading = false;
+                showNewsSpinner(false);
                 callback([]);
             });
     }
 
     function renderNewsCard(item) {
+        var unread = !newsReadURLs.has(item.url);
         var date = item.date ? new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
         var text = item.text || '';
         // Strip HTML tags for articles that contain HTML content
@@ -412,8 +484,9 @@
         if (plainText.length > 300) plainText = plainText.substring(0, 300) + '...';
 
         var symbolBadge = item.symbol ? '<span class="news-symbol">' + escapeHtml(item.symbol) + '</span>' : '';
+        var unreadClass = unread ? ' news-unread' : '';
 
-        return '<div class="news-card">'
+        return '<div class="news-card' + unreadClass + '" data-url="' + escapeHtml(item.url) + '">'
             + '<div class="news-card-title"><a href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener">' + escapeHtml(item.title) + '</a></div>'
             + '<div class="news-card-meta">'
             +   symbolBadge
@@ -896,7 +969,9 @@
             activate: function () {
                 var items = this.getItems();
                 if (vimSelectedIndex < 0 || vimSelectedIndex >= items.length) return;
-                var link = items[vimSelectedIndex].querySelector('.news-card-title a');
+                var card = items[vimSelectedIndex];
+                markNewsRead(card);
+                var link = card.querySelector('.news-card-title a');
                 if (link) window.open(link.href, '_blank', 'noopener');
             }
         },

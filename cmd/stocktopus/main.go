@@ -10,6 +10,7 @@ import (
 
 	"stocktopus/internal/hub"
 	"stocktopus/internal/news"
+	"stocktopus/internal/newspoller"
 	"stocktopus/internal/poller"
 	"stocktopus/internal/provider"
 	"stocktopus/internal/provider/alphavantage"
@@ -59,14 +60,28 @@ func main() {
 	interval := 15 * time.Second
 	poll := poller.New(p, h, interval, logger)
 
+	// News client + news poller
+	newsClient := news.New(apiKey, "https://financialmodelingprep.com")
+
+	newsPollInterval := 2 * time.Minute
+	if envInterval := os.Getenv("NEWS_POLL_INTERVAL"); envInterval != "" {
+		if d, err := time.ParseDuration(envInterval); err == nil {
+			newsPollInterval = d
+		}
+	}
+	np := newspoller.New(newsClient, h, newsPollInterval, logger)
+
+	// Composite subscription handler
+	composite := hub.NewCompositeHandler()
+	composite.Register("quote:", poll)
+	composite.Register("news:", np)
+	h.SetSubscriptionHandler(composite)
+
 	appCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	go poll.Run(appCtx)
-
-	// Server
-	// News client
-	newsClient := news.New(apiKey, "https://financialmodelingprep.com")
+	go np.Run(appCtx)
 
 	srv, err := server.New(server.Config{Port: 8080, Host: "localhost"}, h, debug, poll, newsClient, logger)
 	if err != nil {
