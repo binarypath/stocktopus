@@ -168,7 +168,7 @@ body {
 .security-dropdown {
     position: absolute;
     top: 100%;
-    left: 0;
+    right: 0;
     min-width: 300px;
     background: var(--bg-secondary);
     border: 1px solid var(--border);
@@ -498,28 +498,38 @@ body {
 
 /* ── Stock / Graph View ── */
 
-.stock-view {
-    display: grid;
-    grid-template-columns: 1fr 280px;
-    gap: 16px;
-    height: calc(100vh - 120px);
+.chart-range-bar {
+    display: flex;
+    gap: 4px;
+}
+
+.chart-range-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 4px 10px;
+    cursor: pointer;
+}
+
+.chart-range-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+}
+
+.chart-range-btn.active {
+    color: var(--orange);
+    border-color: var(--orange);
+    background: var(--bg-tertiary);
 }
 
 .chart-container {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border);
+    width: 100%;
+    height: calc(100vh - 140px);
     border-radius: 4px;
-    min-height: 300px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.fundamentals-panel {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 12px;
+    overflow: hidden;
 }
 
 /* ── Debug Console ── */

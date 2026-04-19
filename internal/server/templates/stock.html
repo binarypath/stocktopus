@@ -2,13 +2,14 @@
 {{define "content"}}
 <div class="page-header">
     <h1>{{.Symbol}}</h1>
-</div>
-<div class="stock-view">
-    <div class="chart-container" id="chart">
-        <p class="empty-state">Chart coming soon</p>
-    </div>
-    <div class="fundamentals-panel" id="fundamentals">
-        <p class="empty-state">Fundamentals coming soon</p>
+    <div class="chart-range-bar" id="chart-range-bar">
+        <button class="chart-range-btn" data-range="1W">1W</button>
+        <button class="chart-range-btn active" data-range="1M">1M</button>
+        <button class="chart-range-btn" data-range="3M">3M</button>
+        <button class="chart-range-btn" data-range="6M">6M</button>
     </div>
 </div>
+<div id="chart-container" class="chart-container" data-symbol="{{.Symbol}}"></div>
+<script src="/static/lightweight-charts.js"></script>
+<script src="/static/chart.js"></script>
 {{end}}

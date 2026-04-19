@@ -69,6 +69,23 @@
             container.dataset.view = command;
             currentView = command;
 
+            // Execute any <script> tags in the loaded fragment (in order)
+            var scripts = Array.from(container.querySelectorAll('script'));
+            (function loadNext(i) {
+                if (i >= scripts.length) return;
+                var old = scripts[i];
+                var s = document.createElement('script');
+                if (old.src) {
+                    s.src = old.src;
+                    s.onload = function () { loadNext(i + 1); };
+                    s.onerror = function () { loadNext(i + 1); };
+                } else {
+                    s.textContent = old.textContent;
+                }
+                old.replaceWith(s);
+                if (!old.src) loadNext(i + 1);
+            })(0);
+
             document.getElementById('current-view').textContent = command;
             document.title = 'Stocktopus — ' + command.charAt(0).toUpperCase() + command.slice(1);
 

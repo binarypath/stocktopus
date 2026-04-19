@@ -194,6 +194,28 @@ func TestSmoke_NewsCategories(t *testing.T) {
 	}
 }
 
+func TestSmoke_ChartEOD(t *testing.T) {
+	resp := get(t, "/api/chart/eod/AAPL?from=2026-03-01&to=2026-04-01")
+	defer resp.Body.Close()
+	assertStatus(t, resp, 200)
+
+	var bars []map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&bars)
+	if len(bars) == 0 {
+		t.Fatal("expected OHLCV data, got empty array")
+	}
+	first := bars[0]
+	for _, field := range []string{"date", "open", "high", "low", "close"} {
+		if first[field] == nil {
+			t.Errorf("expected %s field in OHLCV data", field)
+		}
+	}
+	// Verify chronological order (oldest first)
+	if len(bars) > 1 && bars[0]["date"].(string) > bars[len(bars)-1]["date"].(string) {
+		t.Error("expected data in chronological order (oldest first)")
+	}
+}
+
 func TestSmoke_SymbolsAPI(t *testing.T) {
 	resp := get(t, "/api/symbols")
 	defer resp.Body.Close()

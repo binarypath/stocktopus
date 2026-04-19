@@ -102,6 +102,53 @@ func (c *Client) searchEndpoint(ctx context.Context, endpoint, query string, lim
 	return results, nil
 }
 
+// GetHistoricalEOD fetches end-of-day OHLCV data for a symbol within a date range.
+// Results are returned in chronological order (oldest first).
+func (c *Client) GetHistoricalEOD(ctx context.Context, symbol, from, to string) ([]model.OHLCV, error) {
+	params := url.Values{}
+	params.Set("symbol", symbol)
+	params.Set("apikey", c.apiKey)
+	if from != "" {
+		params.Set("from", from)
+	}
+	if to != "" {
+		params.Set("to", to)
+	}
+
+	reqURL := c.baseURL + "/stable/historical-price-eod/full?" + params.Encode()
+	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("eod request: %w", err)
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("eod fetch: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("eod read: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("eod API %d: %s", resp.StatusCode, string(body))
+	}
+
+	var items []model.OHLCV
+	if err := json.Unmarshal(body, &items); err != nil {
+		return nil, fmt.Errorf("eod parse: %w", err)
+	}
+
+	// FMP returns newest-first, reverse to chronological order
+	for i, j := 0, len(items)-1; i < j; i, j = i+1, j-1 {
+		items[i], items[j] = items[j], items[i]
+	}
+
+	return items, nil
+}
+
 // Category represents a news feed type.
 type Category string
 
