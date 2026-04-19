@@ -120,6 +120,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/symbols", s.handleSymbols)
 	mux.HandleFunc("GET /api/news/{category}", s.handleNewsAPI)
 	mux.HandleFunc("GET /api/search", s.handleSearch)
+	mux.HandleFunc("GET /api/chart/eod/{symbol}", s.handleChartEOD)
 
 	// WebSocket
 	mux.HandleFunc("GET /ws", s.handleWebSocket)
@@ -239,6 +240,24 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(results)
+}
+
+func (s *Server) handleChartEOD(w http.ResponseWriter, r *http.Request) {
+	symbol := r.PathValue("symbol")
+	from := r.URL.Query().Get("from")
+	to := r.URL.Query().Get("to")
+
+	items, err := s.news.GetHistoricalEOD(r.Context(), symbol, from, to)
+	if err != nil {
+		s.logger.Error("chart eod failed", "symbol", symbol, "error", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(items)
 }
 
 func (s *Server) handleSymbols(w http.ResponseWriter, r *http.Request) {
