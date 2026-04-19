@@ -52,7 +52,7 @@ func NewProvider(config Config) *Provider {
 // Implements StockProvider.GetQuote
 func (p *Provider) GetQuote(ctx context.Context, symbol string) (*model.Quote, error) {
 	// Build request URL
-	url := fmt.Sprintf("%s/api/v3/quote/%s?apikey=%s",
+	url := fmt.Sprintf("%s/stable/quote?symbol=%s&apikey=%s",
 		p.config.BaseURL, symbol, p.config.APIKey)
 
 	// Create request with context
@@ -127,7 +127,7 @@ func (p *Provider) GetQuotes(ctx context.Context, symbols []string) ([]*model.Qu
 
 	// FMP supports comma-separated symbols for batch requests
 	symbolList := strings.Join(symbols, ",")
-	url := fmt.Sprintf("%s/api/v3/quote/%s?apikey=%s",
+	url := fmt.Sprintf("%s/stable/batch-quote?symbols=%s&apikey=%s",
 		p.config.BaseURL, symbolList, p.config.APIKey)
 
 	// Create request with context
@@ -241,13 +241,13 @@ type QuoteResponse struct {
 	Symbol            string  `json:"symbol"`
 	Name              string  `json:"name"`
 	Price             float64 `json:"price"`
-	ChangesPercentage float64 `json:"changesPercentage"` // As percentage (1.23 = 1.23%)
+	ChangesPercentage float64 `json:"changePercentage"` // As percentage (1.23 = 1.23%)
 	Change            float64 `json:"change"`
 	DayLow            float64 `json:"dayLow"`
 	DayHigh           float64 `json:"dayHigh"`
 	YearHigh          float64 `json:"yearHigh"`
 	YearLow           float64 `json:"yearLow"`
-	MarketCap         int64   `json:"marketCap"`
+	MarketCap         float64 `json:"marketCap"`
 	PriceAvg50        float64 `json:"priceAvg50"`
 	PriceAvg200       float64 `json:"priceAvg200"`
 	Volume            int64   `json:"volume"`

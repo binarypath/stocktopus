@@ -1,0 +1,17 @@
+{{template "layout" .}}
+{{define "content"}}
+<div class="page-header">
+    <h1>News</h1>
+</div>
+<div class="news-tabs" id="news-tabs">
+    <button class="news-tab active" data-category="press-releases">Press Releases</button>
+    <button class="news-tab" data-category="articles">Articles</button>
+    <button class="news-tab" data-category="stock">Stock</button>
+    <button class="news-tab" data-category="crypto">Crypto</button>
+    <button class="news-tab" data-category="forex">Forex</button>
+    <button class="news-tab" data-category="general">General</button>
+</div>
+<div id="news-cards" class="news-cards">
+    <p class="empty-state">Loading...</p>
+</div>
+{{end}}

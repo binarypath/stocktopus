@@ -1,0 +1,22 @@
+{{template "layout" .}}
+{{define "content"}}
+<div class="page-header">
+    <h1>Debug Console</h1>
+    <div class="debug-controls">
+        <button id="debug-clear">Clear</button>
+        <label><input type="checkbox" id="autoscroll" checked> Auto-scroll</label>
+    </div>
+</div>
+<div class="debug-console" id="debug-console">
+    <div id="log-entries">
+        {{range .Entries}}
+        <div class="log-entry log-{{.Level}}">
+            <span class="log-time">{{.Time}}</span>
+            <span class="log-level">{{.Level}}</span>
+            <span class="log-msg">{{.Message}}</span>
+            {{if .Attrs}}<span class="log-attrs">{{.Attrs}}</span>{{end}}
+        </div>
+        {{end}}
+    </div>
+</div>
+{{end}}
