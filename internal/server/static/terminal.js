@@ -310,13 +310,17 @@
             });
         }
 
-        // If filtering by security, probe all tabs for results to dim empty ones
-        if (newsFilterSecurity) {
+        // Probe tabs for results to dim empty ones when filtering by security
+        if (getNewsSymbol()) {
             probeNewsTabs();
         }
 
         // Default: load first tab
         fetchNews('press-releases');
+    }
+
+    function getNewsSymbol() {
+        return newsFilterSecurity || selectedSecurity || '';
     }
 
     function subscribeNewsTopic(category) {
@@ -368,8 +372,9 @@
             if (!tab) return;
 
             var params = 'limit=1';
-            if (newsFilterSecurity) {
-                params += '&symbol=' + encodeURIComponent(newsFilterSecurity);
+            var sym = getNewsSymbol();
+            if (sym) {
+                params += '&symbol=' + encodeURIComponent(sym);
             }
 
             fetch('/api/news/' + cat + '?' + params)
@@ -455,8 +460,9 @@
         newsLoading = true;
         showNewsSpinner(true);
         var params = 'limit=' + NEWS_PAGE_SIZE + '&page=' + page;
-        if (newsFilterSecurity) {
-            params += '&symbol=' + encodeURIComponent(newsFilterSecurity);
+        var sym = getNewsSymbol();
+        if (sym) {
+            params += '&symbol=' + encodeURIComponent(sym);
         }
 
         fetch('/api/news/' + category + '?' + params)
