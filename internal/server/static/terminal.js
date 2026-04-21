@@ -702,7 +702,13 @@ window.onerror = function (msg, src, line, col, err) {
                 // Handle : chart commands (e.g. :1w, :1m, :3m, :6m)
                 if (raw.charAt(0) === ':') {
                     var chartCmd = raw.substring(1).toLowerCase();
-                    var rangeMap = { '1w': '1W', '1m': '1M', '3m': '3M', '6m': '6M' };
+                    var rangeMap = {
+                        // Intraday: :1, :5, :15, :30, :1h, :4h
+                        '1': '1m', '5': '5m', '15': '15m', '30': '30m',
+                        '1h': '1h', '4h': '4h',
+                        // EOD: :1w, :1m, :3m, :6m
+                        '1w': '1W', '1m': '1M', '3m': '3M', '6m': '6M',
+                    };
                     if (rangeMap[chartCmd] && window._stocktopusSetRange) {
                         window._stocktopusSetRange(rangeMap[chartCmd]);
                     }

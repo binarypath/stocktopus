@@ -1077,6 +1077,12 @@ body {
     background: var(--bg-tertiary);
 }
 
+.chart-range-sep {
+    color: var(--border);
+    font-size: 14px;
+    line-height: 1;
+}
+
 .chart-range-btn.active {
     color: var(--orange);
     border-color: var(--orange);
