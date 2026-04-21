@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"stocktopus/internal/agent"
 	"stocktopus/internal/hub"
 	"stocktopus/internal/news"
 	"stocktopus/internal/newspoller"
@@ -17,6 +19,7 @@ import (
 	"stocktopus/internal/provider/financialmodelingprep"
 	"stocktopus/internal/provider/polygon"
 	"stocktopus/internal/server"
+	"stocktopus/internal/store"
 )
 
 func main() {
@@ -62,6 +65,7 @@ func main() {
 
 	// News client + news poller
 	newsClient := news.New(apiKey, "https://financialmodelingprep.com")
+	newsClient.SetGeminiKey(os.Getenv("GEMINI_API_KEY"))
 
 	newsPollInterval := 2 * time.Minute
 	if envInterval := os.Getenv("NEWS_POLL_INTERVAL"); envInterval != "" {
@@ -83,7 +87,56 @@ func main() {
 	go poll.Run(appCtx)
 	go np.Run(appCtx)
 
-	srv, err := server.New(server.Config{Port: 8080, Host: "localhost"}, h, debug, poll, newsClient, logger)
+	// Agent pipeline
+	dbPath := "stocktopus.db"
+	if envDB := os.Getenv("STOCKTOPUS_DB"); envDB != "" {
+		dbPath = envDB
+	}
+	st, err := store.New(dbPath)
+	if err != nil {
+		slog.Warn("failed to open intelligence store (continuing without agents)", "error", err)
+	}
+
+	var pipeline *agent.Pipeline
+	if st != nil {
+		geminiKey := os.Getenv("GEMINI_API_KEY")
+		ollamaHost := os.Getenv("OLLAMA_HOST")
+		ollamaModel := os.Getenv("OLLAMA_MODEL")
+		if ollamaModel == "" {
+			ollamaModel = "gemma4"
+		}
+		agentWorkers := 3
+		cacheTTL := 24 * time.Hour
+		if envTTL := os.Getenv("AGENT_CACHE_TTL"); envTTL != "" {
+			if d, err := time.ParseDuration(envTTL); err == nil {
+				cacheTTL = d
+			}
+		}
+
+		pipeline = agent.NewPipeline(agent.PipelineConfig{
+			GeminiAPIKey: geminiKey,
+			OllamaHost:   ollamaHost,
+			OllamaModel:  ollamaModel,
+			NumWorkers:   agentWorkers,
+			CacheTTL:     cacheTTL,
+			PythonPath:   "python3",
+			AgentsDir:    "agents",
+		}, st, logger)
+
+		// Publish agent status updates via hub
+		pipeline.SetStatusCallback(func(status agent.PipelineStatus) {
+			data, _ := json.Marshal(map[string]interface{}{
+				"type":   "agent_status",
+				"topic":  "agent:" + status.Symbol,
+				"status": status,
+			})
+			h.Publish("agent:"+status.Symbol, data)
+		})
+
+		slog.Info("agent pipeline ready", "ollamaModel", ollamaModel, "cacheTTL", cacheTTL)
+	}
+
+	srv, err := server.New(server.Config{Port: 8080, Host: "localhost"}, h, debug, poll, newsClient, pipeline, logger)
 	if err != nil {
 		slog.Error("failed to create server", "error", err)
 		os.Exit(1)

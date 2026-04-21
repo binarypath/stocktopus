@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"stocktopus/internal/agent"
 	"stocktopus/internal/hub"
 	"stocktopus/internal/news"
 )
@@ -46,15 +47,17 @@ type Server struct {
 	debug      *DebugBroadcaster
 	symbols    SymbolLister
 	news       *news.Client
+	pipeline   *agent.Pipeline
 }
 
-func New(cfg Config, h *hub.Hub, debug *DebugBroadcaster, symbols SymbolLister, newsClient *news.Client, logger *slog.Logger) (*Server, error) {
+func New(cfg Config, h *hub.Hub, debug *DebugBroadcaster, symbols SymbolLister, newsClient *news.Client, pipeline *agent.Pipeline, logger *slog.Logger) (*Server, error) {
 	s := &Server{
-		config:  cfg,
-		logger:  logger,
-		hub:     h,
-		debug:   debug,
-		symbols: symbols,
+		config:   cfg,
+		logger:   logger,
+		hub:      h,
+		debug:    debug,
+		symbols:  symbols,
+		pipeline: pipeline,
 		news:    newsClient,
 	}
 
@@ -125,6 +128,11 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/security/{symbol}/metrics", s.handleSecurityMetrics)
 	mux.HandleFunc("GET /api/security/{symbol}/financials", s.handleSecurityFinancials)
 	mux.HandleFunc("GET /api/security/{symbol}/estimates", s.handleSecurityEstimates)
+	mux.HandleFunc("GET /api/security/{symbol}/intelligence", s.handleIntelligence)
+	mux.HandleFunc("GET /api/security/{symbol}/intelligence/status", s.handleIntelligenceStatus)
+	mux.HandleFunc("POST /api/security/{symbol}/intelligence/refresh", s.handleIntelligenceRefresh)
+	mux.HandleFunc("GET /api/agent/status", s.handleAgentStatus)
+	mux.HandleFunc("GET /api/security/{symbol}/competitors", s.handleCompetitors)
 
 	// WebSocket
 	mux.HandleFunc("GET /ws", s.handleWebSocket)
@@ -299,6 +307,181 @@ func (s *Server) proxyFMP(w http.ResponseWriter, r *http.Request, fetch func(str
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
+}
+
+func (s *Server) handleIntelligence(w http.ResponseWriter, r *http.Request) {
+	symbol := r.PathValue("symbol")
+	w.Header().Set("Content-Type", "application/json")
+
+	if s.pipeline == nil {
+		json.NewEncoder(w).Encode(map[string]string{"error": "agent pipeline not configured"})
+		return
+	}
+
+	// Check cache first
+	ci, err := s.pipeline.GetCached(symbol)
+	if err != nil {
+		s.logger.Warn("intelligence cache error", "symbol", symbol, "error", err)
+	}
+	if ci != nil {
+		json.NewEncoder(w).Encode(ci)
+		return
+	}
+
+	// Check if running or recently failed
+	status := s.pipeline.GetStatus(symbol)
+	if status != nil && (status.Status == agent.StatusRunning || status.Status == agent.StatusFailed) {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": status.Status,
+			"symbol": symbol,
+			"error":  status.Error,
+		})
+		return
+	}
+
+	// Check store directly (bypass freshness check)
+	direct, _ := s.pipeline.GetDirect(symbol)
+	if direct != nil {
+		json.NewEncoder(w).Encode(direct)
+		return
+	}
+
+	// Trigger analysis
+	fmpData := s.gatherFMPData(r.Context(), symbol)
+	s.pipeline.Analyze(r.Context(), symbol, fmpData)
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "pending",
+		"symbol": symbol,
+	})
+}
+
+func (s *Server) handleIntelligenceStatus(w http.ResponseWriter, r *http.Request) {
+	symbol := r.PathValue("symbol")
+	w.Header().Set("Content-Type", "application/json")
+
+	if s.pipeline == nil {
+		json.NewEncoder(w).Encode(map[string]string{"status": "unavailable"})
+		return
+	}
+
+	status := s.pipeline.GetStatus(symbol)
+	if status != nil {
+		json.NewEncoder(w).Encode(status)
+	} else {
+		// Check if we have cached data
+		ci, _ := s.pipeline.GetCached(symbol)
+		if ci != nil {
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"status": "complete",
+				"symbol": symbol,
+			})
+		} else {
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"status": "none",
+				"symbol": symbol,
+			})
+		}
+	}
+}
+
+func (s *Server) handleIntelligenceRefresh(w http.ResponseWriter, r *http.Request) {
+	symbol := r.PathValue("symbol")
+	w.Header().Set("Content-Type", "application/json")
+
+	if s.pipeline == nil {
+		json.NewEncoder(w).Encode(map[string]string{"error": "agent pipeline not configured"})
+		return
+	}
+
+	fmpData := s.gatherFMPData(r.Context(), symbol)
+	s.pipeline.Analyze(r.Context(), symbol, fmpData)
+
+	json.NewEncoder(w).Encode(map[string]string{"status": "started", "symbol": symbol})
+}
+
+func (s *Server) handleAgentStatus(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	status := map[string]interface{}{
+		"available": s.pipeline != nil,
+	}
+	if s.pipeline != nil {
+		status["ollamaAvailable"] = s.pipeline.OllamaAvailable()
+		status["usage"] = s.pipeline.GetUsage()
+		status["pipelines"] = s.pipeline.GetAllStatuses()
+	}
+	json.NewEncoder(w).Encode(status)
+}
+
+func (s *Server) handleCompetitors(w http.ResponseWriter, r *http.Request) {
+	symbol := r.PathValue("symbol")
+	w.Header().Set("Content-Type", "application/json")
+
+	if s.pipeline == nil {
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+
+	// Get the parent's analysis to find competitors
+	parent, _ := s.pipeline.GetDirect(symbol)
+	if parent == nil || len(parent.Competitors) == 0 {
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+
+	type CompetitorScore struct {
+		Symbol    string  `json:"symbol"`
+		Sentiment float64 `json:"sentiment"`
+		RiskScore float64 `json:"riskScore"`
+		Summary   string  `json:"summary"`
+		Status    string  `json:"status"` // "ready", "pending", "none"
+	}
+
+	var results []CompetitorScore
+	for _, comp := range parent.Competitors {
+		ci, _ := s.pipeline.GetDirect(comp)
+		if ci != nil {
+			results = append(results, CompetitorScore{
+				Symbol:    comp,
+				Sentiment: ci.Sentiment,
+				RiskScore: ci.RiskScore,
+				Summary:   ci.Summary,
+				Status:    "ready",
+			})
+		} else {
+			status := "none"
+			ps := s.pipeline.GetStatus(comp)
+			if ps != nil && ps.Status == agent.StatusRunning {
+				status = "pending"
+			}
+			results = append(results, CompetitorScore{
+				Symbol:    comp,
+				Sentiment: 0,
+				RiskScore: 0,
+				Status:    status,
+			})
+		}
+	}
+
+	json.NewEncoder(w).Encode(results)
+}
+
+// gatherFMPData collects all available FMP data for a symbol as JSON context.
+func (s *Server) gatherFMPData(ctx context.Context, symbol string) json.RawMessage {
+	data := map[string]json.RawMessage{}
+
+	if profile, err := s.news.GetProfile(ctx, symbol); err == nil {
+		data["profile"] = profile
+	}
+	if metrics, err := s.news.GetKeyMetrics(ctx, symbol); err == nil {
+		data["metrics"] = metrics
+	}
+	if ratios, err := s.news.GetRatiosTTM(ctx, symbol); err == nil {
+		data["ratios"] = ratios
+	}
+
+	result, _ := json.Marshal(data)
+	return result
 }
 
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {

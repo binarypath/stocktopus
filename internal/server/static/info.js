@@ -115,85 +115,69 @@
         if (n < allTabs.length) allTabs[n].click();
     };
 
-    // ── Sparkline ──
+    // ── Security Type Detection ──
 
-    function initSparkline() {
-        var el = document.getElementById('info-sparkline');
-        if (!el || !window.LightweightCharts) return;
+    var securityType = 'stock'; // default
 
-        var from = new Date();
-        from.setMonth(from.getMonth() - 6);
-        var to = new Date();
-        var fromStr = to.getFullYear() === from.getFullYear()
-            ? from.toISOString().slice(0, 10)
-            : from.toISOString().slice(0, 10);
-
-        fetch('/api/chart/eod/' + symbol + '?from=' + from.toISOString().slice(0, 10) + '&to=' + to.toISOString().slice(0, 10))
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (!data || data.length < 2) return;
-
-                var first = data[0].close;
-                var last = data[data.length - 1].close;
-                var color = last >= first ? '#00cc66' : '#ff4444';
-
-                var chart = LightweightCharts.createChart(el, {
-                    width: 200,
-                    height: 50,
-                    layout: { background: { color: 'transparent' }, textColor: 'transparent' },
-                    grid: { vertLines: { visible: false }, horzLines: { visible: false } },
-                    rightPriceScale: { visible: false },
-                    timeScale: { visible: false },
-                    handleScroll: false,
-                    handleScale: false,
-                    crosshair: { vertLine: { visible: false }, horzLine: { visible: false } },
-                });
-
-                var series = chart.addSeries(LightweightCharts.AreaSeries, {
-                    lineColor: color,
-                    topColor: color.replace(')', ', 0.2)').replace('rgb', 'rgba'),
-                    bottomColor: 'transparent',
-                    lineWidth: 2,
-                    priceLineVisible: false,
-                    lastValueVisible: false,
-                });
-
-                series.setData(data.map(function (d) { return { time: d.date, value: d.close }; }));
-                chart.timeScale().fitContent();
-            });
+    function detectSecurityType(profile) {
+        if (!profile) return 'stock';
+        var ex = (profile.exchange || '').toUpperCase();
+        if (ex === 'CRYPTO' || ex === 'CCC') return 'crypto';
+        if (ex === 'FOREX') return 'forex';
+        if ((profile.symbol || '').charAt(0) === '^') return 'index';
+        if (profile.isEtf) return 'etf';
+        return 'stock';
     }
 
-    // ── Load Header (profile price/change) ──
+    function applySecurityType(type) {
+        securityType = type;
+        var hideTabs = [];
+        if (type === 'crypto' || type === 'forex' || type === 'index') {
+            hideTabs = ['financials', 'estimates'];
+        }
+        document.querySelectorAll('#info-tabs .info-tab').forEach(function (tab) {
+            if (hideTabs.indexOf(tab.dataset.tab) >= 0) {
+                tab.style.display = 'none';
+            }
+        });
+    }
 
-    function loadHeader() {
-        fetch('/api/security/' + symbol + '/profile')
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (!data || !data.length) return;
-                var p = data[0];
-                var nameEl = document.getElementById('info-company-name');
-                var priceEl = document.getElementById('info-price');
-                var changeEl = document.getElementById('info-change');
-                if (nameEl) nameEl.textContent = p.companyName || '';
-                if (priceEl) priceEl.textContent = p.price ? p.price.toFixed(2) : '';
-                if (changeEl) {
-                    var chg = p.change || 0;
-                    var chgPct = p.changePercentage || 0;
-                    changeEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + ' (' + chgPct.toFixed(2) + '%)';
-                    changeEl.className = 'info-change ' + (chg >= 0 ? 'price-up' : 'price-down');
-                }
-            });
+    // Detect type early from profile
+    fetch('/api/security/' + symbol + '/profile')
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data && data[0]) {
+                applySecurityType(detectSecurityType(data[0]));
+            }
+        })
+        .catch(function () {});
+
+    // ── Company Panel (shared from terminal.js) ──
+
+    function initCompanyPanel() {
+        if (window._renderCompanyPanel) {
+            window._renderCompanyPanel('company-panel', symbol);
+        } else {
+            // terminal.js may not have loaded yet (direct page load)
+            setTimeout(initCompanyPanel, 100);
+        }
     }
 
     // ── Tab Loaders ──
 
     function loadTab(tab) {
         container.innerHTML = '<p class="empty-state">Loading...</p>';
-        switch (tab) {
-            case 'overview': loadOverview(); break;
-            case 'financials': loadFinancials('income'); break;
-            case 'estimates': loadEstimates(); break;
-            case 'news': loadNews(); break;
+        try {
+            switch (tab) {
+                case 'overview': loadOverview(); break;
+                case 'financials': loadFinancials('income'); break;
+                case 'estimates': loadEstimates(); break;
+                case 'news': loadNews(); break;
+                case 'ai': loadAI(); break;
+            }
+        } catch (e) {
+            console.error('Tab load error:', tab, e);
+            container.innerHTML = '<p class="empty-state">Failed to load ' + tab + '</p>';
         }
     }
 
@@ -285,6 +269,7 @@
             btn.onclick = function () {
                 container.querySelectorAll('.info-sub-tab').forEach(function (b) { b.classList.remove('active'); });
                 btn.classList.add('active');
+                history.replaceState(null, '', location.pathname + '#financials-' + btn.dataset.ftype);
                 loadFinancialTable(btn.dataset.ftype);
             };
         });
@@ -449,14 +434,257 @@
             });
     }
 
+    // ── AI Analysis ──
+
+    function loadAI() {
+        container.innerHTML = '<p class="empty-state">Loading AI analysis...</p>';
+
+        fetch('/api/security/' + symbol + '/intelligence')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                // Status response (pipeline running/pending) vs full analysis
+                if (data.status && !data.summary) {
+                    if (data.status === 'running' || data.status === 'pending') {
+                        container.innerHTML = renderAIProgress(data);
+                        pollAIStatus();
+                        return;
+                    }
+                    if (data.status === 'failed') {
+                        container.innerHTML = '<p class="empty-state">AI analysis failed: ' + esc(data.error || 'unknown') + '</p>';
+                        return;
+                    }
+                }
+                if (data.error && !data.summary) {
+                    container.innerHTML = '<p class="empty-state">AI analysis unavailable: ' + esc(data.error) + '</p>';
+                    return;
+                }
+                container.innerHTML = renderAIAnalysis(data);
+                wireCompetitorLinks();
+                loadCompetitorScores();
+            })
+            .catch(function () {
+                container.innerHTML = '<p class="empty-state">Failed to load AI analysis</p>';
+            });
+    }
+
+    function pollAIStatus() {
+        var pollInterval = setInterval(function () {
+            fetch('/api/security/' + symbol + '/intelligence/status')
+                .then(function (r) { return r.json(); })
+                .then(function (status) {
+                    if (status.status === 'complete') {
+                        clearInterval(pollInterval);
+                        // Fetch the full result
+                        fetch('/api/security/' + symbol + '/intelligence')
+                            .then(function (r) { return r.json(); })
+                            .then(function (data) {
+                                container.innerHTML = renderAIAnalysis(data);
+                wireCompetitorLinks();
+                loadCompetitorScores();
+                            });
+                    } else if (status.status === 'failed') {
+                        clearInterval(pollInterval);
+                        container.innerHTML = '<p class="empty-state">AI analysis failed: ' + esc(status.error || 'unknown error') + '</p>';
+                    } else {
+                        // Update progress
+                        container.innerHTML = renderAIProgress(status);
+                    }
+                });
+        }, 2000);
+    }
+
+    function renderAIProgress(data) {
+        var html = '<div class="ai-progress">';
+        html += '<div class="ai-progress-header"><span class="spinner"></span> Analyzing ' + esc(symbol) + '...</div>';
+        if (data.tasks) {
+            html += '<div class="ai-tasks">';
+            data.tasks.forEach(function (t) {
+                var icon = t.status === 'complete' ? '&#10003;' : t.status === 'running' ? '&#9679;' : '&#9675;';
+                var cls = 'ai-task ai-task-' + t.status;
+                html += '<div class="' + cls + '">' + icon + ' ' + esc(t.id || t.type) + '</div>';
+            });
+            html += '</div>';
+        }
+        html += '</div>';
+        return html;
+    }
+
+    function renderAIAnalysis(data) {
+        var html = '<div class="ai-analysis">';
+
+        // Summary
+        if (data.summary) {
+            html += '<div class="ai-section">';
+            html += '<div class="ai-section-title">Executive Summary</div>';
+            html += '<p class="ai-summary">' + esc(data.summary) + '</p>';
+            html += '</div>';
+        }
+
+        // Scores row
+        html += '<div class="ai-scores">';
+        var sent = data.sentiment || 0;
+        var risk = data.riskScore || 0;
+        var conf = data.confidence ? data.confidence * 100 : 0;
+        html += renderScore('Sentiment', sent, -1, 1, sent >= 0 ? 'price-up' : 'price-down');
+        html += renderScore('Risk', risk, 0, 100, risk > 60 ? 'price-down' : 'price-up');
+        html += renderScore('Confidence', conf, 0, 100, '');
+        html += '</div>';
+
+        // Key Risks
+        if (data.keyRisks && data.keyRisks.length > 0) {
+            html += '<div class="ai-section">';
+            html += '<div class="ai-section-title">Key Risks</div>';
+            html += '<ul class="ai-list ai-risks">';
+            data.keyRisks.forEach(function (r) { html += '<li>' + esc(r) + '</li>'; });
+            html += '</ul></div>';
+        }
+
+        // Opportunities
+        if (data.opportunities && data.opportunities.length > 0) {
+            html += '<div class="ai-section">';
+            html += '<div class="ai-section-title">Opportunities</div>';
+            html += '<ul class="ai-list ai-opps">';
+            data.opportunities.forEach(function (o) { html += '<li>' + esc(o) + '</li>'; });
+            html += '</ul></div>';
+        }
+
+        // Competitors — loaded async with scores
+        if (data.competitors && data.competitors.length > 0) {
+            html += '<div class="ai-section">';
+            html += '<div class="ai-section-title">Competitors</div>';
+            html += '<div class="ai-competitors" id="ai-competitors">';
+            data.competitors.forEach(function (c) {
+                html += '<div class="ai-competitor-card" data-symbol="' + esc(c) + '" data-nav="security">'
+                    + '<span class="ai-competitor-sym">' + esc(c) + '</span>'
+                    + '<span class="ai-competitor-scores">loading...</span>'
+                    + '</div>';
+            });
+            html += '</div></div>';
+        }
+
+        // Analysis details (if available)
+        if (data.analysis) {
+            var a = typeof data.analysis === 'string' ? JSON.parse(data.analysis) : data.analysis;
+            if (a.sectorAnalysis) {
+                html += '<div class="ai-section">';
+                html += '<div class="ai-section-title">Sector Outlook</div>';
+                html += '<p class="ai-text">' + esc(a.sectorAnalysis) + '</p>';
+                html += '</div>';
+            }
+            if (a.technicalOutlook) {
+                html += '<div class="ai-section">';
+                html += '<div class="ai-section-title">Technical Outlook</div>';
+                html += '<p class="ai-text">' + esc(a.technicalOutlook) + '</p>';
+                html += '</div>';
+            }
+            if (a.catalysts && a.catalysts.length > 0) {
+                html += '<div class="ai-section">';
+                html += '<div class="ai-section-title">Catalysts</div>';
+                html += '<ul class="ai-list">';
+                a.catalysts.forEach(function (c) { html += '<li>' + esc(c) + '</li>'; });
+                html += '</ul></div>';
+            }
+        }
+
+        // Sources
+        if (data.sources && data.sources.length > 0) {
+            html += '<div class="ai-section">';
+            html += '<div class="ai-section-title">Sources</div>';
+            html += '<div class="ai-sources">';
+            data.sources.forEach(function (s) {
+                html += '<a href="' + esc(s) + '" target="_blank" rel="noopener" class="ai-source">' + esc(s.replace(/^https?:\/\//, '').substring(0, 40)) + '</a>';
+            });
+            html += '</div></div>';
+        }
+
+        // Meta
+        html += '<div class="ai-meta">';
+        if (data.modelVersion) html += '<span>Model: ' + esc(data.modelVersion) + '</span>';
+        if (data.generatedAt) html += '<span>Generated: ' + new Date(data.generatedAt).toLocaleString() + '</span>';
+        html += '</div>';
+
+        html += '</div>';
+        return html;
+    }
+
+    function renderScore(label, value, min, max, colorClass) {
+        var pct = ((value - min) / (max - min)) * 100;
+        var display = typeof value === 'number' ? value.toFixed(1) : '—';
+        return '<div class="ai-score">'
+            + '<div class="ai-score-label">' + label + '</div>'
+            + '<div class="ai-score-value ' + colorClass + '">' + display + '</div>'
+            + '<div class="ai-score-bar"><div class="ai-score-fill" style="width:' + Math.max(0, Math.min(100, pct)) + '%"></div></div>'
+            + '</div>';
+    }
+
+    function wireCompetitorLinks() {
+        var cards = document.querySelectorAll('.ai-competitor-card[data-nav="security"]');
+        cards.forEach(function (card) {
+            card.addEventListener('click', function (e) {
+                // Don't navigate if clicking the analyze button
+                if (e.target.closest('.ai-analyze-btn')) return;
+                var sym = card.dataset.symbol;
+                if (sym && window._navigateToSecurity) {
+                    window._navigateToSecurity(sym);
+                }
+            });
+        });
+    }
+
+    window._triggerAnalysis = function (sym, btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner" style="width:10px;height:10px;display:inline-block"></span> analyzing...';
+        fetch('/api/security/' + sym + '/intelligence')
+            .then(function () {
+                // Start polling for this competitor's completion
+                setTimeout(loadCompetitorScores, 3000);
+            });
+    };
+
+    function loadCompetitorScores() {
+        var el = document.getElementById('ai-competitors');
+        if (!el) return;
+
+        fetch('/api/security/' + symbol + '/competitors')
+            .then(function (r) { return r.json(); })
+            .then(function (comps) {
+                if (!comps || comps.length === 0) return;
+
+                comps.forEach(function (c) {
+                    var card = el.querySelector('[data-symbol="' + c.symbol + '"]');
+                    if (!card) return;
+                    var scoresEl = card.querySelector('.ai-competitor-scores');
+                    if (!scoresEl) return;
+
+                    if (c.status === 'ready') {
+                        var sentClass = c.sentiment >= 0 ? 'price-up' : 'price-down';
+                        var riskClass = c.riskScore > 60 ? 'price-down' : 'price-up';
+                        scoresEl.innerHTML = '<span class="' + sentClass + '">S:' + c.sentiment.toFixed(1) + '</span>'
+                            + ' <span class="' + riskClass + '">R:' + c.riskScore.toFixed(0) + '</span>';
+                    } else if (c.status === 'pending') {
+                        scoresEl.innerHTML = '<span class="spinner" style="width:10px;height:10px"></span> analyzing...';
+                    } else {
+                        scoresEl.innerHTML = '<button class="ai-analyze-btn" onclick="event.preventDefault();event.stopPropagation();window._triggerAnalysis(\'' + c.symbol + '\',this)">&#129302; analyze</button>';
+                    }
+                });
+
+                // Poll again if any are still pending
+                var hasPending = comps.some(function (c) { return c.status !== 'ready'; });
+                if (hasPending) {
+                    setTimeout(loadCompetitorScores, 5000);
+                }
+            });
+    }
+
     // ── Refresh ──
 
     var currentTab = 'overview';
 
-    // Override loadTab to track current tab
+    // Override loadTab to track current tab and update URL hash
     var _origLoadTab = loadTab;
     loadTab = function (tab) {
         currentTab = tab;
+        history.replaceState(null, '', location.pathname + '#' + tab);
         _origLoadTab(tab);
     };
 
@@ -474,7 +702,7 @@
         var oldChange = changeEl ? changeEl.textContent : '';
 
         // Reload header
-        loadHeader();
+        initCompanyPanel();
 
         // Reload current tab content
         loadTab(currentTab);
@@ -505,7 +733,27 @@
 
     // ── Init ──
 
-    loadHeader();
-    initSparkline();
-    loadTab('overview');
+    initCompanyPanel();
+
+    // Read initial tab from URL hash, default to overview
+    var initTab = 'overview';
+    var initSubTab = '';
+    var hash = location.hash.replace('#', '');
+    if (hash) {
+        var parts = hash.split('-');
+        var mainTab = parts[0];
+        if (['overview', 'financials', 'estimates', 'news', 'ai'].indexOf(mainTab) >= 0) {
+            initTab = mainTab;
+            if (parts.length > 1) initSubTab = parts.slice(1).join('-');
+        }
+        var allTabs = document.querySelectorAll('#info-tabs .info-tab');
+        allTabs.forEach(function (t) {
+            t.classList.toggle('active', t.dataset.tab === initTab);
+        });
+    }
+    if (initTab === 'financials' && initSubTab) {
+        loadFinancials(initSubTab);
+    } else {
+        loadTab(initTab);
+    }
 })();

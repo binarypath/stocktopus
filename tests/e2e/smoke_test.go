@@ -68,7 +68,7 @@ func TestMain(m *testing.M) {
 	debug := server.NewDebugBroadcaster()
 
 	// Server
-	srv, err := server.New(server.Config{Port: 0}, h, debug, poll, newsClient, logger)
+	srv, err := server.New(server.Config{Port: 0}, h, debug, poll, newsClient, nil, logger)
 	if err != nil {
 		panic("failed to create server: " + err.Error())
 	}
