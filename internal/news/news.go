@@ -22,6 +22,9 @@ type SearchResult struct {
 	Exchange string `json:"exchange"`
 }
 
+// APIKey returns the FMP API key.
+func (c *Client) APIKey() string { return c.apiKey }
+
 // SetGeminiKey sets the Gemini API key for AI-assisted search fallback.
 func (c *Client) SetGeminiKey(key string) {
 	c.geminiKey = key

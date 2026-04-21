@@ -93,6 +93,23 @@ func (s *Store) migrate() error {
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_training_symbol ON training_data(symbol);
+
+		CREATE TABLE IF NOT EXISTS watchlists (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			color TEXT NOT NULL DEFAULT '#ff8800',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+
+		CREATE TABLE IF NOT EXISTS watchlist_symbols (
+			watchlist_id INTEGER NOT NULL,
+			symbol TEXT NOT NULL,
+			added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (watchlist_id, symbol),
+			FOREIGN KEY (watchlist_id) REFERENCES watchlists(id) ON DELETE CASCADE
+		);
+
+		INSERT OR IGNORE INTO watchlists (name, color) VALUES ('Default', '#ff8800');
 	`)
 	return err
 }
@@ -223,4 +240,123 @@ func (s *Store) TrainingDataCount() (int, error) {
 	var count int
 	err := s.db.QueryRow(`SELECT COUNT(*) FROM training_data`).Scan(&count)
 	return count, err
+}
+
+// ── Watchlists ──
+
+// Watchlist represents a named watchlist with a color.
+type Watchlist struct {
+	ID      int64    `json:"id"`
+	Name    string   `json:"name"`
+	Color   string   `json:"color"`
+	Symbols []string `json:"symbols"`
+}
+
+// Preset colors for new watchlists
+var watchlistColors = []string{
+	"#ff8800", "#4499ff", "#00cc66", "#ff4444",
+	"#cc66ff", "#ffcc00", "#00cccc", "#ff6699",
+}
+
+// GetWatchlists returns all watchlists with their symbols.
+func (s *Store) GetWatchlists() ([]Watchlist, error) {
+	rows, err := s.db.Query(`SELECT id, name, color FROM watchlists ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var lists []Watchlist
+	for rows.Next() {
+		var w Watchlist
+		if err := rows.Scan(&w.ID, &w.Name, &w.Color); err != nil {
+			return nil, err
+		}
+		lists = append(lists, w)
+	}
+
+	// Load symbols for each
+	for i := range lists {
+		symRows, err := s.db.Query(`SELECT symbol FROM watchlist_symbols WHERE watchlist_id = ? ORDER BY added_at`, lists[i].ID)
+		if err != nil {
+			continue
+		}
+		for symRows.Next() {
+			var sym string
+			symRows.Scan(&sym)
+			lists[i].Symbols = append(lists[i].Symbols, sym)
+		}
+		symRows.Close()
+	}
+
+	return lists, nil
+}
+
+// CreateWatchlist creates a new watchlist with an auto-assigned color.
+func (s *Store) CreateWatchlist(name string) (*Watchlist, error) {
+	// Count existing for color assignment
+	var count int
+	s.db.QueryRow(`SELECT COUNT(*) FROM watchlists`).Scan(&count)
+	color := watchlistColors[count%len(watchlistColors)]
+
+	res, err := s.db.Exec(`INSERT INTO watchlists (name, color) VALUES (?, ?)`, name, color)
+	if err != nil {
+		return nil, err
+	}
+	id, _ := res.LastInsertId()
+	return &Watchlist{ID: id, Name: name, Color: color}, nil
+}
+
+// AddToWatchlist adds a symbol to a watchlist. Uses default watchlist if watchlistID is 0.
+func (s *Store) AddToWatchlist(watchlistID int64, symbol string) error {
+	if watchlistID == 0 {
+		s.db.QueryRow(`SELECT id FROM watchlists ORDER BY id LIMIT 1`).Scan(&watchlistID)
+	}
+	_, err := s.db.Exec(`INSERT OR IGNORE INTO watchlist_symbols (watchlist_id, symbol) VALUES (?, ?)`,
+		watchlistID, symbol)
+	return err
+}
+
+// RemoveFromWatchlist removes a symbol from a watchlist.
+func (s *Store) RemoveFromWatchlist(watchlistID int64, symbol string) error {
+	_, err := s.db.Exec(`DELETE FROM watchlist_symbols WHERE watchlist_id = ? AND symbol = ?`,
+		watchlistID, symbol)
+	return err
+}
+
+// GetSymbolWatchlists returns which watchlists a symbol belongs to.
+func (s *Store) GetSymbolWatchlists(symbol string) ([]Watchlist, error) {
+	rows, err := s.db.Query(`
+		SELECT w.id, w.name, w.color FROM watchlists w
+		JOIN watchlist_symbols ws ON w.id = ws.watchlist_id
+		WHERE ws.symbol = ?`, symbol)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var lists []Watchlist
+	for rows.Next() {
+		var w Watchlist
+		rows.Scan(&w.ID, &w.Name, &w.Color)
+		lists = append(lists, w)
+	}
+	return lists, nil
+}
+
+// GetAllWatchedSymbols returns all unique symbols across all watchlists.
+func (s *Store) GetAllWatchedSymbols() ([]string, error) {
+	rows, err := s.db.Query(`SELECT DISTINCT symbol FROM watchlist_symbols ORDER BY symbol`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var symbols []string
+	for rows.Next() {
+		var sym string
+		rows.Scan(&sym)
+		symbols = append(symbols, sym)
+	}
+	return symbols, nil
 }

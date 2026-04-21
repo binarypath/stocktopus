@@ -148,6 +148,8 @@ window.onerror = function (msg, src, line, col, err) {
             subscribedSecurities.forEach(function (sym) {
                 ws.send(JSON.stringify({ type: 'subscribe', topic: 'quote:' + sym }));
             });
+            // Resubscribe watchlist symbols
+            resubscribeWatchlists();
             // Resubscribe to active news topic
             if (newsCurrentTopic) {
                 ws.send(JSON.stringify({ type: 'subscribe', topic: newsCurrentTopic }));
@@ -185,6 +187,9 @@ window.onerror = function (msg, src, line, col, err) {
 
     // ── Watchlist ──
 
+    var watchlistData = []; // cached watchlist data
+    var activeWatchlistId = parseInt(localStorage.getItem('stocktopus-watchlist-id') || '0');
+
     function initWatchlist() {
         const form = document.getElementById('add-security-form');
         if (form) {
@@ -192,21 +197,204 @@ window.onerror = function (msg, src, line, col, err) {
                 e.preventDefault();
                 const input = document.getElementById('wl-security-input');
                 const sec = input.value.trim().toUpperCase();
-                if (!sec || subscribedSecurities.has(sec)) {
+                if (!sec) {
                     input.value = '';
                     return;
                 }
                 subscribeSecurity(sec);
+                addToWatchlist(getActiveWatchlistId(), sec);
                 input.value = '';
             };
         }
 
-        // Resubscribe existing securities so rows repopulate
-        subscribedSecurities.forEach(function (sym) {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'subscribe', topic: 'quote:' + sym }));
-            }
+        // Fetch batch quotes immediately
+        fetchWatchlistQuotes();
+    }
+
+    function fetchWatchlistQuotes() {
+        fetch('/api/watchlists/quotes')
+            .then(function (r) { return r.json(); })
+            .then(function (quotes) {
+                if (!quotes || quotes.length === 0) return;
+                var tbody = document.getElementById('quote-body');
+                if (!tbody) return;
+
+                var empty = document.getElementById('empty-state');
+                if (empty) empty.style.display = 'none';
+
+                quotes.forEach(function (q) {
+                    var chgClass = q.change >= 0 ? 'price-up' : 'price-down';
+                    var chgPct = q.changePercentage ? q.changePercentage.toFixed(2) + '%' : '';
+                    var chg = q.change ? (q.change >= 0 ? '+' : '') + q.change.toFixed(2) : '';
+                    var vol = q.volume ? formatWatchlistVolume(q.volume) : '';
+                    var updated = '';
+
+                    var existing = document.getElementById('quote-' + q.symbol);
+                    var html = '<tr id="quote-' + q.symbol + '">'
+                        + '<td><span class="sym-link" data-symbol="' + q.symbol + '">' + q.symbol + '</span></td>'
+                        + '<td class="' + chgClass + '">' + (q.price ? q.price.toFixed(2) : '') + '</td>'
+                        + '<td class="' + chgClass + '">' + chg + '</td>'
+                        + '<td class="' + chgClass + '">' + chgPct + '</td>'
+                        + '<td>' + vol + '</td>'
+                        + '<td>' + updated + '</td>'
+                        + '</tr>';
+
+                    if (existing) {
+                        existing.outerHTML = html;
+                    } else {
+                        tbody.insertAdjacentHTML('beforeend', html);
+                    }
+
+                    // Subscribe for live updates
+                    subscribeSecurity(q.symbol);
+                });
+
+                // Wire up clicks
+                tbody.querySelectorAll('[data-symbol]').forEach(function (el) {
+                    el.onclick = function (e) {
+                        e.preventDefault();
+                        navigate('graph', el.dataset.symbol);
+                    };
+                });
+
+                // Add watchlist colors
+                tbody.querySelectorAll('tr').forEach(function (row) {
+                    var sym = row.querySelector('[data-symbol]');
+                    if (sym) {
+                        var colors = getWatchlistColors(sym.dataset.symbol);
+                        if (colors.length > 0) {
+                            row.style.borderLeft = '3px solid ' + colors[0];
+                        }
+                    }
+                });
+
+                // Filter to active watchlist
+                filterWatchlistView();
+            })
+            .catch(function (err) { console.error('Watchlist quotes error:', err); });
+    }
+
+    function formatWatchlistVolume(v) {
+        if (v >= 1e9) return (v / 1e9).toFixed(1) + 'B';
+        if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+        if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+        return v;
+    }
+
+    function loadWatchlists() {
+        fetch('/api/watchlists')
+            .then(function (r) { return r.json(); })
+            .then(function (lists) {
+                watchlistData = lists || [];
+                if (!activeWatchlistId && watchlistData.length > 0) {
+                    activeWatchlistId = watchlistData[0].id;
+                }
+                watchlistData.forEach(function (wl) {
+                    (wl.symbols || []).forEach(function (sym) {
+                        subscribeSecurity(sym);
+                    });
+                });
+                renderWatchlistTabs();
+                renderWatchlistPicker();
+            })
+            .catch(function () {});
+    }
+
+    function resubscribeWatchlists() {
+        if (watchlistData.length > 0) {
+            watchlistData.forEach(function (wl) {
+                (wl.symbols || []).forEach(function (sym) {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'subscribe', topic: 'quote:' + sym }));
+                    }
+                });
+            });
+        }
+    }
+
+    function renderWatchlistTabs() {
+        var tabContainer = document.getElementById('watchlist-tabs');
+        if (!tabContainer) return;
+
+        tabContainer.innerHTML = watchlistData.map(function (wl) {
+            var active = wl.id === activeWatchlistId ? ' wl-tab-active' : '';
+            return '<span class="wl-tab' + active + '" data-id="' + wl.id + '" style="border-color:' + wl.color + ';color:' + wl.color + '">' + escapeHtml(wl.name) + ' (' + (wl.symbols ? wl.symbols.length : 0) + ')</span>';
+        }).join('');
+
+        tabContainer.querySelectorAll('.wl-tab').forEach(function (tab) {
+            tab.onclick = function () {
+                activeWatchlistId = parseInt(tab.dataset.id);
+                localStorage.setItem('stocktopus-watchlist-id', activeWatchlistId);
+                renderWatchlistTabs();
+                renderWatchlistPicker();
+                filterWatchlistView();
+            };
         });
+    }
+
+    function renderWatchlistPicker() {
+        var picker = document.getElementById('watchlist-picker');
+        if (!picker) return;
+        var active = watchlistData.find(function (wl) { return wl.id === activeWatchlistId; });
+        if (active) {
+            picker.textContent = active.name;
+            picker.style.borderColor = active.color;
+            picker.style.color = active.color;
+        } else if (watchlistData.length > 0) {
+            picker.textContent = watchlistData[0].name;
+            picker.style.borderColor = watchlistData[0].color;
+            picker.style.color = watchlistData[0].color;
+        }
+    }
+
+    function filterWatchlistView() {
+        var tbody = document.getElementById('quote-body');
+        var empty = document.getElementById('empty-state');
+        if (!tbody) return;
+
+        var activeWl = watchlistData.find(function (wl) { return wl.id === activeWatchlistId; });
+        var activeSymbols = activeWl && activeWl.symbols ? activeWl.symbols : [];
+
+        // Show/hide rows based on active watchlist
+        var visibleCount = 0;
+        tbody.querySelectorAll('tr').forEach(function (row) {
+            var sym = row.querySelector('[data-symbol]');
+            var symbol = sym ? sym.dataset.symbol : '';
+            var inList = activeSymbols.indexOf(symbol) >= 0;
+            row.style.display = inList ? '' : 'none';
+            if (inList) visibleCount++;
+        });
+
+        if (empty) {
+            empty.style.display = visibleCount > 0 ? 'none' : '';
+            empty.textContent = visibleCount > 0 ? '' : 'No securities in this watchlist — use :watch to add';
+        }
+    }
+
+    function getActiveWatchlistId() {
+        return activeWatchlistId || (watchlistData.length > 0 ? watchlistData[0].id : 1);
+    }
+
+    function addToWatchlist(watchlistId, symbol) {
+        fetch('/api/watchlists/' + (watchlistId || getActiveWatchlistId()) + '/symbols', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ symbol: symbol }),
+        }).then(function () {
+            loadWatchlists(); // refresh
+        }).catch(function (err) { console.error('Watch error:', err); });
+    }
+
+    function createWatchlist(name) {
+        fetch('/api/watchlists', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name }),
+        }).then(function (r) { return r.json(); })
+        .then(function (wl) {
+            loadWatchlists();
+            flashError('Watchlist "' + name + '" created');
+        }).catch(function (err) { console.error('Create watchlist error:', err); });
     }
 
     function subscribeSecurity(sec) {
@@ -245,6 +433,26 @@ window.onerror = function (msg, src, line, col, err) {
                 navigate('graph', el.dataset.symbol);
             };
         });
+
+        // Add watchlist color badge
+        var sym = row.querySelector('[data-symbol]');
+        if (sym) {
+            var symName = sym.dataset.symbol;
+            var colors = getWatchlistColors(symName);
+            if (colors.length > 0) {
+                row.style.borderLeft = '3px solid ' + colors[0];
+            }
+        }
+    }
+
+    function getWatchlistColors(symbol) {
+        var colors = [];
+        watchlistData.forEach(function (wl) {
+            if ((wl.symbols || []).indexOf(symbol) >= 0) {
+                colors.push(wl.color);
+            }
+        });
+        return colors;
     }
 
     // ── Debug Console ──
@@ -699,19 +907,49 @@ window.onerror = function (msg, src, line, col, err) {
                 const raw = input.value.trim();
                 if (!raw) return;
 
-                // Handle : chart commands (e.g. :1w, :1m, :3m, :6m)
+                // Handle : commands
                 if (raw.charAt(0) === ':') {
-                    var chartCmd = raw.substring(1).toLowerCase();
+                    var colonCmd = raw.substring(1);
+                    var colonLower = colonCmd.toLowerCase();
+
+                    // Chart range: :1, :5, :15, :30, :1h, :4h, :1w, :1m, :3m, :6m
                     var rangeMap = {
-                        // Intraday: :1, :5, :15, :30, :1h, :4h
                         '1': '1m', '5': '5m', '15': '15m', '30': '30m',
                         '1h': '1h', '4h': '4h',
-                        // EOD: :1w, :1m, :3m, :6m
                         '1w': '1W', '1m': '1M', '3m': '3M', '6m': '6M',
                     };
-                    if (rangeMap[chartCmd] && window._stocktopusSetRange) {
-                        window._stocktopusSetRange(rangeMap[chartCmd]);
+                    if (rangeMap[colonLower] && window._stocktopusSetRange) {
+                        window._stocktopusSetRange(rangeMap[colonLower]);
+                        input.value = '';
+                        enterNormalMode();
+                        return;
                     }
+
+                    // :watch or :watch SYMBOL — add to watchlist
+                    if (colonLower === 'watch' || colonLower.startsWith('watch ')) {
+                        var watchArg = colonCmd.substring(5).trim().toUpperCase();
+                        var watchSym = watchArg || selectedSecurity;
+                        if (watchSym) {
+                            addToWatchlist(getActiveWatchlistId(), watchSym);
+                            subscribeSecurity(watchSym);
+                            flashError('Added ' + watchSym + ' to watchlist');
+                        } else {
+                            flashError('Select a security first (s key)');
+                        }
+                        input.value = '';
+                        enterNormalMode();
+                        return;
+                    }
+
+                    // :watchlist "Name" — create new watchlist
+                    if (colonLower.startsWith('watchlist ')) {
+                        var wlName = colonCmd.substring(10).trim().replace(/^["']|["']$/g, '');
+                        if (wlName) createWatchlist(wlName);
+                        input.value = '';
+                        enterNormalMode();
+                        return;
+                    }
+
                     input.value = '';
                     enterNormalMode();
                     return;
@@ -920,8 +1158,25 @@ window.onerror = function (msg, src, line, col, err) {
 
     var vimHandlers = {
         watchlist: {
-            getItems: function () { return document.querySelectorAll('#quote-body tr'); },
+            getItems: function () {
+                // Only visible rows (filtered by active watchlist)
+                return document.querySelectorAll('#quote-body tr[style=""], #quote-body tr:not([style])');
+            },
             move: function (dir) {
+                if (dir === 'h' || dir === 'l') {
+                    // Switch between watchlists
+                    if (watchlistData.length <= 1) return;
+                    var idx = watchlistData.findIndex(function (wl) { return wl.id === activeWatchlistId; });
+                    if (dir === 'l') idx = Math.min(idx + 1, watchlistData.length - 1);
+                    else idx = Math.max(idx - 1, 0);
+                    activeWatchlistId = watchlistData[idx].id;
+                    localStorage.setItem('stocktopus-watchlist-id', activeWatchlistId);
+                    renderWatchlistTabs();
+                    renderWatchlistPicker();
+                    filterWatchlistView();
+                    clearVimSelection();
+                    return;
+                }
                 var items = this.getItems();
                 if (items.length === 0) return;
                 if (dir === 'j') vimSelectedIndex = Math.min(vimSelectedIndex + 1, items.length - 1);
@@ -1377,6 +1632,7 @@ window.onerror = function (msg, src, line, col, err) {
     function init() {
         initCommandBar();
         initSecuritySelector();
+        loadWatchlists(); // load persisted watchlists early
         connectWS();
         onViewEnter(currentView);
         updateClock();

@@ -38,6 +38,11 @@
     var isIntraday = false;
     var loadedFrom = null;
     var isLoadingMore = false;
+    var autoRefresh = true;
+    var autoRefreshTimer = null;
+
+    // Intervals under 1 hour that support auto-refresh
+    var AUTO_REFRESH_INTERVALS = { '1m': 60, '5m': 300, '15m': 900, '30m': 1800 };
 
     // ── All loaded data ──
 
@@ -117,6 +122,79 @@
         });
     }
 
+    // ── Auto-Refresh Button ──
+
+    var autoRefreshBtn = document.getElementById('chart-auto-refresh');
+    if (autoRefreshBtn) {
+        autoRefreshBtn.onclick = function () {
+            autoRefresh = !autoRefresh;
+            autoRefreshBtn.classList.toggle('active', autoRefresh);
+            if (autoRefresh) {
+                scheduleAutoRefresh();
+            } else {
+                clearAutoRefresh();
+            }
+        };
+    }
+
+    function updateAutoRefreshVisibility() {
+        if (autoRefreshBtn) {
+            autoRefreshBtn.style.display = AUTO_REFRESH_INTERVALS[currentRange] ? '' : 'none';
+        }
+    }
+
+    function scheduleAutoRefresh() {
+        clearAutoRefresh();
+        if (!autoRefresh || !currentRange) return;
+
+        var intervalSecs = AUTO_REFRESH_INTERVALS[currentRange];
+        if (!intervalSecs) return;
+
+        // Calculate ms until the next clock boundary + 3s buffer
+        var now = new Date();
+        var epochSecs = Math.floor(now.getTime() / 1000);
+        var remainder = epochSecs % intervalSecs;
+        var delayMs = ((intervalSecs - remainder) * 1000) + 3000;
+
+        console.log('Auto-refresh scheduled in', Math.round(delayMs / 1000) + 's for', currentRange);
+
+        autoRefreshTimer = setTimeout(function () {
+            console.log('Auto-refreshing', symbol, currentRange);
+            refreshLatest();
+            scheduleAutoRefresh();
+        }, delayMs);
+    }
+
+    function clearAutoRefresh() {
+        if (autoRefreshTimer) {
+            clearTimeout(autoRefreshTimer);
+            autoRefreshTimer = null;
+        }
+    }
+
+    function refreshLatest() {
+        if (!isIntraday || !currentRange) return;
+        var cfg = INTRADAY_RANGES[currentRange];
+        if (!cfg) return;
+
+        // Fetch just today's data and merge
+        var today = formatDate(new Date());
+        fetch('/api/chart/intraday/' + cfg.interval + '/' + symbol + '?from=' + today + '&to=' + today)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || data.length === 0) return;
+
+                mergeData(data.map(function (d) {
+                    return { time: parseIntradayTime(d.date), open: d.open, high: d.high, low: d.low, close: d.close };
+                }), data.map(function (d) {
+                    return { time: parseIntradayTime(d.date), value: d.volume, color: d.close >= d.open ? 'rgba(0, 204, 102, 0.3)' : 'rgba(255, 68, 68, 0.3)' };
+                }));
+
+                setChartData();
+            })
+            .catch(function (err) { console.error('Auto-refresh error:', err); });
+    }
+
     // ── Set Range ──
 
     function setRange(range) {
@@ -133,8 +211,12 @@
             timeVisible: isIntraday,
         });
 
+        updateAutoRefreshVisibility();
+        clearAutoRefresh();
+
         if (isIntraday) {
             loadIntraday(range);
+            if (autoRefresh) scheduleAutoRefresh();
         } else {
             loadEOD(range);
         }
@@ -225,15 +307,21 @@
     // ── Data Merge ──
 
     function mergeData(newCandles, newVolumes) {
-        var existing = {};
-        allCandles.forEach(function (c) { existing[JSON.stringify(c.time)] = true; });
+        // Build index of existing data by time
+        var existingIdx = {};
+        allCandles.forEach(function (c, i) { existingIdx[JSON.stringify(c.time)] = i; });
 
         newCandles.forEach(function (c, i) {
             var key = JSON.stringify(c.time);
-            if (!existing[key]) {
+            if (key in existingIdx) {
+                // Update existing candle (e.g. current minute updating)
+                var idx = existingIdx[key];
+                allCandles[idx] = c;
+                allVolumes[idx] = newVolumes[i];
+            } else {
                 allCandles.push(c);
                 allVolumes.push(newVolumes[i]);
-                existing[key] = true;
+                existingIdx[key] = allCandles.length - 1;
             }
         });
 
@@ -305,9 +393,11 @@
     setActiveRangeBtn(defaultRange);
     currentRange = defaultRange;
     isIntraday = !!INTRADAY_RANGES[defaultRange];
+    updateAutoRefreshVisibility();
     if (isIntraday) {
         chart.timeScale().applyOptions({ timeVisible: true });
         loadIntraday(defaultRange);
+        if (autoRefresh) scheduleAutoRefresh();
     } else {
         loadEOD(defaultRange);
     }

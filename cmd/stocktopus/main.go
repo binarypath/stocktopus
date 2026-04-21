@@ -136,7 +136,7 @@ func main() {
 		slog.Info("agent pipeline ready", "ollamaModel", ollamaModel, "cacheTTL", cacheTTL)
 	}
 
-	srv, err := server.New(server.Config{Port: 8080, Host: "localhost"}, h, debug, poll, newsClient, pipeline, logger)
+	srv, err := server.New(server.Config{Port: 8080, Host: "localhost"}, h, debug, poll, newsClient, pipeline, st, logger)
 	if err != nil {
 		slog.Error("failed to create server", "error", err)
 		os.Exit(1)

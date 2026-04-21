@@ -5,15 +5,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"stocktopus/internal/agent"
 	"stocktopus/internal/hub"
 	"stocktopus/internal/news"
+	"stocktopus/internal/store"
 )
 
 type Config struct {
@@ -48,9 +52,10 @@ type Server struct {
 	symbols    SymbolLister
 	news       *news.Client
 	pipeline   *agent.Pipeline
+	store      *store.Store
 }
 
-func New(cfg Config, h *hub.Hub, debug *DebugBroadcaster, symbols SymbolLister, newsClient *news.Client, pipeline *agent.Pipeline, logger *slog.Logger) (*Server, error) {
+func New(cfg Config, h *hub.Hub, debug *DebugBroadcaster, symbols SymbolLister, newsClient *news.Client, pipeline *agent.Pipeline, st *store.Store, logger *slog.Logger) (*Server, error) {
 	s := &Server{
 		config:   cfg,
 		logger:   logger,
@@ -58,6 +63,7 @@ func New(cfg Config, h *hub.Hub, debug *DebugBroadcaster, symbols SymbolLister, 
 		debug:    debug,
 		symbols:  symbols,
 		pipeline: pipeline,
+		store:    st,
 		news:    newsClient,
 	}
 
@@ -133,6 +139,11 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/security/{symbol}/intelligence/status", s.handleIntelligenceStatus)
 	mux.HandleFunc("POST /api/security/{symbol}/intelligence/refresh", s.handleIntelligenceRefresh)
 	mux.HandleFunc("GET /api/agent/status", s.handleAgentStatus)
+	mux.HandleFunc("GET /api/watchlists", s.handleGetWatchlists)
+	mux.HandleFunc("POST /api/watchlists", s.handleCreateWatchlist)
+	mux.HandleFunc("POST /api/watchlists/{id}/symbols", s.handleAddToWatchlist)
+	mux.HandleFunc("DELETE /api/watchlists/{id}/symbols/{symbol}", s.handleRemoveFromWatchlist)
+	mux.HandleFunc("GET /api/watchlists/quotes", s.handleWatchlistQuotes)
 	mux.HandleFunc("GET /api/security/{symbol}/competitors", s.handleCompetitors)
 
 	// WebSocket
@@ -465,6 +476,119 @@ func (s *Server) handleCompetitors(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(results)
+}
+
+func (s *Server) handleGetWatchlists(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if s.store == nil {
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+	lists, err := s.store.GetWatchlists()
+	if err != nil {
+		s.logger.Error("get watchlists failed", "error", err)
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+	json.NewEncoder(w).Encode(lists)
+}
+
+func (s *Server) handleCreateWatchlist(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if s.store == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]string{"error": "store not available"})
+		return
+	}
+	var req struct {
+		Name string `json:"name"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+	if req.Name == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "name required"})
+		return
+	}
+	wl, err := s.store.CreateWatchlist(req.Name)
+	if err != nil {
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	json.NewEncoder(w).Encode(wl)
+}
+
+func (s *Server) handleAddToWatchlist(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if s.store == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var req struct {
+		Symbol string `json:"symbol"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+	if req.Symbol == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "symbol required"})
+		return
+	}
+	err := s.store.AddToWatchlist(id, req.Symbol)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]string{"status": "added", "symbol": req.Symbol})
+}
+
+func (s *Server) handleRemoveFromWatchlist(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if s.store == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	symbol := r.PathValue("symbol")
+	s.store.RemoveFromWatchlist(id, symbol)
+	json.NewEncoder(w).Encode(map[string]string{"status": "removed"})
+}
+
+func (s *Server) handleWatchlistQuotes(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if s.store == nil {
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+
+	symbols, err := s.store.GetAllWatchedSymbols()
+	if err != nil || len(symbols) == 0 {
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+
+	// Batch fetch from FMP
+	params := url.Values{}
+	params.Set("symbols", strings.Join(symbols, ","))
+	params.Set("apikey", s.news.APIKey())
+
+	reqURL := "https://financialmodelingprep.com/stable/batch-quote?" + params.Encode()
+	req, err := http.NewRequestWithContext(r.Context(), "GET", reqURL, nil)
+	if err != nil {
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	w.Write(body)
 }
 
 // gatherFMPData collects all available FMP data for a symbol as JSON context.
