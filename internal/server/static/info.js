@@ -115,74 +115,15 @@
         if (n < allTabs.length) allTabs[n].click();
     };
 
-    // ── Sparkline ──
+    // ── Company Panel (shared from terminal.js) ──
 
-    function initSparkline() {
-        var el = document.getElementById('info-sparkline');
-        if (!el || !window.LightweightCharts) return;
-
-        var from = new Date();
-        from.setMonth(from.getMonth() - 6);
-        var to = new Date();
-        var fromStr = to.getFullYear() === from.getFullYear()
-            ? from.toISOString().slice(0, 10)
-            : from.toISOString().slice(0, 10);
-
-        fetch('/api/chart/eod/' + symbol + '?from=' + from.toISOString().slice(0, 10) + '&to=' + to.toISOString().slice(0, 10))
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (!data || data.length < 2) return;
-
-                var first = data[0].close;
-                var last = data[data.length - 1].close;
-                var color = last >= first ? '#00cc66' : '#ff4444';
-
-                var chart = LightweightCharts.createChart(el, {
-                    width: 200,
-                    height: 50,
-                    layout: { background: { color: 'transparent' }, textColor: 'transparent' },
-                    grid: { vertLines: { visible: false }, horzLines: { visible: false } },
-                    rightPriceScale: { visible: false },
-                    timeScale: { visible: false },
-                    handleScroll: false,
-                    handleScale: false,
-                    crosshair: { vertLine: { visible: false }, horzLine: { visible: false } },
-                });
-
-                var series = chart.addSeries(LightweightCharts.AreaSeries, {
-                    lineColor: color,
-                    topColor: color.replace(')', ', 0.2)').replace('rgb', 'rgba'),
-                    bottomColor: 'transparent',
-                    lineWidth: 2,
-                    priceLineVisible: false,
-                    lastValueVisible: false,
-                });
-
-                series.setData(data.map(function (d) { return { time: d.date, value: d.close }; }));
-                chart.timeScale().fitContent();
-            });
-    }
-
-    // ── Load Header (profile price/change) ──
-
-    function loadHeader() {
-        fetch('/api/security/' + symbol + '/profile')
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (!data || !data.length) return;
-                var p = data[0];
-                var nameEl = document.getElementById('info-company-name');
-                var priceEl = document.getElementById('info-price');
-                var changeEl = document.getElementById('info-change');
-                if (nameEl) nameEl.textContent = p.companyName || '';
-                if (priceEl) priceEl.textContent = p.price ? p.price.toFixed(2) : '';
-                if (changeEl) {
-                    var chg = p.change || 0;
-                    var chgPct = p.changePercentage || 0;
-                    changeEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + ' (' + chgPct.toFixed(2) + '%)';
-                    changeEl.className = 'info-change ' + (chg >= 0 ? 'price-up' : 'price-down');
-                }
-            });
+    function initCompanyPanel() {
+        if (window._renderCompanyPanel) {
+            window._renderCompanyPanel('company-panel', symbol);
+        } else {
+            // terminal.js may not have loaded yet (direct page load)
+            setTimeout(initCompanyPanel, 100);
+        }
     }
 
     // ── Tab Loaders ──
@@ -286,6 +227,7 @@
             btn.onclick = function () {
                 container.querySelectorAll('.info-sub-tab').forEach(function (b) { b.classList.remove('active'); });
                 btn.classList.add('active');
+                history.replaceState(null, '', location.pathname + '#financials-' + btn.dataset.ftype);
                 loadFinancialTable(btn.dataset.ftype);
             };
         });
@@ -475,6 +417,8 @@
                     return;
                 }
                 container.innerHTML = renderAIAnalysis(data);
+                wireCompetitorLinks();
+                loadCompetitorScores();
             })
             .catch(function () {
                 container.innerHTML = '<p class="empty-state">Failed to load AI analysis</p>';
@@ -493,6 +437,8 @@
                             .then(function (r) { return r.json(); })
                             .then(function (data) {
                                 container.innerHTML = renderAIAnalysis(data);
+                wireCompetitorLinks();
+                loadCompetitorScores();
                             });
                     } else if (status.status === 'failed') {
                         clearInterval(pollInterval);
@@ -560,13 +506,16 @@
             html += '</ul></div>';
         }
 
-        // Competitors
+        // Competitors — loaded async with scores
         if (data.competitors && data.competitors.length > 0) {
             html += '<div class="ai-section">';
             html += '<div class="ai-section-title">Competitors</div>';
-            html += '<div class="ai-competitors">';
+            html += '<div class="ai-competitors" id="ai-competitors">';
             data.competitors.forEach(function (c) {
-                html += '<span class="ai-competitor">' + esc(c) + '</span>';
+                html += '<div class="ai-competitor-card" data-symbol="' + esc(c) + '" data-nav="security">'
+                    + '<span class="ai-competitor-sym">' + esc(c) + '</span>'
+                    + '<span class="ai-competitor-scores">loading...</span>'
+                    + '</div>';
             });
             html += '</div></div>';
         }
@@ -626,14 +575,74 @@
             + '</div>';
     }
 
+    function wireCompetitorLinks() {
+        var cards = document.querySelectorAll('.ai-competitor-card[data-nav="security"]');
+        cards.forEach(function (card) {
+            card.addEventListener('click', function (e) {
+                // Don't navigate if clicking the analyze button
+                if (e.target.closest('.ai-analyze-btn')) return;
+                var sym = card.dataset.symbol;
+                if (sym && window._navigateToSecurity) {
+                    window._navigateToSecurity(sym);
+                }
+            });
+        });
+    }
+
+    window._triggerAnalysis = function (sym, btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner" style="width:10px;height:10px;display:inline-block"></span> analyzing...';
+        fetch('/api/security/' + sym + '/intelligence')
+            .then(function () {
+                // Start polling for this competitor's completion
+                setTimeout(loadCompetitorScores, 3000);
+            });
+    };
+
+    function loadCompetitorScores() {
+        var el = document.getElementById('ai-competitors');
+        if (!el) return;
+
+        fetch('/api/security/' + symbol + '/competitors')
+            .then(function (r) { return r.json(); })
+            .then(function (comps) {
+                if (!comps || comps.length === 0) return;
+
+                comps.forEach(function (c) {
+                    var card = el.querySelector('[data-symbol="' + c.symbol + '"]');
+                    if (!card) return;
+                    var scoresEl = card.querySelector('.ai-competitor-scores');
+                    if (!scoresEl) return;
+
+                    if (c.status === 'ready') {
+                        var sentClass = c.sentiment >= 0 ? 'price-up' : 'price-down';
+                        var riskClass = c.riskScore > 60 ? 'price-down' : 'price-up';
+                        scoresEl.innerHTML = '<span class="' + sentClass + '">S:' + c.sentiment.toFixed(1) + '</span>'
+                            + ' <span class="' + riskClass + '">R:' + c.riskScore.toFixed(0) + '</span>';
+                    } else if (c.status === 'pending') {
+                        scoresEl.innerHTML = '<span class="spinner" style="width:10px;height:10px"></span> analyzing...';
+                    } else {
+                        scoresEl.innerHTML = '<button class="ai-analyze-btn" onclick="event.preventDefault();event.stopPropagation();window._triggerAnalysis(\'' + c.symbol + '\',this)">&#129302; analyze</button>';
+                    }
+                });
+
+                // Poll again if any are still pending
+                var hasPending = comps.some(function (c) { return c.status !== 'ready'; });
+                if (hasPending) {
+                    setTimeout(loadCompetitorScores, 5000);
+                }
+            });
+    }
+
     // ── Refresh ──
 
     var currentTab = 'overview';
 
-    // Override loadTab to track current tab
+    // Override loadTab to track current tab and update URL hash
     var _origLoadTab = loadTab;
     loadTab = function (tab) {
         currentTab = tab;
+        history.replaceState(null, '', location.pathname + '#' + tab);
         _origLoadTab(tab);
     };
 
@@ -651,7 +660,7 @@
         var oldChange = changeEl ? changeEl.textContent : '';
 
         // Reload header
-        loadHeader();
+        initCompanyPanel();
 
         // Reload current tab content
         loadTab(currentTab);
@@ -682,7 +691,27 @@
 
     // ── Init ──
 
-    loadHeader();
-    initSparkline();
-    loadTab('overview');
+    initCompanyPanel();
+
+    // Read initial tab from URL hash, default to overview
+    var initTab = 'overview';
+    var initSubTab = '';
+    var hash = location.hash.replace('#', '');
+    if (hash) {
+        var parts = hash.split('-');
+        var mainTab = parts[0];
+        if (['overview', 'financials', 'estimates', 'news', 'ai'].indexOf(mainTab) >= 0) {
+            initTab = mainTab;
+            if (parts.length > 1) initSubTab = parts.slice(1).join('-');
+        }
+        var allTabs = document.querySelectorAll('#info-tabs .info-tab');
+        allTabs.forEach(function (t) {
+            t.classList.toggle('active', t.dataset.tab === initTab);
+        });
+    }
+    if (initTab === 'financials' && initSubTab) {
+        loadFinancials(initSubTab);
+    } else {
+        loadTab(initTab);
+    }
 })();

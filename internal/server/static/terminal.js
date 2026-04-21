@@ -289,6 +289,12 @@
         var tabs = document.getElementById('news-tabs');
         if (!tabs) return;
 
+        // Show company panel if a security is selected
+        var sym = getNewsSymbol();
+        if (sym && window._renderCompanyPanel) {
+            window._renderCompanyPanel('company-panel', sym);
+        }
+
         tabs.querySelectorAll('.news-tab').forEach(function (tab) {
             tab.onclick = function () {
                 if (tab.classList.contains('dimmed')) return;
@@ -1235,6 +1241,114 @@
     }
 
     // ── Init ──
+
+    // Expose navigation for info.js competitor links
+    window._navigateToSecurity = function (sym) {
+        setSecurity(sym);
+        onViewLeave(currentView);
+        navigate('info', sym);
+    };
+
+    window._navigateToGraph = function (sym) {
+        setSecurity(sym);
+        onViewLeave(currentView);
+        navigate('graph', sym);
+    };
+
+    // ── Shared Company Panel ──
+    // Renders price, change, and sparkline into a container element.
+    // Used by info and news views.
+    window._renderCompanyPanel = function (containerId, symbol) {
+        var el = document.getElementById(containerId);
+        if (!el || !symbol) return;
+
+        el.innerHTML = '<span class="cpanel-sym">' + symbol + '</span>'
+            + '<span id="cpanel-name" class="cpanel-name"></span>'
+            + '<span id="cpanel-price" class="cpanel-price"></span>'
+            + '<span id="cpanel-change" class="cpanel-change"></span>'
+            + '<div class="cpanel-spark-wrap"><span class="cpanel-spark-label">6M</span><div id="cpanel-spark" class="cpanel-spark"></div></div>';
+
+        // Make sparkline clickable
+        var spark = document.getElementById('cpanel-spark');
+        if (spark) {
+            spark.style.cursor = 'pointer';
+            spark.title = 'Open chart';
+            spark.addEventListener('click', function () {
+                localStorage.setItem('stocktopus-chart-range', '6M');
+                if (window._navigateToGraph) window._navigateToGraph(symbol);
+            });
+        }
+
+        // Fetch profile
+        fetch('/api/security/' + symbol + '/profile')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || !data.length) return;
+                var p = data[0];
+                var nameEl = document.getElementById('cpanel-name');
+                var priceEl = document.getElementById('cpanel-price');
+                var changeEl = document.getElementById('cpanel-change');
+                if (nameEl) nameEl.textContent = p.companyName || '';
+                if (priceEl) priceEl.textContent = p.price ? p.price.toFixed(2) : '';
+                if (changeEl) {
+                    var chg = p.change || 0;
+                    var chgPct = p.changePercentage || 0;
+                    changeEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + ' (' + chgPct.toFixed(2) + '%)';
+                    changeEl.className = 'cpanel-change ' + (chg >= 0 ? 'price-up' : 'price-down');
+                }
+            });
+
+        // Fetch sparkline (needs lightweight-charts loaded)
+        if (!spark) return;
+
+        function renderSpark() {
+            if (!window.LightweightCharts) {
+                // Retry — library may still be loading from fragment script
+                setTimeout(renderSpark, 200);
+                return;
+            }
+            loadSparkData();
+        }
+
+        function loadSparkData() {
+            var from = new Date();
+            from.setMonth(from.getMonth() - 6);
+            var to = new Date();
+            fetch('/api/chart/eod/' + symbol + '?from=' + from.toISOString().slice(0, 10) + '&to=' + to.toISOString().slice(0, 10))
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (!data || data.length < 2) return;
+                    var first = data[0].close;
+                    var last = data[data.length - 1].close;
+                    var color = last >= first ? '#00cc66' : '#ff4444';
+
+                    var chart = LightweightCharts.createChart(spark, {
+                        width: 160, height: 40,
+                        layout: { background: { color: 'transparent' }, textColor: 'transparent' },
+                        grid: { vertLines: { visible: false }, horzLines: { visible: false } },
+                        rightPriceScale: { visible: false },
+                        timeScale: { visible: false },
+                        handleScroll: false, handleScale: false,
+                        crosshair: { vertLine: { visible: false }, horzLine: { visible: false } },
+                    });
+                    var series = chart.addSeries(LightweightCharts.AreaSeries, {
+                        lineColor: color,
+                        topColor: color.replace(')', ', 0.2)').replace('rgb', 'rgba'),
+                        bottomColor: 'transparent',
+                        lineWidth: 2,
+                        priceLineVisible: false, lastValueVisible: false,
+                    });
+                    series.setData(data.map(function (d) { return { time: d.date, value: d.close }; }));
+                    chart.timeScale().fitContent();
+
+                    // Colour the 6M label to match the sparkline
+                    var label = document.querySelector('.cpanel-spark-label');
+                    if (label) label.style.color = color;
+                });
+        }
+
+        renderSpark();
+    };
 
     function init() {
         initCommandBar();

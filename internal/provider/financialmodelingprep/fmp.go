@@ -209,7 +209,7 @@ func (p *Provider) normalizeQuote(data *QuoteResponse) (*model.Quote, error) {
 		return nil, fmt.Errorf("invalid price: %f", data.Price)
 	}
 	if data.Volume < 0 {
-		return nil, fmt.Errorf("invalid volume: %d", data.Volume)
+		return nil, fmt.Errorf("invalid volume: %f", data.Volume)
 	}
 
 	// FMP timestamp is Unix seconds
@@ -227,7 +227,7 @@ func (p *Provider) normalizeQuote(data *QuoteResponse) (*model.Quote, error) {
 	quote := &model.Quote{
 		Symbol:        symbol,
 		Price:         data.Price,
-		Volume:        data.Volume,
+		Volume:        int64(data.Volume),
 		Timestamp:     timestamp,
 		Change:        change,
 		ChangePercent: changePercent,
@@ -250,7 +250,7 @@ type QuoteResponse struct {
 	MarketCap         float64 `json:"marketCap"`
 	PriceAvg50        float64 `json:"priceAvg50"`
 	PriceAvg200       float64 `json:"priceAvg200"`
-	Volume            int64   `json:"volume"`
+	Volume            float64 `json:"volume"`
 	AvgVolume         int64   `json:"avgVolume"`
 	Open              float64 `json:"open"`
 	PreviousClose     float64 `json:"previousClose"`

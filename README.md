@@ -106,3 +106,7 @@ Uses [Financial Modeling Prep](https://financialmodelingprep.com/) stable API fo
 - Historical EOD data (`/stable/historical-price-eod/full`)
 - News across 6 categories (`/stable/news/*`)
 - Security search by ticker and name (`/stable/search-symbol`, `/stable/search-name`)
+
+## Credits
+
+- Charts powered by [TradingView Lightweight Charts](https://www.tradingview.com/lightweight-charts/) (Apache 2.0)

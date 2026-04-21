@@ -132,6 +132,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/security/{symbol}/intelligence/status", s.handleIntelligenceStatus)
 	mux.HandleFunc("POST /api/security/{symbol}/intelligence/refresh", s.handleIntelligenceRefresh)
 	mux.HandleFunc("GET /api/agent/status", s.handleAgentStatus)
+	mux.HandleFunc("GET /api/security/{symbol}/competitors", s.handleCompetitors)
 
 	// WebSocket
 	mux.HandleFunc("GET /ws", s.handleWebSocket)
@@ -407,6 +408,59 @@ func (s *Server) handleAgentStatus(w http.ResponseWriter, r *http.Request) {
 		status["ollamaAvailable"] = s.pipeline.OllamaAvailable()
 	}
 	json.NewEncoder(w).Encode(status)
+}
+
+func (s *Server) handleCompetitors(w http.ResponseWriter, r *http.Request) {
+	symbol := r.PathValue("symbol")
+	w.Header().Set("Content-Type", "application/json")
+
+	if s.pipeline == nil {
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+
+	// Get the parent's analysis to find competitors
+	parent, _ := s.pipeline.GetDirect(symbol)
+	if parent == nil || len(parent.Competitors) == 0 {
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+
+	type CompetitorScore struct {
+		Symbol    string  `json:"symbol"`
+		Sentiment float64 `json:"sentiment"`
+		RiskScore float64 `json:"riskScore"`
+		Summary   string  `json:"summary"`
+		Status    string  `json:"status"` // "ready", "pending", "none"
+	}
+
+	var results []CompetitorScore
+	for _, comp := range parent.Competitors {
+		ci, _ := s.pipeline.GetDirect(comp)
+		if ci != nil {
+			results = append(results, CompetitorScore{
+				Symbol:    comp,
+				Sentiment: ci.Sentiment,
+				RiskScore: ci.RiskScore,
+				Summary:   ci.Summary,
+				Status:    "ready",
+			})
+		} else {
+			status := "none"
+			ps := s.pipeline.GetStatus(comp)
+			if ps != nil && ps.Status == agent.StatusRunning {
+				status = "pending"
+			}
+			results = append(results, CompetitorScore{
+				Symbol:    comp,
+				Sentiment: 0,
+				RiskScore: 0,
+				Status:    status,
+			})
+		}
+	}
+
+	json.NewEncoder(w).Encode(results)
 }
 
 // gatherFMPData collects all available FMP data for a symbol as JSON context.

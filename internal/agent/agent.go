@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -130,10 +131,15 @@ func (p *Pipeline) OllamaAvailable() bool {
 	return p.workers.OllamaAvailable()
 }
 
-// Analyze triggers an analysis for a symbol. Returns immediately.
-// Results are stored in SQLite and pushed via status callback.
+// Analyze triggers an analysis for a symbol at the given depth.
+// depth=1 means this is a parent that can spawn competitor analyses.
+// depth=0 means this is a child — no further spawning.
 // Uses a detached context so the pipeline survives after the HTTP request ends.
 func (p *Pipeline) Analyze(_ context.Context, symbol string, fmpData json.RawMessage) {
+	p.analyzeAtDepth(symbol, fmpData, 1)
+}
+
+func (p *Pipeline) analyzeAtDepth(symbol string, fmpData json.RawMessage, depth int) {
 	p.mu.Lock()
 	if existing, ok := p.active[symbol]; ok && existing.Status == StatusRunning {
 		p.mu.Unlock()
@@ -148,15 +154,14 @@ func (p *Pipeline) Analyze(_ context.Context, symbol string, fmpData json.RawMes
 	p.active[symbol] = status
 	p.mu.Unlock()
 
-	// Use a background context with a generous timeout — not tied to HTTP request
 	bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	go func() {
 		defer cancel()
-		p.runPipeline(bgCtx, symbol, fmpData, status)
+		p.runPipeline(bgCtx, symbol, fmpData, status, depth)
 	}()
 }
 
-func (p *Pipeline) runPipeline(ctx context.Context, symbol string, fmpData json.RawMessage, status *PipelineStatus) {
+func (p *Pipeline) runPipeline(ctx context.Context, symbol string, fmpData json.RawMessage, status *PipelineStatus, depth int) {
 	defer func() {
 		if r := recover(); r != nil {
 			p.logger.Error("pipeline panic", "symbol", symbol, "panic", r)
@@ -243,7 +248,24 @@ func (p *Pipeline) runPipeline(ctx context.Context, symbol string, fmpData json.
 	status.FinishedAt = time.Now()
 	p.emitStatus(*status)
 
-	p.logger.Info("pipeline complete", "symbol", symbol, "duration", time.Since(status.StartedAt))
+	p.logger.Info("pipeline complete", "symbol", symbol, "depth", depth, "duration", time.Since(status.StartedAt))
+
+	// Spawn competitor analyses one level deep
+	if depth > 0 && analysis.Competitors != nil {
+		for _, comp := range analysis.Competitors {
+			comp = strings.TrimSpace(comp)
+			if comp == "" || comp == symbol {
+				continue
+			}
+			// Skip if already cached
+			if p.store.IsFresh(comp, p.cacheTTL) {
+				p.logger.Debug("competitor already cached", "competitor", comp)
+				continue
+			}
+			p.logger.Info("spawning competitor analysis", "parent", symbol, "competitor", comp)
+			p.analyzeAtDepth(comp, nil, 0) // depth=0: no further spawning
+		}
+	}
 }
 
 func (p *Pipeline) emitStatus(status PipelineStatus) {

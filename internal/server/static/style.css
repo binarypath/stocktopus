@@ -413,45 +413,63 @@ body {
 
 /* ── Security Info View ── */
 
-.info-header {
+/* ── Company Panel (shared) ── */
+
+.company-panel {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
-    gap: 16px;
+    gap: 10px;
+    flex-shrink: 0;
 }
 
-.info-title {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
-.info-title h1 {
-    font-size: 16px;
+.cpanel-sym {
     font-weight: 700;
-}
-
-.info-company-name {
-    color: var(--text-secondary);
     font-size: 13px;
+    color: var(--blue);
+    display: none; /* hidden when h1 already shows symbol */
 }
 
-.info-price {
-    font-size: 16px;
+.cpanel-name {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.cpanel-price {
+    font-size: 14px;
     font-weight: 700;
     color: var(--text-primary);
 }
 
-.info-change {
-    font-size: 13px;
+.cpanel-change {
+    font-size: 12px;
 }
 
-.info-sparkline {
+.cpanel-spark-wrap {
+    display: flex;
+    align-items: center;
+    gap: 4px;
     flex-shrink: 0;
-    width: 200px;
-    height: 50px;
+}
+
+.cpanel-spark-label {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.cpanel-spark {
+    width: 160px;
+    height: 40px;
+}
+
+.cpanel-spark a[href*="tradingview"],
+.chart-container a[href*="tradingview"] {
+    display: none !important;
+}
+
+/* Show symbol in panel on news page (no h1 with symbol) */
+.news-cards ~ .company-panel .cpanel-sym,
+.page-header .company-panel .cpanel-sym {
+    display: inline;
 }
 
 .info-tabs {
@@ -755,14 +773,55 @@ body {
     flex-wrap: wrap;
 }
 
-.ai-competitor {
+.ai-competitor-card {
     background: var(--bg-tertiary);
     border: 1px solid var(--border);
     border-radius: 4px;
-    padding: 4px 10px;
-    font-size: 12px;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 100px;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.ai-competitor-card:hover {
+    border-color: var(--blue);
+}
+
+.ai-competitor-sym {
+    font-size: 13px;
     color: var(--blue);
-    font-weight: 600;
+    font-weight: 700;
+}
+
+.ai-analyze-btn {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--orange);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 2px 8px;
+    cursor: pointer;
+}
+
+.ai-analyze-btn:hover {
+    border-color: var(--orange);
+}
+
+.ai-analyze-btn:disabled {
+    cursor: default;
+    color: var(--text-muted);
+    border-color: var(--border);
+}
+
+.ai-competitor-scores {
+    font-size: 11px;
+    color: var(--text-muted);
+    display: flex;
+    gap: 8px;
 }
 
 .ai-text {
@@ -839,9 +898,8 @@ body {
     .info-grid {
         grid-template-columns: repeat(2, 1fr);
     }
-    .info-header {
-        flex-direction: column;
-        align-items: flex-start;
+    .company-panel {
+        flex-wrap: wrap;
     }
 }
 

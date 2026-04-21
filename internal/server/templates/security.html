@@ -1,13 +1,8 @@
 {{template "layout" .}}
 {{define "content"}}
-<div class="info-header">
-    <div class="info-title">
-        <h1>{{.Symbol}}</h1>
-        <span id="info-company-name" class="info-company-name"></span>
-        <span id="info-price" class="info-price"></span>
-        <span id="info-change" class="info-change"></span>
-    </div>
-    <div id="info-sparkline" class="info-sparkline"></div>
+<div class="page-header">
+    <h1>{{.Symbol}}</h1>
+    <div id="company-panel" class="company-panel"></div>
 </div>
 <span id="help-indicator" class="help-indicator hidden">? help on</span>
 <div class="info-tabs" id="info-tabs">
