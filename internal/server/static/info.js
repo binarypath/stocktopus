@@ -115,6 +115,43 @@
         if (n < allTabs.length) allTabs[n].click();
     };
 
+    // ── Security Type Detection ──
+
+    var securityType = 'stock'; // default
+
+    function detectSecurityType(profile) {
+        if (!profile) return 'stock';
+        var ex = (profile.exchange || '').toUpperCase();
+        if (ex === 'CRYPTO' || ex === 'CCC') return 'crypto';
+        if (ex === 'FOREX') return 'forex';
+        if ((profile.symbol || '').charAt(0) === '^') return 'index';
+        if (profile.isEtf) return 'etf';
+        return 'stock';
+    }
+
+    function applySecurityType(type) {
+        securityType = type;
+        var hideTabs = [];
+        if (type === 'crypto' || type === 'forex' || type === 'index') {
+            hideTabs = ['financials', 'estimates'];
+        }
+        document.querySelectorAll('#info-tabs .info-tab').forEach(function (tab) {
+            if (hideTabs.indexOf(tab.dataset.tab) >= 0) {
+                tab.style.display = 'none';
+            }
+        });
+    }
+
+    // Detect type early from profile
+    fetch('/api/security/' + symbol + '/profile')
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data && data[0]) {
+                applySecurityType(detectSecurityType(data[0]));
+            }
+        })
+        .catch(function () {});
+
     // ── Company Panel (shared from terminal.js) ──
 
     function initCompanyPanel() {
@@ -130,12 +167,17 @@
 
     function loadTab(tab) {
         container.innerHTML = '<p class="empty-state">Loading...</p>';
-        switch (tab) {
-            case 'overview': loadOverview(); break;
-            case 'financials': loadFinancials('income'); break;
-            case 'estimates': loadEstimates(); break;
-            case 'news': loadNews(); break;
-            case 'ai': loadAI(); break;
+        try {
+            switch (tab) {
+                case 'overview': loadOverview(); break;
+                case 'financials': loadFinancials('income'); break;
+                case 'estimates': loadEstimates(); break;
+                case 'news': loadNews(); break;
+                case 'ai': loadAI(); break;
+            }
+        } catch (e) {
+            console.error('Tab load error:', tab, e);
+            container.innerHTML = '<p class="empty-state">Failed to load ' + tab + '</p>';
         }
     }
 

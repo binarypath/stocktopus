@@ -328,12 +328,13 @@ func (s *Server) handleIntelligence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if already running
+	// Check if running or recently failed
 	status := s.pipeline.GetStatus(symbol)
-	if status != nil && status.Status == agent.StatusRunning {
+	if status != nil && (status.Status == agent.StatusRunning || status.Status == agent.StatusFailed) {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status": status.Status,
 			"symbol": symbol,
+			"error":  status.Error,
 		})
 		return
 	}
@@ -406,6 +407,8 @@ func (s *Server) handleAgentStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.pipeline != nil {
 		status["ollamaAvailable"] = s.pipeline.OllamaAvailable()
+		status["usage"] = s.pipeline.GetUsage()
+		status["pipelines"] = s.pipeline.GetAllStatuses()
 	}
 	json.NewEncoder(w).Encode(status)
 }

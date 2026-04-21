@@ -7,16 +7,114 @@
         <label><input type="checkbox" id="autoscroll" checked> Auto-scroll</label>
     </div>
 </div>
-<div class="debug-console" id="debug-console">
-    <div id="log-entries">
-        {{range .Entries}}
-        <div class="log-entry log-{{.Level}}">
-            <span class="log-time">{{.Time}}</span>
-            <span class="log-level">{{.Level}}</span>
-            <span class="log-msg">{{.Message}}</span>
-            {{if .Attrs}}<span class="log-attrs">{{.Attrs}}</span>{{end}}
+
+<div class="debug-panels">
+    <div class="debug-agent-panel" id="agent-panel">
+        <div class="agent-panel-header">Agent Status</div>
+        <div class="agent-stats" id="agent-stats">
+            <div class="agent-stat">
+                <span class="agent-stat-label">Gemini Requests</span>
+                <span class="agent-stat-value" id="stat-requests">—</span>
+            </div>
+            <div class="agent-stat">
+                <span class="agent-stat-label">Prompt Tokens</span>
+                <span class="agent-stat-value" id="stat-prompt-tokens">—</span>
+            </div>
+            <div class="agent-stat">
+                <span class="agent-stat-label">Output Tokens</span>
+                <span class="agent-stat-value" id="stat-output-tokens">—</span>
+            </div>
+            <div class="agent-stat">
+                <span class="agent-stat-label">Total Tokens</span>
+                <span class="agent-stat-value" id="stat-total-tokens">—</span>
+            </div>
+            <div class="agent-stat">
+                <span class="agent-stat-label">Ollama</span>
+                <span class="agent-stat-value" id="stat-ollama">—</span>
+            </div>
         </div>
-        {{end}}
+        <div class="agent-pipelines-header">Pipelines</div>
+        <div id="agent-pipelines" class="agent-pipelines"></div>
+    </div>
+
+    <div class="debug-console" id="debug-console">
+        <div id="log-entries">
+            {{range .Entries}}
+            <div class="log-entry log-{{.Level}}">
+                <span class="log-time">{{.Time}}</span>
+                <span class="log-level">{{.Level}}</span>
+                <span class="log-msg">{{.Message}}</span>
+                {{if .Attrs}}<span class="log-attrs">{{.Attrs}}</span>{{end}}
+            </div>
+            {{end}}
+        </div>
     </div>
 </div>
+
+<script>
+(function() {
+    function refreshAgentStatus() {
+        fetch('/api/agent/status')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.available) {
+                    document.getElementById('agent-stats').innerHTML = '<p style="color:var(--text-muted);font-size:12px">Agent pipeline not configured</p>';
+                    return;
+                }
+
+                var u = data.usage || {};
+                setText('stat-requests', u.totalRequests || 0);
+                setText('stat-prompt-tokens', formatNum(u.totalPromptTokens || 0));
+                setText('stat-output-tokens', formatNum(u.totalOutputTokens || 0));
+                setText('stat-total-tokens', formatNum(u.totalTokens || 0));
+
+                var ollamaEl = document.getElementById('stat-ollama');
+                if (ollamaEl) {
+                    ollamaEl.textContent = data.ollamaAvailable ? 'connected' : 'offline';
+                    ollamaEl.style.color = data.ollamaAvailable ? 'var(--green)' : 'var(--red)';
+                }
+
+                var pipelines = data.pipelines || [];
+                var pEl = document.getElementById('agent-pipelines');
+                if (pEl) {
+                    if (pipelines.length === 0) {
+                        pEl.innerHTML = '<p style="color:var(--text-muted);font-size:11px">No active pipelines</p>';
+                    } else {
+                        pEl.innerHTML = pipelines.map(function(p) {
+                            var statusClass = 'agent-pip-' + p.status;
+                            var dur = p.finishedAt && p.startedAt
+                                ? Math.round((new Date(p.finishedAt) - new Date(p.startedAt)) / 1000) + 's'
+                                : 'running...';
+                            var tasks = (p.tasks || []).map(function(t) {
+                                var icon = t.status === 'complete' ? '&#10003;' : t.status === 'running' ? '&#9679;' : t.status === 'failed' ? '&#10007;' : '&#9675;';
+                                return '<span class="pip-task pip-task-' + t.status + '">' + icon + ' ' + (t.id || t.type) + '</span>';
+                            }).join(' ');
+                            return '<div class="agent-pipeline ' + statusClass + '">'
+                                + '<span class="pip-symbol">' + p.symbol + '</span>'
+                                + '<span class="pip-status">' + p.status + '</span>'
+                                + '<span class="pip-dur">' + dur + '</span>'
+                                + '<div class="pip-tasks">' + tasks + '</div>'
+                                + '</div>';
+                        }).join('');
+                    }
+                }
+            })
+            .catch(function() {});
+    }
+
+    function setText(id, val) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = val;
+    }
+
+    function formatNum(n) {
+        if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+        if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+        return n;
+    }
+
+    refreshAgentStatus();
+    setInterval(refreshAgentStatus, 5000);
+})();
+</script>
 {{end}}

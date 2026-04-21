@@ -1090,6 +1090,125 @@ body {
     overflow: hidden;
 }
 
+/* ── Debug Panels ── */
+
+.debug-panels {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 12px;
+    height: calc(100vh - 140px);
+}
+
+.debug-agent-panel {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    overflow-y: auto;
+}
+
+.agent-panel-header,
+.agent-pipelines-header {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.agent-pipelines-header {
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.agent-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.agent-stat {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+}
+
+.agent-stat-label {
+    color: var(--text-muted);
+}
+
+.agent-stat-value {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.agent-pipelines {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.agent-pipeline {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 6px 8px;
+    font-size: 11px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.pip-symbol {
+    color: var(--blue);
+    font-weight: 700;
+}
+
+.pip-status {
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
+.agent-pip-running .pip-status {
+    color: var(--orange);
+    border: 1px solid var(--orange);
+}
+
+.agent-pip-complete .pip-status {
+    color: var(--green);
+    border: 1px solid var(--green);
+}
+
+.agent-pip-failed .pip-status {
+    color: var(--red);
+    border: 1px solid var(--red);
+}
+
+.pip-dur {
+    color: var(--text-muted);
+    font-size: 10px;
+}
+
+.pip-tasks {
+    width: 100%;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.pip-task {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.pip-task-complete { color: var(--green); }
+.pip-task-running { color: var(--orange); }
+.pip-task-failed { color: var(--red); }
+
 /* ── Debug Console ── */
 
 .debug-console {

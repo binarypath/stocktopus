@@ -1,6 +1,7 @@
 package news
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"net/url"
 	"stocktopus/internal/model"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -20,8 +22,13 @@ type SearchResult struct {
 	Exchange string `json:"exchange"`
 }
 
+// SetGeminiKey sets the Gemini API key for AI-assisted search fallback.
+func (c *Client) SetGeminiKey(key string) {
+	c.geminiKey = key
+}
+
 // SearchSymbol searches for securities by ticker and company name in parallel,
-// merging and deduplicating the results.
+// merging and deduplicating the results. Falls back to AI interpretation if empty.
 func (c *Client) SearchSymbol(ctx context.Context, query string, limit int) ([]SearchResult, error) {
 	if limit <= 0 {
 		limit = 10
@@ -62,10 +69,87 @@ func (c *Client) SearchSymbol(ctx context.Context, query string, limit int) ([]S
 		}
 	}
 
+	// AI fallback: if no results, ask Gemini to interpret the query
+	if len(merged) == 0 && c.geminiKey != "" {
+		tickers := c.aiSearchFallback(ctx, query)
+		for _, ticker := range tickers {
+			results, err := c.searchEndpoint(ctx, "/stable/search-symbol", ticker, 3)
+			if err == nil {
+				for _, r := range results {
+					if !seen[r.Symbol] {
+						seen[r.Symbol] = true
+						merged = append(merged, r)
+					}
+				}
+			}
+		}
+	}
+
 	if len(merged) > limit {
 		merged = merged[:limit]
 	}
 	return merged, nil
+}
+
+// aiSearchFallback asks Gemini to interpret a search query as stock tickers.
+func (c *Client) aiSearchFallback(ctx context.Context, query string) []string {
+	prompt := fmt.Sprintf(`The user searched for "%s" but no stock ticker or company name matched.
+What stock ticker symbols are they most likely looking for?
+Return ONLY a JSON array of ticker strings, e.g. ["AAPL","MSFT"]. No explanation.`, query)
+
+	reqBody, _ := json.Marshal(map[string]interface{}{
+		"contents": []map[string]interface{}{
+			{"parts": []map[string]string{{"text": prompt}}},
+		},
+		"generationConfig": map[string]interface{}{
+			"temperature": 0.1, "maxOutputTokens": 100,
+		},
+	})
+
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=%s", c.geminiKey)
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(reqBody))
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+
+	// Extract text from response
+	var gemResp struct {
+		Candidates []struct {
+			Content struct {
+				Parts []struct {
+					Text string `json:"text"`
+				} `json:"parts"`
+			} `json:"content"`
+		} `json:"candidates"`
+	}
+	json.Unmarshal(body, &gemResp)
+	if len(gemResp.Candidates) == 0 || len(gemResp.Candidates[0].Content.Parts) == 0 {
+		return nil
+	}
+
+	text := gemResp.Candidates[0].Content.Parts[0].Text
+	// Strip markdown
+	text = strings.TrimSpace(text)
+	text = strings.TrimPrefix(text, "```json")
+	text = strings.TrimPrefix(text, "```")
+	text = strings.TrimSuffix(text, "```")
+	text = strings.TrimSpace(text)
+
+	var tickers []string
+	json.Unmarshal([]byte(text), &tickers)
+	return tickers
 }
 
 func (c *Client) searchEndpoint(ctx context.Context, endpoint, query string, limit int) ([]SearchResult, error) {
@@ -236,9 +320,10 @@ const (
 
 // Client fetches news from the FMP stable API.
 type Client struct {
-	apiKey  string
-	baseURL string
-	http    *http.Client
+	apiKey    string
+	baseURL   string
+	geminiKey string
+	http      *http.Client
 }
 
 func New(apiKey, baseURL string) *Client {

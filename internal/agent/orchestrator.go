@@ -8,16 +8,34 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"stocktopus/internal/store"
 )
+
+// UsageStats tracks API usage for cost estimation.
+type UsageStats struct {
+	TotalRequests     int64 `json:"totalRequests"`
+	TotalPromptTokens int64 `json:"totalPromptTokens"`
+	TotalOutputTokens int64 `json:"totalOutputTokens"`
+	TotalTokens       int64 `json:"totalTokens"`
+}
 
 // Orchestrator uses the Gemini API to plan research and synthesize analysis.
 type Orchestrator struct {
 	apiKey string
 	logger *slog.Logger
 	client *http.Client
+	usage  UsageStats
+	mu     sync.Mutex
+}
+
+// GetUsage returns current API usage stats.
+func (o *Orchestrator) GetUsage() UsageStats {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.usage
 }
 
 func NewOrchestrator(geminiAPIKey string, logger *slog.Logger) *Orchestrator {
@@ -148,11 +166,29 @@ func (o *Orchestrator) callGemini(ctx context.Context, prompt string) (string, e
 				} `json:"parts"`
 			} `json:"content"`
 		} `json:"candidates"`
+		UsageMetadata struct {
+			PromptTokenCount     int64 `json:"promptTokenCount"`
+			CandidatesTokenCount int64 `json:"candidatesTokenCount"`
+			TotalTokenCount      int64 `json:"totalTokenCount"`
+		} `json:"usageMetadata"`
 	}
 
 	if err := json.Unmarshal(body, &geminiResp); err != nil {
 		return "", fmt.Errorf("gemini parse: %w", err)
 	}
+
+	// Track usage
+	o.mu.Lock()
+	o.usage.TotalRequests++
+	o.usage.TotalPromptTokens += geminiResp.UsageMetadata.PromptTokenCount
+	o.usage.TotalOutputTokens += geminiResp.UsageMetadata.CandidatesTokenCount
+	o.usage.TotalTokens += geminiResp.UsageMetadata.TotalTokenCount
+	o.mu.Unlock()
+
+	o.logger.Info("gemini usage",
+		"promptTokens", geminiResp.UsageMetadata.PromptTokenCount,
+		"outputTokens", geminiResp.UsageMetadata.CandidatesTokenCount,
+		"totalTokens", geminiResp.UsageMetadata.TotalTokenCount)
 
 	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
 		return "", fmt.Errorf("gemini returned empty response")

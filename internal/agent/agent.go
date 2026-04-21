@@ -131,6 +131,22 @@ func (p *Pipeline) OllamaAvailable() bool {
 	return p.workers.OllamaAvailable()
 }
 
+// GetUsage returns the orchestrator's API usage stats.
+func (p *Pipeline) GetUsage() UsageStats {
+	return p.orchestrator.GetUsage()
+}
+
+// GetAllStatuses returns all active/recent pipeline statuses.
+func (p *Pipeline) GetAllStatuses() []PipelineStatus {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	result := make([]PipelineStatus, 0, len(p.active))
+	for _, s := range p.active {
+		result = append(result, *s)
+	}
+	return result
+}
+
 // Analyze triggers an analysis for a symbol at the given depth.
 // depth=1 means this is a parent that can spawn competitor analyses.
 // depth=0 means this is a child — no further spawning.

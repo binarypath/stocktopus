@@ -65,6 +65,7 @@ func main() {
 
 	// News client + news poller
 	newsClient := news.New(apiKey, "https://financialmodelingprep.com")
+	newsClient.SetGeminiKey(os.Getenv("GEMINI_API_KEY"))
 
 	newsPollInterval := 2 * time.Minute
 	if envInterval := os.Getenv("NEWS_POLL_INTERVAL"); envInterval != "" {

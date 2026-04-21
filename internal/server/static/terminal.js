@@ -1,5 +1,11 @@
 // Stocktopus Terminal — command bar, view router, WebSocket manager, security selector
 
+window.onerror = function (msg, src, line, col, err) {
+    console.error('JS error:', msg, 'at', src + ':' + line + ':' + col);
+    var el = document.getElementById('conn-status');
+    if (el) { el.textContent = 'JS ERROR'; el.style.color = '#ff4444'; el.style.borderColor = '#ff4444'; el.title = msg + ' at line ' + line; }
+};
+
 (function () {
     'use strict';
 
@@ -12,6 +18,7 @@
     let selectedSecurity = localStorage.getItem('stocktopus-security') || '';
     const commandHistory = [];
     let historyIndex = -1;
+    var wsRetryDelay = 1000;
     let newsFilterSecurity = '';
     var newsCurrentTopic = '';
     var newsSeenURLs = new Set();
@@ -136,6 +143,7 @@
         ws = new WebSocket(proto + '//' + location.host + '/ws');
 
         ws.onopen = function () {
+            wsRetryDelay = 1000; // reset on successful connect
             setConnStatus(true);
             subscribedSecurities.forEach(function (sym) {
                 ws.send(JSON.stringify({ type: 'subscribe', topic: 'quote:' + sym }));
@@ -148,7 +156,8 @@
 
         ws.onclose = function () {
             setConnStatus(false);
-            setTimeout(connectWS, 2000);
+            setTimeout(connectWS, wsRetryDelay);
+            wsRetryDelay = Math.min(wsRetryDelay * 2, 30000); // backoff up to 30s
         };
 
         ws.onerror = function () { ws.close(); };
@@ -165,6 +174,7 @@
 
     function setConnStatus(connected) {
         const el = document.getElementById('conn-status');
+        if (!el) return;
         el.textContent = connected ? 'CONNECTED' : 'DISCONNECTED';
         if (connected) {
             el.classList.add('connected');
@@ -1019,9 +1029,16 @@
                         return;
                     }
                     // Move up through layers: content → sub → main
-                    if (this._focus === 'content' && hasSub) {
-                        this._focus = 'sub';
-                    } else if (this._focus === 'content' || this._focus === 'sub') {
+                    if (this._focus === 'content') {
+                        // Scroll up first if not at top
+                        var content = document.getElementById('info-content');
+                        if (content && content.scrollTop > 0) {
+                            content.scrollTop -= 60;
+                            return;
+                        }
+                        // At top — move to sub-tabs or main
+                        this._focus = hasSub ? 'sub' : 'main';
+                    } else if (this._focus === 'sub') {
                         this._focus = 'main';
                     }
                     this._highlightFocus();
@@ -1032,19 +1049,20 @@
                     if (this._focus === 'main' && hasSub) {
                         this._focus = 'sub';
                         this._highlightFocus();
-                    } else {
-                        this._focus = 'content';
-                        this._highlightFocus();
-                        if (this.isNewsTab()) {
-                            var cards = this.getNewsCards();
-                            if (cards.length > 0) {
-                                vimSelectedIndex = Math.min(vimSelectedIndex + 1, cards.length - 1);
-                                vimSelect(cards, vimSelectedIndex);
-                            }
-                        } else {
-                            var content = document.getElementById('info-content');
-                            if (content) content.scrollTop += 60;
+                        return;
+                    }
+                    // Go straight to content (skip focus-only transition)
+                    this._focus = 'content';
+                    this._highlightFocus();
+                    if (this.isNewsTab()) {
+                        var cards = this.getNewsCards();
+                        if (cards.length > 0) {
+                            vimSelectedIndex = Math.min(vimSelectedIndex + 1, cards.length - 1);
+                            vimSelect(cards, vimSelectedIndex);
                         }
+                    } else {
+                        var content = document.getElementById('info-content');
+                        if (content) content.scrollTop += 60;
                     }
                     return;
                 }
@@ -1362,5 +1380,11 @@
         history.replaceState({ view: currentView, security: selectedSecurity }, '');
     }
 
-    init();
+    try {
+        init();
+    } catch (e) {
+        console.error('terminal.js init failed:', e);
+        var el = document.getElementById('conn-status');
+        if (el) { el.textContent = 'JS ERROR'; el.style.color = '#ff4444'; el.style.borderColor = '#ff4444'; }
+    }
 })();
