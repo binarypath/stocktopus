@@ -49,3 +49,4 @@ make clean    # Remove bin/
 - **Always run `make smoke` before pushing** — verify nothing is broken
 - UI uses the term "Security" (not "Symbol") in all user-facing text
 - Internal Go code and WebSocket protocol still use "symbol" for data model fields
+- **Always store dates in UTC** — use `time.Now().UTC()` for storage, parse as UTC, only convert for display

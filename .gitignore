@@ -74,6 +74,9 @@ stocktopus  # Project binary
 *.out       # Go output files
 vendor/     # Go dependency directory
 bin/        # Build output directory
+.venv/      # Python virtual environment
+.models/    # Downloaded GGUF model files
+*.db        # SQLite databases
 
 # --- Secrets & Environment Variables ---
 .env*       # Environment files (contains API keys!)

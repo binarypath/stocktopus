@@ -194,6 +194,7 @@
             case 'financials': loadFinancials('income'); break;
             case 'estimates': loadEstimates(); break;
             case 'news': loadNews(); break;
+            case 'ai': loadAI(); break;
         }
     }
 
@@ -447,6 +448,182 @@
             .catch(function () {
                 container.innerHTML = '<p class="empty-state">Failed to load news</p>';
             });
+    }
+
+    // ── AI Analysis ──
+
+    function loadAI() {
+        container.innerHTML = '<p class="empty-state">Loading AI analysis...</p>';
+
+        fetch('/api/security/' + symbol + '/intelligence')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                // Status response (pipeline running/pending) vs full analysis
+                if (data.status && !data.summary) {
+                    if (data.status === 'running' || data.status === 'pending') {
+                        container.innerHTML = renderAIProgress(data);
+                        pollAIStatus();
+                        return;
+                    }
+                    if (data.status === 'failed') {
+                        container.innerHTML = '<p class="empty-state">AI analysis failed: ' + esc(data.error || 'unknown') + '</p>';
+                        return;
+                    }
+                }
+                if (data.error && !data.summary) {
+                    container.innerHTML = '<p class="empty-state">AI analysis unavailable: ' + esc(data.error) + '</p>';
+                    return;
+                }
+                container.innerHTML = renderAIAnalysis(data);
+            })
+            .catch(function () {
+                container.innerHTML = '<p class="empty-state">Failed to load AI analysis</p>';
+            });
+    }
+
+    function pollAIStatus() {
+        var pollInterval = setInterval(function () {
+            fetch('/api/security/' + symbol + '/intelligence/status')
+                .then(function (r) { return r.json(); })
+                .then(function (status) {
+                    if (status.status === 'complete') {
+                        clearInterval(pollInterval);
+                        // Fetch the full result
+                        fetch('/api/security/' + symbol + '/intelligence')
+                            .then(function (r) { return r.json(); })
+                            .then(function (data) {
+                                container.innerHTML = renderAIAnalysis(data);
+                            });
+                    } else if (status.status === 'failed') {
+                        clearInterval(pollInterval);
+                        container.innerHTML = '<p class="empty-state">AI analysis failed: ' + esc(status.error || 'unknown error') + '</p>';
+                    } else {
+                        // Update progress
+                        container.innerHTML = renderAIProgress(status);
+                    }
+                });
+        }, 2000);
+    }
+
+    function renderAIProgress(data) {
+        var html = '<div class="ai-progress">';
+        html += '<div class="ai-progress-header"><span class="spinner"></span> Analyzing ' + esc(symbol) + '...</div>';
+        if (data.tasks) {
+            html += '<div class="ai-tasks">';
+            data.tasks.forEach(function (t) {
+                var icon = t.status === 'complete' ? '&#10003;' : t.status === 'running' ? '&#9679;' : '&#9675;';
+                var cls = 'ai-task ai-task-' + t.status;
+                html += '<div class="' + cls + '">' + icon + ' ' + esc(t.id || t.type) + '</div>';
+            });
+            html += '</div>';
+        }
+        html += '</div>';
+        return html;
+    }
+
+    function renderAIAnalysis(data) {
+        var html = '<div class="ai-analysis">';
+
+        // Summary
+        if (data.summary) {
+            html += '<div class="ai-section">';
+            html += '<div class="ai-section-title">Executive Summary</div>';
+            html += '<p class="ai-summary">' + esc(data.summary) + '</p>';
+            html += '</div>';
+        }
+
+        // Scores row
+        html += '<div class="ai-scores">';
+        var sent = data.sentiment || 0;
+        var risk = data.riskScore || 0;
+        var conf = data.confidence ? data.confidence * 100 : 0;
+        html += renderScore('Sentiment', sent, -1, 1, sent >= 0 ? 'price-up' : 'price-down');
+        html += renderScore('Risk', risk, 0, 100, risk > 60 ? 'price-down' : 'price-up');
+        html += renderScore('Confidence', conf, 0, 100, '');
+        html += '</div>';
+
+        // Key Risks
+        if (data.keyRisks && data.keyRisks.length > 0) {
+            html += '<div class="ai-section">';
+            html += '<div class="ai-section-title">Key Risks</div>';
+            html += '<ul class="ai-list ai-risks">';
+            data.keyRisks.forEach(function (r) { html += '<li>' + esc(r) + '</li>'; });
+            html += '</ul></div>';
+        }
+
+        // Opportunities
+        if (data.opportunities && data.opportunities.length > 0) {
+            html += '<div class="ai-section">';
+            html += '<div class="ai-section-title">Opportunities</div>';
+            html += '<ul class="ai-list ai-opps">';
+            data.opportunities.forEach(function (o) { html += '<li>' + esc(o) + '</li>'; });
+            html += '</ul></div>';
+        }
+
+        // Competitors
+        if (data.competitors && data.competitors.length > 0) {
+            html += '<div class="ai-section">';
+            html += '<div class="ai-section-title">Competitors</div>';
+            html += '<div class="ai-competitors">';
+            data.competitors.forEach(function (c) {
+                html += '<span class="ai-competitor">' + esc(c) + '</span>';
+            });
+            html += '</div></div>';
+        }
+
+        // Analysis details (if available)
+        if (data.analysis) {
+            var a = typeof data.analysis === 'string' ? JSON.parse(data.analysis) : data.analysis;
+            if (a.sectorAnalysis) {
+                html += '<div class="ai-section">';
+                html += '<div class="ai-section-title">Sector Outlook</div>';
+                html += '<p class="ai-text">' + esc(a.sectorAnalysis) + '</p>';
+                html += '</div>';
+            }
+            if (a.technicalOutlook) {
+                html += '<div class="ai-section">';
+                html += '<div class="ai-section-title">Technical Outlook</div>';
+                html += '<p class="ai-text">' + esc(a.technicalOutlook) + '</p>';
+                html += '</div>';
+            }
+            if (a.catalysts && a.catalysts.length > 0) {
+                html += '<div class="ai-section">';
+                html += '<div class="ai-section-title">Catalysts</div>';
+                html += '<ul class="ai-list">';
+                a.catalysts.forEach(function (c) { html += '<li>' + esc(c) + '</li>'; });
+                html += '</ul></div>';
+            }
+        }
+
+        // Sources
+        if (data.sources && data.sources.length > 0) {
+            html += '<div class="ai-section">';
+            html += '<div class="ai-section-title">Sources</div>';
+            html += '<div class="ai-sources">';
+            data.sources.forEach(function (s) {
+                html += '<a href="' + esc(s) + '" target="_blank" rel="noopener" class="ai-source">' + esc(s.replace(/^https?:\/\//, '').substring(0, 40)) + '</a>';
+            });
+            html += '</div></div>';
+        }
+
+        // Meta
+        html += '<div class="ai-meta">';
+        if (data.modelVersion) html += '<span>Model: ' + esc(data.modelVersion) + '</span>';
+        if (data.generatedAt) html += '<span>Generated: ' + new Date(data.generatedAt).toLocaleString() + '</span>';
+        html += '</div>';
+
+        html += '</div>';
+        return html;
+    }
+
+    function renderScore(label, value, min, max, colorClass) {
+        var pct = ((value - min) / (max - min)) * 100;
+        var display = typeof value === 'number' ? value.toFixed(1) : '—';
+        return '<div class="ai-score">'
+            + '<div class="ai-score-label">' + label + '</div>'
+            + '<div class="ai-score-value ' + colorClass + '">' + display + '</div>'
+            + '<div class="ai-score-bar"><div class="ai-score-fill" style="width:' + Math.max(0, Math.min(100, pct)) + '%"></div></div>'
+            + '</div>';
     }
 
     // ── Refresh ──
