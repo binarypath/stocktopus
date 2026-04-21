@@ -1160,7 +1160,10 @@ window.onerror = function (msg, src, line, col, err) {
         watchlist: {
             getItems: function () {
                 // Only visible rows (filtered by active watchlist)
-                return document.querySelectorAll('#quote-body tr[style=""], #quote-body tr:not([style])');
+                var all = document.querySelectorAll('#quote-body tr');
+                return Array.from(all).filter(function (row) {
+                    return row.style.display !== 'none';
+                });
             },
             move: function (dir) {
                 if (dir === 'h' || dir === 'l') {
