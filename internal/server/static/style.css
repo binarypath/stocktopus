@@ -365,6 +365,43 @@ body {
 .price-down { color: var(--red); }
 .price-flat { color: var(--text-secondary); }
 
+.watchlist-picker {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border: 1px solid var(--orange);
+    border-radius: 4px;
+    color: var(--orange);
+    cursor: default;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.watchlist-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.wl-tab {
+    font-size: 11px;
+    padding: 3px 10px;
+    border: 1px solid;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0.6;
+}
+
+.wl-tab:hover {
+    opacity: 0.8;
+}
+
+.wl-tab-active {
+    opacity: 1;
+    font-weight: 700;
+}
+
 /* ── Add Security Form (Watchlist) ── */
 
 .add-security-form {
@@ -1075,6 +1112,44 @@ body {
 .chart-range-btn:hover {
     color: var(--text-primary);
     background: var(--bg-tertiary);
+}
+
+.chart-symbol {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--blue);
+    margin-right: 4px;
+}
+
+.chart-auto-refresh {
+    background: transparent;
+    border: 1px solid var(--green);
+    border-radius: 4px;
+    color: var(--green);
+    font-size: 14px;
+    padding: 2px 6px;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.chart-auto-refresh:hover {
+    background: rgba(0, 204, 102, 0.15);
+}
+
+.chart-auto-refresh.active {
+    background: rgba(0, 204, 102, 0.15);
+    color: var(--green);
+}
+
+.chart-auto-refresh:not(.active) {
+    border-color: var(--border);
+    color: var(--text-muted);
+}
+
+.chart-range-sep {
+    color: var(--border);
+    font-size: 14px;
+    line-height: 1;
 }
 
 .chart-range-btn.active {

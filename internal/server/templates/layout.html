@@ -11,13 +11,14 @@
         <span class="brand">STOCKTOPUS</span>
         <div class="cmd-bar">
             <span class="cmd-prompt">&gt;</span>
-            <input id="cmd-input" class="cmd-input" type="text" placeholder="enter command..." autocomplete="off" spellcheck="false" autofocus>
+            <input id="cmd-input" class="cmd-input" type="text" placeholder="enter command..." autocomplete="off" spellcheck="false">
             <div id="cmd-dropdown" class="cmd-dropdown hidden"></div>
         </div>
         <div class="security-selector">
             <input id="security-input" class="security-input" type="text" placeholder="SYM" autocomplete="off" spellcheck="false">
             <div id="security-dropdown" class="security-dropdown hidden"></div>
         </div>
+        <span id="watchlist-picker" class="watchlist-picker" title="Active watchlist">Default</span>
         <div id="conn-status" class="conn-status">DISCONNECTED</div>
     </header>
     <main id="view-container" class="terminal-content" data-view="{{.Active}}">

@@ -22,6 +22,9 @@ type SearchResult struct {
 	Exchange string `json:"exchange"`
 }
 
+// APIKey returns the FMP API key.
+func (c *Client) APIKey() string { return c.apiKey }
+
 // SetGeminiKey sets the Gemini API key for AI-assisted search fallback.
 func (c *Client) SetGeminiKey(key string) {
 	c.geminiKey = key
@@ -304,6 +307,69 @@ func (c *Client) GetCashFlow(ctx context.Context, symbol string, limit int) (jso
 func (c *Client) GetAnalystEstimates(ctx context.Context, symbol string, limit int) (json.RawMessage, error) {
 	params := url.Values{"symbol": {symbol}, "period": {"annual"}, "limit": {strconv.Itoa(limit)}}
 	return c.fetchJSON(ctx, "/stable/analyst-estimates", params)
+}
+
+// GetIntradayChart fetches intraday OHLCV data for a symbol.
+// interval: "1min", "5min", "15min", "30min", "1hour", "4hour"
+func (c *Client) GetIntradayChart(ctx context.Context, symbol, interval, from, to string) ([]model.OHLCV, error) {
+	params := url.Values{}
+	params.Set("symbol", symbol)
+	params.Set("apikey", c.apiKey)
+	if from != "" {
+		params.Set("from", from)
+	}
+	if to != "" {
+		params.Set("to", to)
+	}
+
+	reqURL := c.baseURL + "/stable/historical-chart/" + interval + "?" + params.Encode()
+	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("intraday request: %w", err)
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("intraday fetch: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("intraday read: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("intraday API %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Response has float volumes and datetime strings
+	var raw []struct {
+		Date   string  `json:"date"`
+		Open   float64 `json:"open"`
+		High   float64 `json:"high"`
+		Low    float64 `json:"low"`
+		Close  float64 `json:"close"`
+		Volume float64 `json:"volume"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, fmt.Errorf("intraday parse: %w", err)
+	}
+
+	// Reverse to chronological order (API returns newest-first)
+	items := make([]model.OHLCV, len(raw))
+	for i, r := range raw {
+		items[len(raw)-1-i] = model.OHLCV{
+			Date:   r.Date,
+			Open:   r.Open,
+			High:   r.High,
+			Low:    r.Low,
+			Close:  r.Close,
+			Volume: int64(r.Volume),
+		}
+	}
+
+	return items, nil
 }
 
 // Category represents a news feed type.

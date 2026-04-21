@@ -15,7 +15,7 @@ func testServer(t *testing.T) (*Server, *http.ServeMux) {
 	logger := slog.Default()
 	h := hub.New(logger)
 	debug := NewDebugBroadcaster()
-	srv, err := New(Config{Port: 0}, h, debug, nil, nil, nil, logger)
+	srv, err := New(Config{Port: 0}, h, debug, nil, nil, nil, nil, logger)
 	if err != nil {
 		t.Fatalf("failed to create server: %v", err)
 	}
