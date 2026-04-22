@@ -235,7 +235,9 @@ func (s *Server) handleNewsAPI(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	items, err := s.news.GetNews(r.Context(), cat, symbol, page, limit)
+	from := r.URL.Query().Get("from")
+	to := r.URL.Query().Get("to")
+	items, err := s.news.GetNewsWithDates(r.Context(), cat, symbol, page, limit, from, to)
 	if err != nil {
 		s.logger.Error("news fetch failed", "category", cat, "error", err)
 		w.Header().Set("Content-Type", "application/json")

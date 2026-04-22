@@ -234,42 +234,54 @@
 
     // ── News Markers ──
     function loadNewsMarkers() {
-        fetch('/api/news/stock?symbols=' + symbol + '&limit=50')
+        if (allCandles.length < 2) return;
+
+        // Get date range from loaded candles
+        var firstDate = typeof allCandles[0].time === 'string'
+            ? allCandles[0].time
+            : new Date(allCandles[0].time * 1000).toISOString().slice(0, 10);
+        var lastDate = typeof allCandles[allCandles.length - 1].time === 'string'
+            ? allCandles[allCandles.length - 1].time
+            : new Date(allCandles[allCandles.length - 1].time * 1000).toISOString().slice(0, 10);
+
+        // Build candle date index
+        var candleDates = {};
+        allCandles.forEach(function (c) {
+            var dk = typeof c.time === 'string' ? c.time : new Date(c.time * 1000).toISOString().slice(0, 10);
+            if (!candleDates[dk]) candleDates[dk] = c.time; // first candle on that date
+        });
+
+        // Fetch news for the chart's date range
+        fetch('/api/news/stock?symbol=' + symbol + '&limit=100&from=' + firstDate + '&to=' + lastDate)
             .then(function (r) { return r.json(); })
             .then(function (news) {
                 if (!news || news.length === 0) return;
-                var markers = [];
-                var candleDates = {};
-                allCandles.forEach(function (c) {
-                    var dateKey = typeof c.time === 'string' ? c.time : new Date(c.time * 1000).toISOString().slice(0, 10);
-                    candleDates[dateKey] = c.time;
+
+                // Count news per date for marker sizing
+                var dateCounts = {};
+                news.forEach(function (n) {
+                    var dk = (n.date || '').slice(0, 10);
+                    dateCounts[dk] = (dateCounts[dk] || 0) + 1;
                 });
 
-                news.forEach(function (n) {
-                    var dateKey = (n.date || '').slice(0, 10);
-                    if (candleDates[dateKey]) {
+                var markers = [];
+                var seen = {};
+                Object.keys(dateCounts).forEach(function (dk) {
+                    if (candleDates[dk] && !seen[dk]) {
+                        seen[dk] = true;
                         markers.push({
-                            time: candleDates[dateKey],
+                            time: candleDates[dk],
                             position: 'aboveBar',
                             color: '#ffcc00',
                             shape: 'circle',
-                            text: (n.title || '').substring(0, 30),
+                            text: dateCounts[dk] + ' article' + (dateCounts[dk] > 1 ? 's' : ''),
                         });
                     }
                 });
 
-                // Dedupe by time (one marker per candle)
-                var seen = {};
-                markers = markers.filter(function (m) {
-                    var key = JSON.stringify(m.time);
-                    if (seen[key]) return false;
-                    seen[key] = true;
-                    return true;
-                });
-
                 if (markers.length > 0) {
                     markers.sort(function (a, b) { return a.time < b.time ? -1 : 1; });
-                    if (newsMarkers) { chart.removeSeriesMarkers(newsMarkers); }
+                    if (newsMarkers) { try { chart.removeSeriesMarkers(newsMarkers); } catch (e) {} }
                     newsMarkers = chart.createSeriesMarkers(candleSeries, markers);
                 }
             })
