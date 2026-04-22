@@ -1342,6 +1342,11 @@ body {
     background: var(--bg-tertiary);
 }
 
+.cnp-item-active {
+    background: var(--bg-tertiary);
+    border-left: 3px solid var(--orange);
+}
+
 .cnp-title {
     color: var(--text-primary);
     flex: 1;

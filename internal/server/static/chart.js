@@ -311,26 +311,57 @@
     });
 
     function showNewsPanel(articles, date) {
-        var panel = document.getElementById('chart-news-panel');
-        if (!panel) {
-            panel = document.createElement('div');
-            panel.id = 'chart-news-panel';
-            panel.className = 'chart-news-panel';
-            container.parentNode.insertBefore(panel, container.nextSibling);
-        }
+        // Show article list in the shared reader panel
+        var reader = document.getElementById('article-reader');
+        var readerTitle = document.getElementById('reader-title');
+        var readerBody = document.getElementById('reader-body');
+        if (!reader || !readerBody) return;
 
-        var html = '<div class="cnp-header"><span>News for ' + date + ' (' + articles.length + ')</span><button class="cnp-close" onclick="document.getElementById(\'chart-news-panel\').remove();window._closeReader()">&#10005;</button></div>';
-        html += '<div class="cnp-list">';
+        reader.classList.remove('hidden');
+        if (readerTitle) readerTitle.textContent = 'News for ' + date + ' (' + articles.length + ')';
+
+        var html = '<div class="cnp-list">';
         articles.forEach(function (a) {
-            var safeUrl = (a.url || '').replace(/'/g, '%27');
-            var safeTitle = (a.title || '').replace(/</g, '&lt;').replace(/'/g, '&#39;');
-            html += '<div class="cnp-item" onclick="window._openReader(\'' + safeUrl + '\',\'' + safeTitle + '\')">'
+            var safeUrl = encodeURIComponent(a.url || '');
+            var safeTitle = (a.title || '').replace(/</g, '&lt;');
+            html += '<div class="cnp-item" data-url="' + safeUrl + '" data-title="' + safeTitle.replace(/"/g, '&quot;') + '">'
                 + '<span class="cnp-title">' + safeTitle + '</span>'
                 + '<span class="cnp-meta">' + (a.source || '') + '</span>'
                 + '</div>';
         });
         html += '</div>';
-        panel.innerHTML = html;
+        html += '<div id="cnp-article-content" class="reader-content" style="padding-top:12px"></div>';
+        readerBody.innerHTML = html;
+
+        // Wire up clicks
+        readerBody.querySelectorAll('.cnp-item').forEach(function (item) {
+            item.onclick = function () {
+                // Highlight active
+                readerBody.querySelectorAll('.cnp-item').forEach(function (i) { i.classList.remove('cnp-item-active'); });
+                item.classList.add('cnp-item-active');
+                // Load article content below the list
+                var contentEl = document.getElementById('cnp-article-content');
+                if (contentEl) {
+                    contentEl.innerHTML = '<p style="color:var(--text-muted)">Loading...</p>';
+                    var url = decodeURIComponent(item.dataset.url);
+                    fetch('/api/article?url=' + encodeURIComponent(url))
+                        .then(function (r) { return r.json(); })
+                        .then(function (data) {
+                            if (data.error) {
+                                contentEl.innerHTML = '<p style="color:var(--red)">' + data.error + '</p>';
+                                return;
+                            }
+                            var h = '';
+                            (data.paragraphs || []).forEach(function (p) {
+                                var tag = (p.tag === 'h1' || p.tag === 'h2' || p.tag === 'h3') ? p.tag : 'p';
+                                h += '<' + tag + '>' + p.text.replace(/</g, '&lt;') + '</' + tag + '>';
+                            });
+                            contentEl.innerHTML = '<div class="reader-meta">' + (data.wordCount || 0) + ' words</div>' + h;
+                        })
+                        .catch(function () { contentEl.innerHTML = '<p style="color:var(--red)">Failed to load</p>'; });
+                }
+            };
+        });
     }
 
     // ── Crosshair Tooltip ──
