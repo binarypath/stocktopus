@@ -671,27 +671,46 @@
             });
     }
 
+    var aiPollInterval = null;
+
+    function stopAIPolling() {
+        if (aiPollInterval) {
+            clearInterval(aiPollInterval);
+            aiPollInterval = null;
+        }
+    }
+
     function pollAIStatus() {
-        var pollInterval = setInterval(function () {
+        stopAIPolling();
+        aiPollInterval = setInterval(function () {
+            // Stop polling if we've left the AI tab
+            if (currentTab !== 'ai') {
+                stopAIPolling();
+                return;
+            }
             fetch('/api/security/' + symbol + '/intelligence/status')
                 .then(function (r) { return r.json(); })
                 .then(function (status) {
+                    if (currentTab !== 'ai') { stopAIPolling(); return; }
                     if (status.status === 'complete') {
-                        clearInterval(pollInterval);
-                        // Fetch the full result
+                        stopAIPolling();
                         fetch('/api/security/' + symbol + '/intelligence')
                             .then(function (r) { return r.json(); })
                             .then(function (data) {
+                                if (currentTab !== 'ai') return;
                                 container.innerHTML = renderAIAnalysis(data);
-                wireCompetitorLinks();
-                loadCompetitorScores();
+                                wireCompetitorLinks();
+                                loadCompetitorScores();
                             });
                     } else if (status.status === 'failed') {
-                        clearInterval(pollInterval);
-                        container.innerHTML = '<p class="empty-state">AI analysis failed: ' + esc(status.error || 'unknown error') + '</p>';
+                        stopAIPolling();
+                        if (currentTab === 'ai') {
+                            container.innerHTML = '<p class="empty-state">AI analysis failed: ' + esc(status.error || 'unknown error') + '</p>';
+                        }
                     } else {
-                        // Update progress
-                        container.innerHTML = renderAIProgress(status);
+                        if (currentTab === 'ai') {
+                            container.innerHTML = renderAIProgress(status);
+                        }
                     }
                 });
         }, 2000);
@@ -887,9 +906,11 @@
     // Override loadTab to track current tab and update URL hash
     var _origLoadTab = loadTab;
     loadTab = function (tab) {
-        // Unsubscribe from sector when leaving sector tab
         if (currentTab === 'sector' && tab !== 'sector') {
             unsubscribeSector();
+        }
+        if (currentTab === 'ai' && tab !== 'ai') {
+            stopAIPolling();
         }
         currentTab = tab;
         history.replaceState(null, '', location.pathname + '#' + tab);
