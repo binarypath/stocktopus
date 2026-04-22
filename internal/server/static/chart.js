@@ -232,11 +232,12 @@
         }
     }
 
-    // ── News Markers ──
+    // ── News Markers + Reader ──
+    var newsDataByDate = {}; // date -> array of news items
+
     function loadNewsMarkers() {
         if (allCandles.length < 2) return;
 
-        // Get date range from loaded candles
         var firstDate = typeof allCandles[0].time === 'string'
             ? allCandles[0].time
             : new Date(allCandles[0].time * 1000).toISOString().slice(0, 10);
@@ -244,44 +245,42 @@
             ? allCandles[allCandles.length - 1].time
             : new Date(allCandles[allCandles.length - 1].time * 1000).toISOString().slice(0, 10);
 
-        // Build candle date index
         var candleDates = {};
         allCandles.forEach(function (c) {
             var dk = typeof c.time === 'string' ? c.time : new Date(c.time * 1000).toISOString().slice(0, 10);
-            if (!candleDates[dk]) candleDates[dk] = c.time; // first candle on that date
+            if (!candleDates[dk]) candleDates[dk] = c.time;
         });
 
-        // Fetch news for the chart's date range
         fetch('/api/news/stock?symbol=' + symbol + '&limit=100&from=' + firstDate + '&to=' + lastDate)
             .then(function (r) { return r.json(); })
             .then(function (news) {
                 if (!news || news.length === 0) return;
 
-                // Count news per date for marker sizing
-                var dateCounts = {};
+                newsDataByDate = {};
                 news.forEach(function (n) {
                     var dk = (n.date || '').slice(0, 10);
-                    dateCounts[dk] = (dateCounts[dk] || 0) + 1;
+                    if (!newsDataByDate[dk]) newsDataByDate[dk] = [];
+                    newsDataByDate[dk].push(n);
                 });
 
                 var markers = [];
                 var seen = {};
-                Object.keys(dateCounts).forEach(function (dk) {
+                Object.keys(newsDataByDate).forEach(function (dk) {
                     if (candleDates[dk] && !seen[dk]) {
                         seen[dk] = true;
+                        var count = newsDataByDate[dk].length;
                         markers.push({
                             time: candleDates[dk],
                             position: 'aboveBar',
                             color: '#ffcc00',
                             shape: 'circle',
-                            text: dateCounts[dk] + ' article' + (dateCounts[dk] > 1 ? 's' : ''),
+                            text: count + ' article' + (count > 1 ? 's' : ''),
                         });
                     }
                 });
 
                 if (markers.length > 0) {
                     markers.sort(function (a, b) { return a.time < b.time ? -1 : 1; });
-                    console.log('News markers:', markers.length, 'first:', markers[0]);
                     if (newsMarkers) { try { newsMarkers.detach(); } catch (e) {} }
                     try {
                         newsMarkers = LightweightCharts.createSeriesMarkers(candleSeries, markers);
@@ -292,6 +291,70 @@
             })
             .catch(function () {});
     }
+
+    // Click on chart → check if near a news marker date → show news list
+    chart.subscribeCrosshairMove(function (param) {
+        // handled in tooltip section
+    });
+
+    chart.subscribeClick(function (param) {
+        if (!param || !param.time || !isOn('news')) return;
+        var dk = typeof param.time === 'string' ? param.time : new Date(param.time * 1000).toISOString().slice(0, 10);
+        var articles = newsDataByDate[dk];
+        if (articles && articles.length > 0) {
+            showNewsPanel(articles, dk);
+        }
+    });
+
+    function showNewsPanel(articles, date) {
+        var panel = document.getElementById('chart-news-panel');
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.id = 'chart-news-panel';
+            panel.className = 'chart-news-panel';
+            container.parentNode.insertBefore(panel, container.nextSibling);
+        }
+
+        var html = '<div class="cnp-header"><span>News for ' + date + '</span><button class="cnp-close" onclick="document.getElementById(\'chart-news-panel\').remove()">&#10005;</button></div>';
+        html += '<div class="cnp-list">';
+        articles.forEach(function (a, i) {
+            html += '<div class="cnp-item" data-url="' + encodeURIComponent(a.url || '') + '" onclick="window._openArticle(this.dataset.url)">'
+                + '<span class="cnp-title">' + (a.title || '').replace(/</g, '&lt;') + '</span>'
+                + '<span class="cnp-meta">' + (a.source || '') + '</span>'
+                + '</div>';
+        });
+        html += '</div>';
+        html += '<div id="cnp-reader" class="cnp-reader"></div>';
+        panel.innerHTML = html;
+    }
+
+    window._openArticle = function (encodedUrl) {
+        var url = decodeURIComponent(encodedUrl);
+        var reader = document.getElementById('cnp-reader');
+        if (!reader) return;
+        reader.innerHTML = '<p style="color:var(--text-muted)">Loading article...</p>';
+
+        fetch('/api/article?url=' + encodeURIComponent(url))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.error) {
+                    reader.innerHTML = '<p style="color:var(--red)">' + data.error + '</p><a href="' + url + '" target="_blank" style="color:var(--blue)">Open in browser</a>';
+                    return;
+                }
+                var html = '<h2 class="cnp-article-title">' + (data.title || '').replace(/</g, '&lt;') + '</h2>';
+                html += '<div class="cnp-article-meta">' + (data.wordCount || 0) + ' words</div>';
+                html += '<div class="cnp-article-body">';
+                (data.paragraphs || []).forEach(function (p) {
+                    var tag = p.tag === 'h1' || p.tag === 'h2' || p.tag === 'h3' ? p.tag : 'p';
+                    html += '<' + tag + '>' + p.text.replace(/</g, '&lt;') + '</' + tag + '>';
+                });
+                html += '</div>';
+                reader.innerHTML = html;
+            })
+            .catch(function () {
+                reader.innerHTML = '<p style="color:var(--red)">Failed to load</p><a href="' + url + '" target="_blank" style="color:var(--blue)">Open in browser</a>';
+            });
+    };
 
     // ── Crosshair Tooltip ──
     var tooltipEl = document.getElementById('chart-tooltip');

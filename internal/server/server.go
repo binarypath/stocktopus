@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -130,6 +132,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/news/{category}", s.handleNewsAPI)
 	mux.HandleFunc("GET /api/search", s.handleSearch)
 	mux.HandleFunc("GET /api/chart/eod/{symbol}", s.handleChartEOD)
+	mux.HandleFunc("GET /api/article", s.handleArticle)
 	mux.HandleFunc("GET /api/chart/intraday/{interval}/{symbol}", s.handleChartIntraday)
 	mux.HandleFunc("GET /api/security/{symbol}/profile", s.handleSecurityProfile)
 	mux.HandleFunc("GET /api/security/{symbol}/metrics", s.handleSecurityMetrics)
@@ -645,6 +648,42 @@ func (s *Server) handleChartEOD(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(items)
+}
+
+func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
+	articleURL := r.URL.Query().Get("url")
+	if articleURL == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "url required"})
+		return
+	}
+
+	// Use Python script to fetch and extract
+	venvPython := "agents/../.venv/bin/python3"
+	pythonCmd := "python3"
+	if _, err := exec.LookPath(venvPython); err == nil {
+		pythonCmd = venvPython
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, pythonCmd, "agents/fetch_article.py", articleURL)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		s.logger.Error("article fetch failed", "url", articleURL, "error", err, "stderr", stderr.String())
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		json.NewEncoder(w).Encode(map[string]string{"error": "failed to fetch article"})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(stdout.Bytes())
 }
 
 func (s *Server) handleChartIntraday(w http.ResponseWriter, r *http.Request) {
