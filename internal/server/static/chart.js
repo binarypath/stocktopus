@@ -281,8 +281,13 @@
 
                 if (markers.length > 0) {
                     markers.sort(function (a, b) { return a.time < b.time ? -1 : 1; });
+                    console.log('News markers:', markers.length, 'first:', markers[0]);
                     if (newsMarkers) { try { chart.removeSeriesMarkers(newsMarkers); } catch (e) {} }
-                    newsMarkers = chart.createSeriesMarkers(candleSeries, markers);
+                    try {
+                        newsMarkers = chart.createSeriesMarkers(candleSeries, markers);
+                    } catch (e) {
+                        console.error('Marker error:', e);
+                    }
                 }
             })
             .catch(function () {});
