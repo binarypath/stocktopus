@@ -282,9 +282,9 @@
                 if (markers.length > 0) {
                     markers.sort(function (a, b) { return a.time < b.time ? -1 : 1; });
                     console.log('News markers:', markers.length, 'first:', markers[0]);
-                    if (newsMarkers) { try { chart.removeSeriesMarkers(newsMarkers); } catch (e) {} }
+                    if (newsMarkers) { try { newsMarkers.detach(); } catch (e) {} }
                     try {
-                        newsMarkers = chart.createSeriesMarkers(candleSeries, markers);
+                        newsMarkers = LightweightCharts.createSeriesMarkers(candleSeries, markers);
                     } catch (e) {
                         console.error('Marker error:', e);
                     }
@@ -362,7 +362,7 @@
         isIntraday = !!INTRADAY_RANGES[range];
         chart.timeScale().applyOptions({ timeVisible: isIntraday });
         updateAutoRefreshVisibility(); clearAutoRefresh();
-        if (newsMarkers) { chart.removeSeriesMarkers(newsMarkers); newsMarkers = null; }
+        if (newsMarkers) { try { newsMarkers.detach(); } catch (e) {} newsMarkers = null; }
         if (isIntraday) { loadIntraday(range); if (autoRefresh) scheduleAutoRefresh(); }
         else { loadEOD(range); }
     }
