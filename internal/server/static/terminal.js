@@ -1581,11 +1581,25 @@ window.onerror = function (msg, src, line, col, err) {
                     return;
                 }
                 if (readerTitle) readerTitle.textContent = data.title || title || '';
-                var html = '<div class="reader-meta">' + (data.wordCount || 0) + ' words</div>';
-                html += '<div class="reader-content">';
-                (data.paragraphs || []).forEach(function (p) {
+                var botLabel = data.bot ? '<span class="reader-bot">' + escapeHtml(data.bot) + '</span>' : '';
+                var tickerBadges = (data.tickers || []).map(function (t) {
+                    return '<span class="reader-ticker" onclick="if(window._navigateToSecurity)window._navigateToSecurity(\'' + t + '\')">' + t + '</span>';
+                }).join('');
+                var sectorBadges = (data.sectors || []).map(function (s) {
+                    return '<span class="reader-sector-badge">' + escapeHtml(s) + '</span>';
+                }).join('');
+
+                var html = '<div class="reader-meta">'
+                    + (data.wordCount || 0) + ' words '
+                    + botLabel
+                    + '</div>';
+                if (tickerBadges) html += '<div class="reader-entities">' + tickerBadges + '</div>';
+                if (sectorBadges) html += '<div class="reader-entities">' + sectorBadges + '</div>';
+                html += '<div class="reader-content" id="reader-paras">';
+                (data.paragraphs || []).forEach(function (p, idx) {
                     var tag = (p.tag === 'h1' || p.tag === 'h2' || p.tag === 'h3') ? p.tag : 'p';
-                    html += '<' + tag + '>' + escapeHtml(p.text) + '</' + tag + '>';
+                    var enriched = renderEnrichedText(p.text, p.entities || []);
+                    html += '<' + tag + ' class="reader-para" data-idx="' + idx + '">' + enriched + '</' + tag + '>';
                 });
                 html += '</div>';
                 readerBody.innerHTML = html;
@@ -1595,6 +1609,32 @@ window.onerror = function (msg, src, line, col, err) {
                     + '<a href="' + escapeHtml(url) + '" target="_blank" style="color:var(--blue)">Open in browser</a>';
             });
     };
+
+    function renderEnrichedText(text, entities) {
+        if (!entities || entities.length === 0) return escapeHtml(text);
+
+        // Sort by start position
+        entities.sort(function (a, b) { return a.start - b.start; });
+
+        var result = '';
+        var lastIdx = 0;
+        entities.forEach(function (e) {
+            // Add text before this entity
+            result += escapeHtml(text.substring(lastIdx, e.start));
+            // Add the entity as an interactive element
+            var val = escapeHtml(e.value);
+            if (e.type === 'ticker') {
+                result += '<span class="entity-ticker" onclick="if(window._navigateToSecurity)window._navigateToSecurity(\'' + val + '\')">' + val + '</span>';
+            } else if (e.type === 'sector') {
+                result += '<span class="entity-sector">' + val + '</span>';
+            } else {
+                result += '<span class="entity-other">' + val + '</span>';
+            }
+            lastIdx = e.end;
+        });
+        result += escapeHtml(text.substring(lastIdx));
+        return result;
+    }
 
     window._closeReader = function () {
         var reader = document.getElementById('article-reader');
