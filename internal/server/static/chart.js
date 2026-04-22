@@ -56,6 +56,7 @@
     var ema20Series = null, ema50Series = null;
     var macdLineSeries = null, macdSignalSeries = null, macdHistSeries = null;
     var rsiSeries = null, rsi70Line = null, rsi30Line = null;
+    var newsMarkers = null;
 
     // ── Indicator Calculations ──
     function calcSMA(data, period) {
@@ -268,7 +269,8 @@
 
                 if (markers.length > 0) {
                     markers.sort(function (a, b) { return a.time < b.time ? -1 : 1; });
-                    candleSeries.setMarkers(markers);
+                    if (newsMarkers) { chart.removeSeriesMarkers(newsMarkers); }
+                    newsMarkers = chart.createSeriesMarkers(candleSeries, markers);
                 }
             })
             .catch(function () {});
@@ -343,7 +345,7 @@
         isIntraday = !!INTRADAY_RANGES[range];
         chart.timeScale().applyOptions({ timeVisible: isIntraday });
         updateAutoRefreshVisibility(); clearAutoRefresh();
-        candleSeries.setMarkers([]); // clear markers on range change
+        if (newsMarkers) { chart.removeSeriesMarkers(newsMarkers); newsMarkers = null; }
         if (isIntraday) { loadIntraday(range); if (autoRefresh) scheduleAutoRefresh(); }
         else { loadEOD(range); }
     }
