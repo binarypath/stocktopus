@@ -925,6 +925,15 @@ window.onerror = function (msg, src, line, col, err) {
                         return;
                     }
 
+                    // Indicator toggles: :sma, :ema, :macd, :rsi, :sn
+                    var indicatorMap = { 'sma': 'sma', 'ema': 'ema', 'macd': 'macd', 'rsi': 'rsi', 'sn': 'news' };
+                    if (indicatorMap[colonLower] && window._stocktopusToggle) {
+                        window._stocktopusToggle(indicatorMap[colonLower]);
+                        input.value = '';
+                        enterNormalMode();
+                        return;
+                    }
+
                     // :watch or :watch SYMBOL — add to watchlist
                     if (colonLower === 'watch' || colonLower.startsWith('watch ')) {
                         var watchArg = colonCmd.substring(5).trim().toUpperCase();

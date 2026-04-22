@@ -16,9 +16,16 @@
         <button class="chart-range-btn chart-eod-btn" data-range="1M">1M</button>
         <button class="chart-range-btn chart-eod-btn" data-range="3M">3M</button>
         <button class="chart-range-btn chart-eod-btn" data-range="6M">6M</button>
+        <span class="chart-range-sep">|</span>
+        <button class="chart-toggle" id="toggle-sma" data-indicator="sma" title=":sma">SMA</button>
+        <button class="chart-toggle" id="toggle-ema" data-indicator="ema" title=":ema">EMA</button>
+        <button class="chart-toggle" id="toggle-macd" data-indicator="macd" title=":macd">MACD</button>
+        <button class="chart-toggle" id="toggle-rsi" data-indicator="rsi" title=":rsi">RSI</button>
+        <button class="chart-toggle" id="toggle-news" data-indicator="news" title=":sn">N</button>
     </div>
 </div>
 <div id="chart-container" class="chart-container" data-symbol="{{.Symbol}}"></div>
+<div id="chart-tooltip" class="chart-tooltip hidden"></div>
 <script src="/static/lightweight-charts.js"></script>
 <script src="/static/chart.js"></script>
 {{end}}
