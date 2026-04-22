@@ -45,9 +45,8 @@ func (p *Poller) OnFirstSubscribe(topic string) {
 	p.mu.Lock()
 	p.sectors[sector] = true
 	p.mu.Unlock()
-	p.logger.Info("watching sector", "sector", sector)
+	p.logger.Info("sector bot 9000: activated", "sector", sector, "trigger", "on-demand")
 
-	// Fetch immediately
 	go p.pollSector(context.Background(), sector)
 }
 
@@ -60,7 +59,7 @@ func (p *Poller) OnLastUnsubscribe(topic string) {
 	p.mu.Lock()
 	delete(p.sectors, sector)
 	p.mu.Unlock()
-	p.logger.Info("unwatching sector", "sector", sector)
+	p.logger.Info("sector bot 9000: deactivated", "sector", sector)
 }
 
 // Run starts the polling loop.
@@ -94,16 +93,14 @@ func (p *Poller) pollAll(ctx context.Context) {
 }
 
 func (p *Poller) pollSector(ctx context.Context, sector string) {
-	// Check if fresh enough
 	if p.store != nil && p.store.IsSectorFresh(sector, p.interval) {
+		p.logger.Debug("sector fresh, skipping", "sector", sector)
 		return
 	}
 
-	p.logger.Debug("polling sector", "sector", sector)
+	p.logger.Info("sector bot 9000: starting", "sector", sector)
+	start := time.Now()
 
-	// For now, store a timestamp — the actual data is fetched by the frontend
-	// via the peers/news APIs. The sector bot's role is to pre-warm the cache
-	// and trigger AI analysis in the future.
 	si := &store.SectorIntelligence{
 		Sector:      sector,
 		GeneratedAt: time.Now().UTC(),
@@ -111,17 +108,19 @@ func (p *Poller) pollSector(ctx context.Context, sector string) {
 
 	if p.store != nil {
 		if err := p.store.PutSector(si); err != nil {
-			p.logger.Error("sector store failed", "sector", sector, "error", err)
+			p.logger.Error("sector bot 9000: store failed", "sector", sector, "error", err)
+		} else {
+			p.logger.Info("sector bot 9000: data stored", "sector", sector, "duration", time.Since(start))
 		}
 	}
 
-	// Publish update to subscribers
 	msg, _ := json.Marshal(map[string]interface{}{
 		"type":   "sector_update",
 		"topic":  "sector:" + sector,
 		"sector": sector,
 	})
 	p.hub.Publish("sector:"+sector, msg)
+	p.logger.Info("sector bot 9000: complete", "sector", sector, "duration", time.Since(start))
 }
 
 // TriggerSector kicks off sector analysis if not already cached.

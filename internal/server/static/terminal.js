@@ -1284,7 +1284,14 @@ window.onerror = function (msg, src, line, col, err) {
                 return this.getActiveTab() === 'financials' && window._infoFinSubTabs && window._infoFinSubTabs().length > 0;
             },
             isNewsTab: function () { return this.getActiveTab() === 'news'; },
+            isSectorTab: function () { return this.getActiveTab() === 'sector'; },
             getNewsCards: function () { return document.querySelectorAll('#info-content .news-card'); },
+            getSectorItems: function () {
+                // Peer rows + news items as one navigable list
+                var rows = Array.from(document.querySelectorAll('.peer-row'));
+                var newsItems = Array.from(document.querySelectorAll('.sector-news-item'));
+                return rows.concat(newsItems);
+            },
             move: function (dir) {
                 var hasSub = this.hasSubTabs();
 
@@ -1303,15 +1310,26 @@ window.onerror = function (msg, src, line, col, err) {
                         this._highlightFocus();
                         return;
                     }
+                    // Sector tab: navigate items up
+                    if (this._focus === 'content' && this.isSectorTab()) {
+                        if (vimSelectedIndex > 0) {
+                            var items = this.getSectorItems();
+                            vimSelectedIndex = Math.max(vimSelectedIndex - 1, 0);
+                            vimSelect(items, vimSelectedIndex);
+                            return;
+                        }
+                        clearVimSelection();
+                        this._focus = 'main';
+                        this._highlightFocus();
+                        return;
+                    }
                     // Move up through layers: content → sub → main
                     if (this._focus === 'content') {
-                        // Scroll up first if not at top
                         var content = document.getElementById('info-content');
                         if (content && content.scrollTop > 0) {
                             content.scrollTop -= 60;
                             return;
                         }
-                        // At top — move to sub-tabs or main
                         this._focus = hasSub ? 'sub' : 'main';
                     } else if (this._focus === 'sub') {
                         this._focus = 'main';
@@ -1334,6 +1352,12 @@ window.onerror = function (msg, src, line, col, err) {
                         if (cards.length > 0) {
                             vimSelectedIndex = Math.min(vimSelectedIndex + 1, cards.length - 1);
                             vimSelect(cards, vimSelectedIndex);
+                        }
+                    } else if (this.isSectorTab()) {
+                        var items = this.getSectorItems();
+                        if (items.length > 0) {
+                            vimSelectedIndex = Math.min(vimSelectedIndex + 1, items.length - 1);
+                            vimSelect(items, vimSelectedIndex);
                         }
                     } else {
                         var content = document.getElementById('info-content');
@@ -1391,7 +1415,31 @@ window.onerror = function (msg, src, line, col, err) {
                         var link = cards[vimSelectedIndex].querySelector('.news-card-title a');
                         if (link && window._openReader) window._openReader(link.href, link.textContent);
                     }
+                } else if (this.isSectorTab()) {
+                    var items = this.getSectorItems();
+                    if (vimSelectedIndex >= 0 && vimSelectedIndex < items.length) {
+                        var el = items[vimSelectedIndex];
+                        // If it's a news item, open reader
+                        if (el.dataset.url && window._openReader) {
+                            window._openReader(el.dataset.url, el.dataset.title || '');
+                        }
+                        // If it's a peer row, go to info
+                        else if (el.dataset.symbol && window._navigateToSecurity) {
+                            window._navigateToSecurity(el.dataset.symbol);
+                        }
+                    }
                 }
+            },
+            // Sector: i→info, g→graph for selected peer
+            sectorNav: function (action) {
+                if (!this.isSectorTab()) return;
+                var items = this.getSectorItems();
+                if (vimSelectedIndex < 0 || vimSelectedIndex >= items.length) return;
+                var el = items[vimSelectedIndex];
+                var sym = el.dataset.symbol;
+                if (!sym) return;
+                if (action === 'info' && window._navigateToSecurity) window._navigateToSecurity(sym);
+                if (action === 'graph' && window._navigateToGraph) window._navigateToGraph(sym);
             }
         },
         debug: {
@@ -1482,7 +1530,8 @@ window.onerror = function (msg, src, line, col, err) {
                 return;
             case 'g':
                 e.preventDefault();
-                if (handler && handler.graph) handler.graph();
+                if (handler && handler.sectorNav) handler.sectorNav('graph');
+                else if (handler && handler.graph) handler.graph();
                 return;
             case 'r':
                 e.preventDefault();
@@ -1493,6 +1542,7 @@ window.onerror = function (msg, src, line, col, err) {
                 if (window._infoToggleHelp) window._infoToggleHelp();
                 return;
             case 'i':
+                if (handler && handler.sectorNav && handler.isSectorTab && handler.isSectorTab()) { e.preventDefault(); handler.sectorNav('info'); return; }
                 if (handler && handler.jumpToSubTab) { e.preventDefault(); handler.jumpToSubTab(0); }
                 return;
             case 'b':

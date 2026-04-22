@@ -446,6 +446,8 @@
         }
     }
 
+    var sectorPerfChart = null; // exposed for vim h/l
+
     function loadSector() {
         container.innerHTML = '<p class="empty-state">Loading sector data...</p>';
 
@@ -459,7 +461,6 @@
             var sector = profile.sector || 'Unknown';
             var industry = profile.industry || '';
 
-            // Subscribe to sector topic — triggers the sector bot
             if (sector !== 'Unknown' && window._wsSend) {
                 unsubscribeSector();
                 subscribedSector = sector;
@@ -472,35 +473,37 @@
             html += '<div class="sector-header">';
             html += '<span class="sector-name">' + esc(sector) + '</span>';
             if (industry) html += '<span class="sector-industry"> / ' + esc(industry) + '</span>';
+            html += '<span class="sector-hint"> j/k nav · i info · g graph</span>';
             html += '</div>';
 
-            // Peer comparison table
+            // Peer comparison table with mini sparkline column
             if (peers.length > 0) {
-                // Sort by market cap descending
                 peers.sort(function (a, b) { return (b.mktCap || b.marketCap || 0) - (a.mktCap || a.marketCap || 0); });
 
                 html += '<div class="sector-section-title">Peer Comparison</div>';
-                html += '<table class="fin-table peer-table"><thead><tr>';
-                html += '<th>Security</th><th>Company</th><th>Price</th><th>Market Cap</th>';
+                html += '<table class="fin-table peer-table" id="peer-table"><thead><tr>';
+                html += '<th>Security</th><th>Company</th><th>Price</th><th>Market Cap</th><th>1M</th>';
                 html += '</tr></thead><tbody>';
 
-                // Add the current company at the top
-                html += '<tr class="peer-current"><td><span class="sym-link" data-symbol="' + esc(symbol) + '">' + esc(symbol) + '</span></td>'
+                // Current company
+                html += '<tr class="peer-row peer-current" data-symbol="' + esc(symbol) + '"><td><span class="sym-link">' + esc(symbol) + '</span></td>'
                     + '<td>' + esc(profile.companyName || '') + '</td>'
                     + '<td>' + (profile.price ? profile.price.toFixed(2) : '—') + '</td>'
-                    + '<td>' + fmt(profile.marketCap) + '</td></tr>';
+                    + '<td>' + fmt(profile.marketCap) + '</td>'
+                    + '<td><div class="peer-spark" data-spark-sym="' + esc(symbol) + '"></div></td></tr>';
 
                 peers.forEach(function (p) {
                     var cap = p.mktCap || p.marketCap || 0;
-                    html += '<tr><td><span class="sym-link" data-symbol="' + esc(p.symbol) + '">' + esc(p.symbol) + '</span></td>'
+                    html += '<tr class="peer-row" data-symbol="' + esc(p.symbol) + '"><td><span class="sym-link">' + esc(p.symbol) + '</span></td>'
                         + '<td>' + esc(p.companyName || '') + '</td>'
                         + '<td>' + (p.price ? p.price.toFixed(2) : '—') + '</td>'
-                        + '<td>' + fmt(cap) + '</td></tr>';
+                        + '<td>' + fmt(cap) + '</td>'
+                        + '<td><div class="peer-spark" data-spark-sym="' + esc(p.symbol) + '"></div></td></tr>';
                 });
                 html += '</tbody></table>';
             }
 
-            // Performance comparison chart
+            // Performance chart
             html += '<div class="sector-section-title">6M Performance Comparison</div>';
             html += '<div id="sector-perf-chart" class="sector-perf-chart"></div>';
 
@@ -511,13 +514,8 @@
             html += '</div>';
             container.innerHTML = html;
 
-            // Wire up peer links
-            container.querySelectorAll('.sym-link').forEach(function (el) {
-                el.style.cursor = 'pointer';
-                el.onclick = function () {
-                    if (window._navigateToSecurity) window._navigateToSecurity(el.dataset.symbol);
-                };
-            });
+            // Load mini sparklines
+            loadPeerSparklines();
 
             // Load performance chart
             loadSectorPerfChart(symbol, peers.slice(0, 3));
@@ -531,6 +529,43 @@
         });
     }
 
+    function loadPeerSparklines() {
+        function tryRender() {
+            if (!window.LightweightCharts) { setTimeout(tryRender, 200); return; }
+            var from = new Date(); from.setMonth(from.getMonth() - 1);
+            var fromStr = from.toISOString().slice(0, 10);
+            var toStr = new Date().toISOString().slice(0, 10);
+
+            document.querySelectorAll('.peer-spark').forEach(function (el) {
+                var sym = el.dataset.sparkSym;
+                if (!sym) return;
+                fetch('/api/chart/eod/' + sym + '?from=' + fromStr + '&to=' + toStr)
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data || data.length < 2) return;
+                        var first = data[0].close, last = data[data.length - 1].close;
+                        var color = last >= first ? '#00cc66' : '#ff4444';
+                        var chart = LightweightCharts.createChart(el, {
+                            width: 80, height: 24,
+                            layout: { background: { color: 'transparent' }, textColor: 'transparent' },
+                            grid: { vertLines: { visible: false }, horzLines: { visible: false } },
+                            rightPriceScale: { visible: false }, timeScale: { visible: false },
+                            handleScroll: false, handleScale: false,
+                            crosshair: { vertLine: { visible: false }, horzLine: { visible: false } },
+                        });
+                        var series = chart.addSeries(LightweightCharts.AreaSeries, {
+                            lineColor: color, topColor: color.replace(')', ',0.15)').replace('rgb', 'rgba'),
+                            bottomColor: 'transparent', lineWidth: 1,
+                            priceLineVisible: false, lastValueVisible: false,
+                        });
+                        series.setData(data.map(function (d) { return { time: d.date, value: d.close }; }));
+                        chart.timeScale().fitContent();
+                    }).catch(function () {});
+            });
+        }
+        tryRender();
+    }
+
     function loadSectorPerfChart(mainSymbol, topPeers) {
         var chartEl = document.getElementById('sector-perf-chart');
         if (!chartEl || !window.LightweightCharts) {
@@ -538,15 +573,13 @@
             return;
         }
 
-        var from = new Date();
-        from.setMonth(from.getMonth() - 6);
+        var from = new Date(); from.setMonth(from.getMonth() - 6);
         var fromStr = from.toISOString().slice(0, 10);
         var toStr = new Date().toISOString().slice(0, 10);
-
         var allSymbols = [mainSymbol].concat(topPeers.map(function (p) { return p.symbol; }));
         var colors = ['#ffcc00', '#4499ff', '#ff6699', '#00cccc'];
 
-        var chart = LightweightCharts.createChart(chartEl, {
+        sectorPerfChart = LightweightCharts.createChart(chartEl, {
             width: chartEl.clientWidth, height: 200,
             layout: { background: { color: '#0a0a0a' }, textColor: '#888', fontFamily: "'SF Mono',monospace", fontSize: 10 },
             grid: { vertLines: { color: '#1a1a1a' }, horzLines: { color: '#1a1a1a' } },
@@ -556,29 +589,29 @@
             crosshair: { vertLine: { color: '#555', style: 2 }, horzLine: { color: '#555', style: 2 } },
         });
 
+        // Expose for vim
+        window._sectorChart = sectorPerfChart;
+
         allSymbols.forEach(function (sym, i) {
             fetch('/api/chart/eod/' + sym + '?from=' + fromStr + '&to=' + toStr)
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
                     if (!data || data.length < 2) return;
                     var basePrice = data[0].close;
-                    var normalized = data.map(function (d) {
+                    var series = sectorPerfChart.addSeries(LightweightCharts.LineSeries, {
+                        color: colors[i % colors.length], lineWidth: i === 0 ? 2 : 1,
+                        priceLineVisible: false, lastValueVisible: true, title: sym,
+                    });
+                    series.setData(data.map(function (d) {
                         return { time: d.date, value: ((d.close - basePrice) / basePrice) * 100 };
-                    });
-                    var series = chart.addSeries(LightweightCharts.LineSeries, {
-                        color: colors[i % colors.length],
-                        lineWidth: i === 0 ? 2 : 1,
-                        priceLineVisible: false,
-                        lastValueVisible: true,
-                        title: sym,
-                    });
-                    series.setData(normalized);
-                    if (i === 0) chart.timeScale().fitContent();
-                })
-                .catch(function () {});
+                    }));
+                    if (i === 0) sectorPerfChart.timeScale().fitContent();
+                }).catch(function () {});
         });
 
-        window.addEventListener('resize', function () { chart.resize(chartEl.clientWidth, 200); });
+        window.addEventListener('resize', function () {
+            if (sectorPerfChart) sectorPerfChart.resize(chartEl.clientWidth, 200);
+        });
     }
 
     function loadSectorNews(peers) {
@@ -595,7 +628,7 @@
                 }
                 newsEl.innerHTML = items.map(function (n) {
                     var date = n.date ? new Date(n.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-                    return '<div class="sector-news-item">'
+                    return '<div class="sector-news-item" data-url="' + esc(n.url || '') + '" data-title="' + esc(n.title || '') + '">'
                         + '<a href="' + esc(n.url) + '" onclick="event.preventDefault();if(window._openReader)window._openReader(this.href,this.textContent)">'
                         + esc(n.title) + '</a>'
                         + '<span class="sector-news-meta">' + esc(n.symbol || '') + ' · ' + esc(n.source || '') + ' · ' + date + '</span>'
