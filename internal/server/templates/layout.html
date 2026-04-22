@@ -21,9 +21,18 @@
         <span id="watchlist-picker" class="watchlist-picker" title="Active watchlist">Default</span>
         <div id="conn-status" class="conn-status">DISCONNECTED</div>
     </header>
-    <main id="view-container" class="terminal-content" data-view="{{.Active}}">
-        {{template "content" .}}
-    </main>
+    <div class="terminal-body">
+        <main id="view-container" class="terminal-content" data-view="{{.Active}}">
+            {{template "content" .}}
+        </main>
+        <aside id="article-reader" class="article-reader hidden">
+            <div class="reader-header">
+                <span id="reader-title" class="reader-title">Article</span>
+                <button class="reader-close" onclick="window._closeReader()">&#10005;</button>
+            </div>
+            <div id="reader-body" class="reader-body"></div>
+        </aside>
+    </div>
     <footer class="terminal-footer">
         <span id="vim-mode" class="footer-mode">NORMAL</span>
         <span id="current-view" class="footer-view">{{.Active}}</span>

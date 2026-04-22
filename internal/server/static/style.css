@@ -237,6 +237,14 @@ body {
     border-color: var(--green);
 }
 
+/* ── Terminal Body (content + reader split) ── */
+
+.terminal-body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
 /* ── Terminal Content ── */
 
 .terminal-content {
@@ -244,6 +252,84 @@ body {
     padding: 16px;
     overflow-y: auto;
     overflow-x: hidden;
+}
+
+/* ── Article Reader Panel ── */
+
+.article-reader {
+    width: 450px;
+    flex-shrink: 0;
+    background: var(--bg-secondary);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.article-reader.hidden {
+    display: none;
+}
+
+.reader-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.reader-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.reader-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+    margin-left: 8px;
+    flex-shrink: 0;
+}
+
+.reader-close:hover {
+    color: var(--text-primary);
+}
+
+.reader-body {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+}
+
+.reader-body p {
+    margin-bottom: 12px;
+}
+
+.reader-body h1, .reader-body h2, .reader-body h3 {
+    color: var(--text-primary);
+    margin: 16px 0 8px;
+    font-size: 15px;
+}
+
+.reader-meta {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+.reader-content {
+    font-size: 13px;
 }
 
 /* ── Terminal Footer ── */

@@ -319,46 +319,19 @@
             container.parentNode.insertBefore(panel, container.nextSibling);
         }
 
-        var html = '<div class="cnp-header"><span>News for ' + date + '</span><button class="cnp-close" onclick="document.getElementById(\'chart-news-panel\').remove()">&#10005;</button></div>';
+        var html = '<div class="cnp-header"><span>News for ' + date + ' (' + articles.length + ')</span><button class="cnp-close" onclick="document.getElementById(\'chart-news-panel\').remove();window._closeReader()">&#10005;</button></div>';
         html += '<div class="cnp-list">';
-        articles.forEach(function (a, i) {
-            html += '<div class="cnp-item" data-url="' + encodeURIComponent(a.url || '') + '" onclick="window._openArticle(this.dataset.url)">'
-                + '<span class="cnp-title">' + (a.title || '').replace(/</g, '&lt;') + '</span>'
+        articles.forEach(function (a) {
+            var safeUrl = (a.url || '').replace(/'/g, '%27');
+            var safeTitle = (a.title || '').replace(/</g, '&lt;').replace(/'/g, '&#39;');
+            html += '<div class="cnp-item" onclick="window._openReader(\'' + safeUrl + '\',\'' + safeTitle + '\')">'
+                + '<span class="cnp-title">' + safeTitle + '</span>'
                 + '<span class="cnp-meta">' + (a.source || '') + '</span>'
                 + '</div>';
         });
         html += '</div>';
-        html += '<div id="cnp-reader" class="cnp-reader"></div>';
         panel.innerHTML = html;
     }
-
-    window._openArticle = function (encodedUrl) {
-        var url = decodeURIComponent(encodedUrl);
-        var reader = document.getElementById('cnp-reader');
-        if (!reader) return;
-        reader.innerHTML = '<p style="color:var(--text-muted)">Loading article...</p>';
-
-        fetch('/api/article?url=' + encodeURIComponent(url))
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (data.error) {
-                    reader.innerHTML = '<p style="color:var(--red)">' + data.error + '</p><a href="' + url + '" target="_blank" style="color:var(--blue)">Open in browser</a>';
-                    return;
-                }
-                var html = '<h2 class="cnp-article-title">' + (data.title || '').replace(/</g, '&lt;') + '</h2>';
-                html += '<div class="cnp-article-meta">' + (data.wordCount || 0) + ' words</div>';
-                html += '<div class="cnp-article-body">';
-                (data.paragraphs || []).forEach(function (p) {
-                    var tag = p.tag === 'h1' || p.tag === 'h2' || p.tag === 'h3' ? p.tag : 'p';
-                    html += '<' + tag + '>' + p.text.replace(/</g, '&lt;') + '</' + tag + '>';
-                });
-                html += '</div>';
-                reader.innerHTML = html;
-            })
-            .catch(function () {
-                reader.innerHTML = '<p style="color:var(--red)">Failed to load</p><a href="' + url + '" target="_blank" style="color:var(--blue)">Open in browser</a>';
-            });
-    };
 
     // ── Crosshair Tooltip ──
     var tooltipEl = document.getElementById('chart-tooltip');
