@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Distinguished Reader Bot 9000 — fetches, extracts, and enriches articles."""
+"""Distinguished Reader Bot 9000 — fetches, extracts, and enriches articles.
+Uses Ollama (Gemma 4) for entity extraction, escalates low-confidence to Gemini Flash."""
 import json
 import os
 import re
@@ -7,10 +8,9 @@ import sys
 import requests
 from bs4 import BeautifulSoup
 
-# Full Chrome browser headers to bypass JS/ad-blocker walls
 CHROME_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
     "Accept-Encoding": "gzip, deflate, br",
     "DNT": "1",
@@ -23,41 +23,32 @@ CHROME_HEADERS = {
     "Cache-Control": "max-age=0",
 }
 
-# Common ticker patterns
-TICKER_RE = re.compile(r'\b([A-Z]{1,5})\b')
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4")
+GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
 
-# Known major tickers for entity matching
-MAJOR_TICKERS = {
-    "AAPL", "MSFT", "GOOGL", "GOOG", "AMZN", "META", "TSLA", "NVDA", "JPM",
-    "V", "MA", "DIS", "NFLX", "PYPL", "INTC", "AMD", "CRM", "ORCL", "CSCO",
-    "QCOM", "AVGO", "TXN", "MU", "AMAT", "KLAC", "LRCX", "ASML", "TSM",
-    "BA", "GE", "CAT", "MMM", "HD", "WMT", "COST", "TGT", "NKE", "SBUX",
-    "KO", "PEP", "MCD", "PG", "JNJ", "PFE", "UNH", "ABBV", "MRK", "LLY",
-    "BAC", "WFC", "GS", "MS", "C", "BLK", "SCHW", "AXP",
-    "XOM", "CVX", "COP", "SLB", "EOG", "BRK", "SPY", "QQQ", "IWM", "DIA",
-    "SNAP", "PINS", "RDDT", "PLTR", "RIVN", "LCID", "NIO", "SOFI", "COIN",
-    "DJT", "GME", "AMC", "BBBY", "HOOD", "RBLX", "U", "DDOG", "SNOW",
-}
+NER_PROMPT = """Extract named entities from this financial article text. Return ONLY valid JSON array.
+Each entity: {"text": "exact text", "type": "ticker|company|person|sector|index", "ticker": "AAPL or null", "confidence": 0.0-1.0}
 
-# Common financial/sector terms
-SECTOR_TERMS = {
-    "technology", "healthcare", "financial", "energy", "consumer", "industrial",
-    "materials", "utilities", "real estate", "communication", "semiconductor",
-    "artificial intelligence", "AI", "machine learning", "cloud computing",
-    "electric vehicle", "EV", "cryptocurrency", "bitcoin", "blockchain",
-    "federal reserve", "Fed", "interest rate", "inflation", "GDP", "earnings",
-    "revenue", "profit", "dividend", "IPO", "merger", "acquisition", "SEC",
-    "S&P 500", "Nasdaq", "Dow Jones", "Russell 2000",
-}
+Rules:
+- ticker: stock/crypto symbols like AAPL, MSFT, BTC
+- company: company names like "Apple Inc.", "Meta Platforms"
+- person: people names like "Tim Cook", "Warren Buffett"
+- sector: industry terms like "semiconductor", "artificial intelligence"
+- index: market indices like "S&P 500", "Nasdaq", "Dow Jones"
+- For company entities, include the ticker if you know it
+- confidence: how certain you are (1.0 = certain, 0.5 = guess)
+
+Text:
+"""
+
+CONFIDENCE_THRESHOLD = 0.6
 
 
 def fetch_article(url):
-    """Fetch article with full browser impersonation."""
     session = requests.Session()
     session.headers.update(CHROME_HEADERS)
-
     try:
-        # Follow redirects, handle cookies
         resp = session.get(url, timeout=15, allow_redirects=True)
         resp.raise_for_status()
         return resp.text, resp.url
@@ -65,37 +56,26 @@ def fetch_article(url):
         return None, str(e)
 
 
-def extract_content(html, url):
-    """Extract article text from HTML."""
+def extract_content(html):
     soup = BeautifulSoup(html, "html.parser")
-
-    # Remove noise
     for tag in soup(["script", "style", "nav", "footer", "header", "aside",
                      "iframe", "form", "noscript", "svg", "button", "input"]):
         tag.decompose()
-
-    # Remove common ad/tracking divs
     for cls in ["ad", "advertisement", "social-share", "newsletter", "popup",
-                "modal", "cookie", "banner", "sidebar", "related-articles"]:
+                "modal", "cookie", "banner", "sidebar", "related"]:
         for el in soup.find_all(class_=re.compile(cls, re.I)):
             el.decompose()
 
-    # Find article body
     article = None
-    for selector in [
-        "article", '[role="main"]', ".article-body", ".article__body",
-        ".post-content", ".entry-content", ".story-body", ".article-content",
-        ".caas-body", ".paywall", '[data-testid="article-body"]',
-        ".article__content", ".article-text", "main",
-    ]:
-        article = soup.select_one(selector)
+    for sel in ["article", '[role="main"]', ".article-body", ".article__body",
+                ".post-content", ".entry-content", ".story-body", ".article-content",
+                ".caas-body", '[data-testid="article-body"]', "main"]:
+        article = soup.select_one(sel)
         if article:
             break
-
     if not article:
         article = soup.body or soup
 
-    # Get title
     title = ""
     for sel in ["h1", "title"]:
         el = soup.find(sel)
@@ -104,7 +84,6 @@ def extract_content(html, url):
             if title:
                 break
 
-    # Extract paragraphs
     paragraphs = []
     for p in article.find_all(["p", "h1", "h2", "h3", "h4", "h5", "blockquote", "li"]):
         text = p.get_text(strip=True)
@@ -114,61 +93,177 @@ def extract_content(html, url):
     return title, paragraphs[:60]
 
 
-def enrich_text(text):
-    """Find and annotate entities in text: tickers, people, sectors."""
-    entities = []
+def call_ollama(prompt):
+    """Call local Ollama for NER."""
+    try:
+        resp = requests.post(
+            f"{OLLAMA_HOST}/api/generate",
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": prompt,
+                "stream": False,
+                "options": {"temperature": 0.1, "num_predict": 2048},
+            },
+            timeout=60,
+        )
+        if resp.status_code != 200:
+            return None
+        return resp.json().get("response", "")
+    except Exception:
+        return None
 
-    # Find ticker mentions
-    for match in TICKER_RE.finditer(text):
-        word = match.group(1)
-        if word in MAJOR_TICKERS:
-            entities.append({
-                "type": "ticker",
-                "value": word,
-                "start": match.start(),
-                "end": match.end(),
-            })
 
-    # Find sector terms
-    text_lower = text.lower()
-    for term in SECTOR_TERMS:
-        idx = text_lower.find(term.lower())
-        while idx >= 0:
-            entities.append({
-                "type": "sector",
-                "value": term,
-                "start": idx,
-                "end": idx + len(term),
-            })
-            idx = text_lower.find(term.lower(), idx + len(term))
+def call_gemini(prompt):
+    """Escalate to Gemini Flash for low-confidence entities."""
+    if not GEMINI_KEY:
+        return None
+    try:
+        resp = requests.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_KEY}",
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.1, "maxOutputTokens": 2048},
+            },
+            timeout=30,
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+        return parts[0].get("text", "") if parts else None
+    except Exception:
+        return None
 
-    # Deduplicate overlapping entities (prefer tickers)
-    entities.sort(key=lambda e: (e["start"], -len(e["value"])))
-    filtered = []
-    last_end = 0
+
+def parse_entities_json(text):
+    """Parse JSON array from LLM response, stripping markdown."""
+    if not text:
+        return []
+    text = text.strip()
+    # Strip markdown code blocks
+    if text.startswith("```"):
+        text = re.sub(r'^```\w*\n?', '', text)
+        text = re.sub(r'\n?```$', '', text)
+        text = text.strip()
+    try:
+        entities = json.loads(text)
+        if isinstance(entities, list):
+            return entities
+    except json.JSONDecodeError:
+        # Try to find JSON array in response
+        match = re.search(r'\[.*\]', text, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group())
+            except json.JSONDecodeError:
+                pass
+    return []
+
+
+def extract_entities(full_text):
+    """Extract entities using Ollama, escalate low-confidence to Gemini."""
+    # Truncate to avoid overwhelming the model
+    truncated = full_text[:4000]
+    prompt = NER_PROMPT + truncated
+
+    # Step 1: Local Ollama
+    raw = call_ollama(prompt)
+    entities = parse_entities_json(raw)
+
+    if not entities:
+        # Ollama failed entirely — try Gemini
+        raw = call_gemini(prompt)
+        entities = parse_entities_json(raw)
+        for e in entities:
+            e["source"] = "gemini"
+        return entities
+
+    # Step 2: Find low-confidence entities
+    low_conf = [e for e in entities if e.get("confidence", 1.0) < CONFIDENCE_THRESHOLD]
+    high_conf = [e for e in entities if e.get("confidence", 1.0) >= CONFIDENCE_THRESHOLD]
+
+    # Step 3: Escalate low-confidence to Gemini
+    if low_conf and GEMINI_KEY:
+        low_texts = [e.get("text", "") for e in low_conf]
+        escalation_prompt = f"""These entity extractions from a financial article have low confidence.
+Verify each one and return ONLY a JSON array with corrected entities.
+For each: {{"text": "...", "type": "ticker|company|person|sector|index", "ticker": "AAPL or null", "confidence": 0.0-1.0}}
+
+Low confidence entities: {json.dumps(low_texts)}
+
+Original text context:
+{truncated[:2000]}"""
+
+        raw = call_gemini(escalation_prompt)
+        escalated = parse_entities_json(raw)
+        for e in escalated:
+            e["source"] = "gemini-escalated"
+        high_conf.extend(escalated)
+    else:
+        # Keep low-confidence as-is if no Gemini
+        high_conf.extend(low_conf)
+
+    for e in high_conf:
+        if "source" not in e:
+            e["source"] = "ollama"
+
+    return high_conf
+
+
+def map_entities_to_paragraphs(paragraphs, entities):
+    """Map extracted entities to character positions in each paragraph."""
+    entity_lookup = {}
     for e in entities:
-        if e["start"] >= last_end:
-            filtered.append(e)
-            last_end = e["end"]
-
-    return filtered
-
-
-def enrich_paragraphs(paragraphs):
-    """Add entity annotations to each paragraph."""
-    all_tickers = set()
-    all_sectors = set()
+        text = e.get("text", "")
+        if text:
+            entity_lookup[text.lower()] = e
 
     for p in paragraphs:
-        entities = enrich_text(p["text"])
-        p["entities"] = entities
-        for e in entities:
-            if e["type"] == "ticker":
-                all_tickers.add(e["value"])
-            elif e["type"] == "sector":
-                all_sectors.add(e["value"])
+        p_text = p["text"]
+        p_lower = p_text.lower()
+        p_entities = []
 
-    return list(all_tickers), list(all_sectors)
+        for key, entity in entity_lookup.items():
+            idx = p_lower.find(key)
+            while idx >= 0:
+                p_entities.append({
+                    "type": entity.get("type", "company"),
+                    "value": p_text[idx:idx + len(key)],
+                    "ticker": entity.get("ticker"),
+                    "start": idx,
+                    "end": idx + len(key),
+                    "confidence": entity.get("confidence", 0.5),
+                })
+                idx = p_lower.find(key, idx + len(key))
+
+        # Deduplicate overlapping
+        p_entities.sort(key=lambda e: (e["start"], -len(e["value"])))
+        filtered = []
+        last_end = 0
+        for e in p_entities:
+            if e["start"] >= last_end:
+                filtered.append(e)
+                last_end = e["end"]
+
+        p["entities"] = filtered
+
+    # Collect summary
+    all_tickers = list(set(
+        e.get("ticker") or e.get("value", "")
+        for e in entities
+        if e.get("type") == "ticker" and (e.get("ticker") or e.get("value"))
+    ))
+    all_companies = list(set(
+        e.get("text", "") for e in entities if e.get("type") == "company"
+    ))
+    all_people = list(set(
+        e.get("text", "") for e in entities if e.get("type") == "person"
+    ))
+    all_sectors = list(set(
+        e.get("text", "") for e in entities if e.get("type") in ("sector", "index")
+    ))
+
+    return all_tickers, all_companies, all_people, all_sectors
 
 
 def main():
@@ -183,18 +278,24 @@ def main():
         print(json.dumps({"error": f"fetch failed: {final_url}", "url": url}))
         sys.exit(0)
 
-    title, paragraphs = extract_content(html, final_url)
+    title, paragraphs = extract_content(html)
 
     if not paragraphs:
         print(json.dumps({
             "error": "no content extracted",
-            "url": url,
-            "title": title or "",
+            "url": url, "title": title or "",
             "paragraphs": [],
         }))
         sys.exit(0)
 
-    tickers, sectors = enrich_paragraphs(paragraphs)
+    # Full text for entity extraction
+    full_text = title + "\n" + "\n".join(p["text"] for p in paragraphs)
+
+    # Extract entities via Ollama (+ Gemini escalation)
+    entities = extract_entities(full_text)
+
+    # Map entities to paragraph positions
+    tickers, companies, people, sectors = map_entities_to_paragraphs(paragraphs, entities)
 
     result = {
         "title": title,
@@ -202,7 +303,10 @@ def main():
         "paragraphs": paragraphs,
         "wordCount": sum(len(p["text"].split()) for p in paragraphs),
         "tickers": tickers,
+        "companies": companies,
+        "people": people,
         "sectors": sectors,
+        "entityCount": len(entities),
         "bot": "Distinguished Reader Bot 9000",
     }
 

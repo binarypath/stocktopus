@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -698,10 +699,15 @@ func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
 		pythonCmd = venvPython
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, pythonCmd, "agents/fetch_article.py", articleURL)
+	cmd.Env = append(cmd.Environ(),
+		"GEMINI_API_KEY="+os.Getenv("GEMINI_API_KEY"),
+		"OLLAMA_HOST="+os.Getenv("OLLAMA_HOST"),
+		"OLLAMA_MODEL="+os.Getenv("OLLAMA_MODEL"),
+	)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

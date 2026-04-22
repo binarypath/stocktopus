@@ -1585,6 +1585,14 @@ window.onerror = function (msg, src, line, col, err) {
                 var tickerBadges = (data.tickers || []).map(function (t) {
                     return '<span class="reader-ticker" onclick="if(window._navigateToSecurity)window._navigateToSecurity(\'' + t + '\')">' + t + '</span>';
                 }).join('');
+                var peopleBadges = (data.people || []).map(function (p) {
+                    return '<span class="reader-person-badge">' + escapeHtml(p) + '</span>';
+                }).join('');
+                var companyBadges = (data.companies || []).filter(function (c) {
+                    return (data.tickers || []).indexOf(c) < 0;
+                }).map(function (c) {
+                    return '<span class="reader-company-badge">' + escapeHtml(c) + '</span>';
+                }).join('');
                 var sectorBadges = (data.sectors || []).map(function (s) {
                     return '<span class="reader-sector-badge">' + escapeHtml(s) + '</span>';
                 }).join('');
@@ -1593,8 +1601,8 @@ window.onerror = function (msg, src, line, col, err) {
                     + (data.wordCount || 0) + ' words '
                     + botLabel
                     + '</div>';
-                if (tickerBadges) html += '<div class="reader-entities">' + tickerBadges + '</div>';
-                if (sectorBadges) html += '<div class="reader-entities">' + sectorBadges + '</div>';
+                var allBadges = tickerBadges + companyBadges + peopleBadges + sectorBadges;
+                if (allBadges) html += '<div class="reader-entities">' + allBadges + '</div>';
                 html += '<div class="reader-content" id="reader-paras">';
                 (data.paragraphs || []).forEach(function (p, idx) {
                     var tag = (p.tag === 'h1' || p.tag === 'h2' || p.tag === 'h3') ? p.tag : 'p';
@@ -1624,11 +1632,21 @@ window.onerror = function (msg, src, line, col, err) {
             // Add the entity as an interactive element
             var val = escapeHtml(e.value);
             if (e.type === 'ticker') {
-                result += '<span class="entity-ticker" onclick="if(window._navigateToSecurity)window._navigateToSecurity(\'' + val + '\')">' + val + '</span>';
-            } else if (e.type === 'sector') {
+                var tickerSym = e.ticker || val;
+                result += '<span class="entity-ticker" onclick="if(window._navigateToSecurity)window._navigateToSecurity(\'' + escapeHtml(tickerSym) + '\')">' + val + '</span>';
+            } else if (e.type === 'company') {
+                var compTicker = e.ticker;
+                if (compTicker) {
+                    result += '<span class="entity-company" onclick="if(window._navigateToSecurity)window._navigateToSecurity(\'' + escapeHtml(compTicker) + '\')">' + val + '</span>';
+                } else {
+                    result += '<span class="entity-company">' + val + '</span>';
+                }
+            } else if (e.type === 'person') {
+                result += '<span class="entity-person">' + val + '</span>';
+            } else if (e.type === 'sector' || e.type === 'index') {
                 result += '<span class="entity-sector">' + val + '</span>';
             } else {
-                result += '<span class="entity-other">' + val + '</span>';
+                result += val;
             }
             lastIdx = e.end;
         });

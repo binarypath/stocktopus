@@ -383,9 +383,42 @@ body {
     color: var(--text-primary);
 }
 
+.entity-company {
+    color: var(--green);
+    cursor: pointer;
+    border-bottom: 1px dotted var(--green);
+}
+
+.entity-company:hover {
+    color: var(--text-primary);
+}
+
+.entity-person {
+    color: var(--yellow);
+    border-bottom: 1px dotted var(--yellow);
+}
+
 .entity-sector {
     color: var(--orange);
     font-style: italic;
+}
+
+.reader-person-badge {
+    font-size: 10px;
+    color: var(--yellow);
+    background: rgba(210, 153, 34, 0.1);
+    border: 1px solid rgba(210, 153, 34, 0.2);
+    border-radius: 3px;
+    padding: 1px 6px;
+}
+
+.reader-company-badge {
+    font-size: 10px;
+    color: var(--green);
+    background: rgba(0, 204, 102, 0.1);
+    border: 1px solid rgba(0, 204, 102, 0.2);
+    border-radius: 3px;
+    padding: 1px 6px;
 }
 
 .reader-para.vim-selected {
