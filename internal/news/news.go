@@ -372,6 +372,12 @@ func (c *Client) GetIntradayChart(ctx context.Context, symbol, interval, from, t
 	return items, nil
 }
 
+// GetPeers returns sector peers for a symbol.
+func (c *Client) GetPeers(ctx context.Context, symbol string) (json.RawMessage, error) {
+	params := url.Values{"symbol": {symbol}}
+	return c.fetchJSON(ctx, "/stable/stock-peers", params)
+}
+
 // Category represents a news feed type.
 type Category string
 

@@ -138,6 +138,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/security/{symbol}/metrics", s.handleSecurityMetrics)
 	mux.HandleFunc("GET /api/security/{symbol}/financials", s.handleSecurityFinancials)
 	mux.HandleFunc("GET /api/security/{symbol}/estimates", s.handleSecurityEstimates)
+	mux.HandleFunc("GET /api/security/{symbol}/peers", s.handleSecurityPeers)
 	mux.HandleFunc("GET /api/security/{symbol}/intelligence", s.handleIntelligence)
 	mux.HandleFunc("GET /api/security/{symbol}/intelligence/status", s.handleIntelligenceStatus)
 	mux.HandleFunc("POST /api/security/{symbol}/intelligence/refresh", s.handleIntelligenceRefresh)
@@ -303,6 +304,12 @@ func (s *Server) handleSecurityFinancials(w http.ResponseWriter, r *http.Request
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
+}
+
+func (s *Server) handleSecurityPeers(w http.ResponseWriter, r *http.Request) {
+	s.proxyFMP(w, r, func(sym string) (json.RawMessage, error) {
+		return s.news.GetPeers(r.Context(), sym)
+	})
 }
 
 func (s *Server) handleSecurityEstimates(w http.ResponseWriter, r *http.Request) {
