@@ -229,6 +229,10 @@
         // News markers
         if (isOn('news')) {
             loadNewsMarkers();
+        } else {
+            if (newsMarkers) { try { newsMarkers.detach(); } catch (e) {} newsMarkers = null; }
+            var panel = document.getElementById('chart-news-panel');
+            if (panel) panel.remove();
         }
     }
 
