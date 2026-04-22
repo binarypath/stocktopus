@@ -111,6 +111,12 @@ func (s *Store) migrate() error {
 
 		INSERT OR IGNORE INTO watchlists (name, color) VALUES ('Default', '#ff8800');
 
+		CREATE TABLE IF NOT EXISTS sic_codes (
+			sic_code TEXT PRIMARY KEY,
+			industry_title TEXT NOT NULL,
+			office TEXT DEFAULT ''
+		);
+
 		CREATE TABLE IF NOT EXISTS sector_intelligence (
 			sector TEXT PRIMARY KEY,
 			industry TEXT DEFAULT '',
@@ -401,6 +407,67 @@ func (s *Store) IsSectorFresh(sector string, maxAge time.Duration) bool {
 		return false
 	}
 	return time.Since(si.GeneratedAt) < maxAge
+}
+
+// ── SIC Codes ──
+
+type SICCode struct {
+	Code          string `json:"sicCode"`
+	IndustryTitle string `json:"industryTitle"`
+	Office        string `json:"office"`
+}
+
+// PopulateSIC bulk-inserts SIC codes (idempotent).
+func (s *Store) PopulateSIC(codes []SICCode) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	stmt, err := tx.Prepare(`INSERT OR IGNORE INTO sic_codes (sic_code, industry_title, office) VALUES (?, ?, ?)`)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	defer stmt.Close()
+
+	for _, c := range codes {
+		stmt.Exec(c.Code, c.IndustryTitle, c.Office)
+	}
+	return tx.Commit()
+}
+
+// GetSICCode returns an SIC entry by code.
+func (s *Store) GetSICCode(code string) (*SICCode, error) {
+	var c SICCode
+	err := s.db.QueryRow(`SELECT sic_code, industry_title, office FROM sic_codes WHERE sic_code = ?`, code).
+		Scan(&c.Code, &c.IndustryTitle, &c.Office)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return &c, err
+}
+
+// GetAllSICCodes returns all SIC codes.
+func (s *Store) GetAllSICCodes() ([]SICCode, error) {
+	rows, err := s.db.Query(`SELECT sic_code, industry_title, office FROM sic_codes ORDER BY sic_code`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var codes []SICCode
+	for rows.Next() {
+		var c SICCode
+		rows.Scan(&c.Code, &c.IndustryTitle, &c.Office)
+		codes = append(codes, c)
+	}
+	return codes, nil
+}
+
+// SICCodeCount returns the number of SIC codes stored.
+func (s *Store) SICCodeCount() int {
+	var count int
+	s.db.QueryRow(`SELECT COUNT(*) FROM sic_codes`).Scan(&count)
+	return count
 }
 
 // GetAllWatchedSymbols returns all unique symbols across all watchlists.

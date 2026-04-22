@@ -143,6 +143,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/security/{symbol}/intelligence/status", s.handleIntelligenceStatus)
 	mux.HandleFunc("POST /api/security/{symbol}/intelligence/refresh", s.handleIntelligenceRefresh)
 	mux.HandleFunc("GET /api/agent/status", s.handleAgentStatus)
+	mux.HandleFunc("GET /api/sic", s.handleSICCodes)
 	mux.HandleFunc("GET /api/watchlists", s.handleGetWatchlists)
 	mux.HandleFunc("POST /api/watchlists", s.handleCreateWatchlist)
 	mux.HandleFunc("POST /api/watchlists/{id}/symbols", s.handleAddToWatchlist)
@@ -488,6 +489,30 @@ func (s *Server) handleCompetitors(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(results)
+}
+
+func (s *Server) handleSICCodes(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if s.store == nil {
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+	code := r.URL.Query().Get("code")
+	if code != "" {
+		sic, err := s.store.GetSICCode(code)
+		if err != nil || sic == nil {
+			json.NewEncoder(w).Encode(map[string]string{})
+		} else {
+			json.NewEncoder(w).Encode(sic)
+		}
+		return
+	}
+	codes, err := s.store.GetAllSICCodes()
+	if err != nil {
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+	json.NewEncoder(w).Encode(codes)
 }
 
 func (s *Server) handleGetWatchlists(w http.ResponseWriter, r *http.Request) {

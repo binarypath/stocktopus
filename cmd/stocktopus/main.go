@@ -136,6 +136,25 @@ func main() {
 		slog.Info("agent pipeline ready", "ollamaModel", ollamaModel, "cacheTTL", cacheTTL)
 	}
 
+	// Populate SIC codes on first boot
+	if st != nil && st.SICCodeCount() == 0 {
+		slog.Info("populating SIC codes...")
+		sicCtx, sicCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		sicData, err := newsClient.GetSICList(sicCtx)
+		sicCancel()
+		if err != nil {
+			slog.Warn("failed to fetch SIC list", "error", err)
+		} else {
+			var codes []store.SICCode
+			json.Unmarshal(sicData, &codes)
+			if err := st.PopulateSIC(codes); err != nil {
+				slog.Warn("failed to store SIC codes", "error", err)
+			} else {
+				slog.Info("SIC codes populated", "count", len(codes))
+			}
+		}
+	}
+
 	// Sector poller (needs store)
 	if st != nil {
 		sp := sectorpoller.New(newsClient, h, st, 5*time.Minute, logger)
