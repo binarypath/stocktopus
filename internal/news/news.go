@@ -406,7 +406,16 @@ func New(apiKey, baseURL string) *Client {
 }
 
 // GetNews fetches news for the given category. Symbol is used for press-releases filtering.
+// GetNewsWithDates fetches news with optional date range filtering.
+func (c *Client) GetNewsWithDates(ctx context.Context, cat Category, symbol string, page, limit int, from, to string) ([]model.NewsItem, error) {
+	return c.getNewsInternal(ctx, cat, symbol, page, limit, from, to)
+}
+
 func (c *Client) GetNews(ctx context.Context, cat Category, symbol string, page, limit int) ([]model.NewsItem, error) {
+	return c.getNewsInternal(ctx, cat, symbol, page, limit, "", "")
+}
+
+func (c *Client) getNewsInternal(ctx context.Context, cat Category, symbol string, page, limit int, from, to string) ([]model.NewsItem, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -454,6 +463,13 @@ func (c *Client) GetNews(ctx context.Context, cat Category, symbol string, page,
 		endpoint = "/stable/fmp-articles"
 	default:
 		return nil, fmt.Errorf("unknown news category: %s", cat)
+	}
+
+	if from != "" {
+		params.Set("from", from)
+	}
+	if to != "" {
+		params.Set("to", to)
 	}
 
 	reqURL := c.baseURL + endpoint + "?" + params.Encode()

@@ -717,7 +717,7 @@ window.onerror = function (msg, src, line, col, err) {
         var unreadClass = unread ? ' news-unread' : '';
 
         return '<div class="news-card' + unreadClass + '" data-url="' + escapeHtml(item.url) + '">'
-            + '<div class="news-card-title"><a href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener">' + escapeHtml(item.title) + '</a></div>'
+            + '<div class="news-card-title"><a href="' + escapeHtml(item.url) + '" onclick="event.preventDefault();if(window._openReader)window._openReader(this.href,this.textContent)">' + escapeHtml(item.title) + '</a></div>'
             + '<div class="news-card-meta">'
             +   symbolBadge
             +   '<span>' + escapeHtml(item.source) + '</span>'
@@ -920,6 +920,15 @@ window.onerror = function (msg, src, line, col, err) {
                     };
                     if (rangeMap[colonLower] && window._stocktopusSetRange) {
                         window._stocktopusSetRange(rangeMap[colonLower]);
+                        input.value = '';
+                        enterNormalMode();
+                        return;
+                    }
+
+                    // Indicator toggles: :sma, :ema, :macd, :rsi, :sn
+                    var indicatorMap = { 'sma': 'sma', 'ema': 'ema', 'macd': 'macd', 'rsi': 'rsi', 'sn': 'news' };
+                    if (indicatorMap[colonLower] && window._stocktopusToggle) {
+                        window._stocktopusToggle(indicatorMap[colonLower]);
                         input.value = '';
                         enterNormalMode();
                         return;
@@ -1258,7 +1267,9 @@ window.onerror = function (msg, src, line, col, err) {
                 var card = items[vimSelectedIndex];
                 markNewsRead(card);
                 var link = card.querySelector('.news-card-title a');
-                if (link) window.open(link.href, '_blank', 'noopener');
+                if (link && window._openReader) {
+                    window._openReader(link.href, link.textContent);
+                }
             }
         },
         info: {
@@ -1378,7 +1389,7 @@ window.onerror = function (msg, src, line, col, err) {
                     var cards = this.getNewsCards();
                     if (vimSelectedIndex >= 0 && vimSelectedIndex < cards.length) {
                         var link = cards[vimSelectedIndex].querySelector('.news-card-title a');
-                        if (link) window.open(link.href, '_blank', 'noopener');
+                        if (link && window._openReader) window._openReader(link.href, link.textContent);
                     }
                 }
             }
@@ -1420,7 +1431,12 @@ window.onerror = function (msg, src, line, col, err) {
                 }
                 enterNormalMode();
             } else {
-                // Normal mode: Escape focuses command bar (enter insert)
+                // Normal mode: close reader first, then focus command bar
+                var reader = document.getElementById('article-reader');
+                if (reader && !reader.classList.contains('hidden')) {
+                    reader.classList.add('hidden');
+                    return;
+                }
                 document.getElementById('cmd-input').focus();
             }
             return;
@@ -1493,6 +1509,47 @@ window.onerror = function (msg, src, line, col, err) {
                 return;
         }
     }, true); // capture phase — intercepts before Vimium and other extensions
+
+    // ── Shared Article Reader ──
+
+    window._openReader = function (url, title) {
+        var reader = document.getElementById('article-reader');
+        var readerBody = document.getElementById('reader-body');
+        var readerTitle = document.getElementById('reader-title');
+        if (!reader || !readerBody) return;
+
+        reader.classList.remove('hidden');
+        if (readerTitle) readerTitle.textContent = title || 'Loading...';
+        readerBody.innerHTML = '<p style="color:var(--text-muted)">Loading article...</p>';
+
+        fetch('/api/article?url=' + encodeURIComponent(url))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.error) {
+                    readerBody.innerHTML = '<p style="color:var(--red)">' + escapeHtml(data.error) + '</p>'
+                        + '<a href="' + escapeHtml(url) + '" target="_blank" style="color:var(--blue)">Open in browser</a>';
+                    return;
+                }
+                if (readerTitle) readerTitle.textContent = data.title || title || '';
+                var html = '<div class="reader-meta">' + (data.wordCount || 0) + ' words</div>';
+                html += '<div class="reader-content">';
+                (data.paragraphs || []).forEach(function (p) {
+                    var tag = (p.tag === 'h1' || p.tag === 'h2' || p.tag === 'h3') ? p.tag : 'p';
+                    html += '<' + tag + '>' + escapeHtml(p.text) + '</' + tag + '>';
+                });
+                html += '</div>';
+                readerBody.innerHTML = html;
+            })
+            .catch(function () {
+                readerBody.innerHTML = '<p style="color:var(--red)">Failed to load</p>'
+                    + '<a href="' + escapeHtml(url) + '" target="_blank" style="color:var(--blue)">Open in browser</a>';
+            });
+    };
+
+    window._closeReader = function () {
+        var reader = document.getElementById('article-reader');
+        if (reader) reader.classList.add('hidden');
+    };
 
     // ── Browser History ──
 
