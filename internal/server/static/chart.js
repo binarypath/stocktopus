@@ -83,13 +83,17 @@
     }
 
     function calcMACD(data) {
+        if (data.length < 26) return { line: [], signal: [], hist: [] };
         var ema12 = calcEMAValues(data, 12);
         var ema26 = calcEMAValues(data, 26);
         if (ema12.length === 0 || ema26.length === 0) return { line: [], signal: [], hist: [] };
         var macdLine = [];
-        var offset = ema12.length - ema26.length;
+        // EMA12 starts at index 11, EMA26 starts at index 25
+        // Align: for each EMA26 value at index i, the matching EMA12 is at i + 14
         for (var i = 0; i < ema26.length; i++) {
-            macdLine.push({ time: data[offset + i + 25].time, value: ema12[offset + i] - ema26[i] });
+            var dataIdx = i + 25; // corresponding index in original data
+            if (dataIdx >= data.length) break;
+            macdLine.push({ time: data[dataIdx].time, value: ema12[i + 14] - ema26[i] });
         }
         // Signal line = 9-period EMA of MACD
         var signal = calcEMAFromValues(macdLine, 9);
