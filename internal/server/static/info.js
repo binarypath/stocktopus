@@ -437,6 +437,15 @@
 
     // ── Sector ──
 
+    var subscribedSector = '';
+
+    function unsubscribeSector() {
+        if (subscribedSector && window._wsSend) {
+            window._wsSend({ type: 'unsubscribe', topic: 'sector:' + subscribedSector });
+            subscribedSector = '';
+        }
+    }
+
     function loadSector() {
         container.innerHTML = '<p class="empty-state">Loading sector data...</p>';
 
@@ -449,6 +458,13 @@
 
             var sector = profile.sector || 'Unknown';
             var industry = profile.industry || '';
+
+            // Subscribe to sector topic — triggers the sector bot
+            if (sector !== 'Unknown' && window._wsSend) {
+                unsubscribeSector();
+                subscribedSector = sector;
+                window._wsSend({ type: 'subscribe', topic: 'sector:' + sector });
+            }
 
             var html = '<div class="sector-view">';
 
@@ -838,6 +854,10 @@
     // Override loadTab to track current tab and update URL hash
     var _origLoadTab = loadTab;
     loadTab = function (tab) {
+        // Unsubscribe from sector when leaving sector tab
+        if (currentTab === 'sector' && tab !== 'sector') {
+            unsubscribeSector();
+        }
         currentTab = tab;
         history.replaceState(null, '', location.pathname + '#' + tab);
         _origLoadTab(tab);

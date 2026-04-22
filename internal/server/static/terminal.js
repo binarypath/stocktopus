@@ -1588,6 +1588,13 @@ window.onerror = function (msg, src, line, col, err) {
         navigate('info', sym);
     };
 
+    // Send a message via the main WebSocket
+    window._wsSend = function (msg) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(msg));
+        }
+    };
+
     window._navigateToGraph = function (sym) {
         setSecurity(sym);
         onViewLeave(currentView);
