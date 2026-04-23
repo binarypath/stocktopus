@@ -4,6 +4,7 @@ Uses Ollama (Gemma 4) for entity extraction, escalates low-confidence to Gemini 
 import json
 import os
 import re
+import subprocess
 import sys
 import requests
 from bs4 import BeautifulSoup
@@ -46,14 +47,126 @@ CONFIDENCE_THRESHOLD = 0.6
 
 
 def fetch_article(url):
+    """Try multiple strategies to fetch article content."""
+    strategies = [
+        ("headless-chrome", fetch_headless_chrome),
+        ("googlebot", fetch_as_screen_reader),
+        ("chrome", fetch_as_chrome),
+        ("google-cache", fetch_google_cache),
+        ("12ft", fetch_12ft),
+        ("archive", fetch_archive),
+    ]
+
+    for name, fetcher in strategies:
+        html, final_url = fetcher(url)
+        if html and len(html) > 500:
+            # Quick check: does it have actual article content?
+            soup = BeautifulSoup(html, "html.parser")
+            text = soup.get_text()
+            if len(text) > 200 and "enable javascript" not in text.lower() and "enable js" not in text.lower():
+                return html, final_url
+    return None, "all fetch strategies failed"
+
+
+def fetch_headless_chrome(url):
+    """Use actual Chrome in headless mode — renders JS, bypasses most blocks."""
+    chrome_paths = [
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/usr/bin/google-chrome",
+        "/usr/bin/chromium",
+        "/usr/bin/chromium-browser",
+    ]
+    chrome = None
+    for p in chrome_paths:
+        if os.path.exists(p):
+            chrome = p
+            break
+    if not chrome:
+        return None, None
+
+    try:
+        result = subprocess.run(
+            [chrome, "--headless", "--disable-gpu", "--no-sandbox",
+             "--disable-dev-shm-usage", "--virtual-time-budget=8000",
+             "--dump-dom", url],
+            capture_output=True, text=True, timeout=25,
+        )
+        if result.returncode == 0 and len(result.stdout) > 200:
+            return result.stdout, url
+    except Exception:
+        pass
+    return None, None
+
+
+def fetch_as_screen_reader(url):
+    """Fetch as Googlebot — sites serve pre-rendered HTML to crawlers."""
+    headers = {
+        "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "identity",
+    }
+    try:
+        resp = requests.get(url, headers=headers, timeout=15, allow_redirects=True)
+        return resp.text, resp.url
+    except Exception:
+        return None, None
+
+
+def fetch_as_chrome(url):
+    """Standard Chrome browser fetch."""
     session = requests.Session()
     session.headers.update(CHROME_HEADERS)
     try:
         resp = session.get(url, timeout=15, allow_redirects=True)
         resp.raise_for_status()
         return resp.text, resp.url
-    except Exception as e:
-        return None, str(e)
+    except Exception:
+        return None, None
+
+
+def fetch_google_cache(url):
+    """Try Google's webcache for paywalled/JS-heavy sites."""
+    cache_url = f"https://webcache.googleusercontent.com/search?q=cache:{url}&strip=1"
+    cache_headers = dict(CHROME_HEADERS)
+    cache_headers["Accept-Encoding"] = "identity"
+    try:
+        resp = requests.get(cache_url, headers=cache_headers, timeout=10, allow_redirects=True)
+        if resp.status_code == 200 and len(resp.text) > 500:
+            return resp.text, url
+    except Exception:
+        pass
+    return None, None
+
+
+def fetch_12ft(url):
+    """Try 12ft.io proxy to bypass paywalls."""
+    try:
+        proxy_url = f"https://12ft.io/api/proxy?q={url}"
+        resp = requests.get(proxy_url, headers=CHROME_HEADERS, timeout=10, allow_redirects=True)
+        if resp.status_code == 200 and len(resp.text) > 500:
+            return resp.text, url
+    except Exception:
+        pass
+    return None, None
+
+
+def fetch_archive(url):
+    """Try archive.org's Wayback Machine."""
+    try:
+        api = f"https://archive.org/wayback/available?url={url}"
+        resp = requests.get(api, timeout=5)
+        if resp.status_code == 200:
+            data = resp.json()
+            snapshot = data.get("archived_snapshots", {}).get("closest", {})
+            if snapshot.get("available"):
+                archive_url = snapshot["url"]
+                resp2 = requests.get(archive_url, headers=CHROME_HEADERS, timeout=10)
+                if resp2.status_code == 200:
+                    return resp2.text, url
+    except Exception:
+        pass
+    return None, None
 
 
 def extract_content(html):
