@@ -123,7 +123,16 @@ window.onerror = function (msg, src, line, col, err) {
         clearVimSelection();
         if (view === 'watchlist') initWatchlist();
         if (view === 'news') initNews();
+        if (view === 'graph') initGraph();
         if (view === 'debug') initDebug();
+    }
+
+    function initGraph() {
+        // Render company panel on graph page (no sparkline — chart IS the graph)
+        var panel = document.getElementById('company-panel');
+        if (panel && selectedSecurity && window._renderCompanyPanel) {
+            window._renderCompanyPanel('company-panel', selectedSecurity);
+        }
     }
 
     function onViewLeave(view) {
@@ -1752,8 +1761,8 @@ window.onerror = function (msg, src, line, col, err) {
                 }
             });
 
-        // Fetch sparkline (needs lightweight-charts loaded)
-        if (!spark) return;
+        // Skip sparkline if container has no-spark class
+        if (!spark || el.classList.contains('no-spark')) return;
 
         function renderSpark() {
             if (!window.LightweightCharts) {

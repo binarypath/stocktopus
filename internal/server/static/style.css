@@ -1400,13 +1400,6 @@ body {
     background: var(--bg-tertiary);
 }
 
-.chart-symbol {
-    font-weight: 700;
-    font-size: 13px;
-    color: var(--blue);
-    margin-right: 4px;
-}
-
 .chart-auto-refresh {
     background: transparent;
     border: 1px solid var(--green);
