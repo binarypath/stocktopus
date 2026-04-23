@@ -497,12 +497,16 @@ body {
     margin-bottom: 16px;
 }
 
-.page-header h1 {
-    font-size: 14px;
+.page-header h1, .page-header h2 {
+    font-size: 12px;
     font-weight: 700;
     text-transform: uppercase;
-    color: var(--text-secondary);
+    color: var(--text-muted);
     letter-spacing: 0.5px;
+}
+
+.view-title {
+    margin-bottom: 4px;
 }
 
 /* ── Quote Table (Watchlist) ── */
@@ -638,29 +642,32 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
-    flex-shrink: 0;
+    margin-bottom: 8px;
+}
+
+.company-panel:empty {
+    display: none;
 }
 
 .cpanel-sym {
     font-weight: 700;
-    font-size: 13px;
+    font-size: 16px;
     color: var(--blue);
-    display: none; /* hidden when h1 already shows symbol */
 }
 
 .cpanel-name {
-    font-size: 12px;
+    font-size: 14px;
     color: var(--text-secondary);
 }
 
 .cpanel-price {
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
     color: var(--text-primary);
 }
 
 .cpanel-change {
-    font-size: 12px;
+    font-size: 13px;
 }
 
 .cpanel-spark-wrap {
@@ -685,11 +692,6 @@ body {
     display: none !important;
 }
 
-/* Show symbol in panel on news page (no h1 with symbol) */
-.news-cards ~ .company-panel .cpanel-sym,
-.page-header .company-panel .cpanel-sym {
-    display: inline;
-}
 
 .info-tabs {
     display: flex;
