@@ -1579,88 +1579,117 @@ window.onerror = function (msg, src, line, col, err) {
 
         reader.classList.remove('hidden');
         if (readerTitle) readerTitle.textContent = title || 'Loading...';
-        readerBody.innerHTML = '<p style="color:var(--text-muted)">Loading article...</p>';
+
+        // Always show source link at top
+        var sourceLink = '<div class="reader-source"><a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">&#8599; ' + escapeHtml(url.replace(/^https?:\/\//, '').substring(0, 50)) + '</a></div>';
+        readerBody.innerHTML = sourceLink + '<p style="color:var(--text-muted)">Loading article...</p>';
 
         fetch('/api/article?url=' + encodeURIComponent(url))
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                if (data.error) {
-                    readerBody.innerHTML = '<p style="color:var(--red)">' + escapeHtml(data.error) + '</p>'
-                        + '<a href="' + escapeHtml(url) + '" target="_blank" style="color:var(--blue)">Open in browser</a>';
+                var hasContent = data.paragraphs && data.paragraphs.length > 0 && !data.error;
+                var minWords = hasContent ? data.wordCount || 0 : 0;
+
+                // If extraction failed or too little content, show iframe
+                if (!hasContent || minWords < 30) {
+                    if (readerTitle) readerTitle.textContent = title || 'Article';
+                    readerBody.innerHTML = sourceLink
+                        + '<iframe class="reader-iframe" src="' + escapeHtml(url) + '" sandbox="allow-same-origin allow-scripts"></iframe>';
+                    // Still try to find related companies from the title
+                    findRelatedCompanies(title || '', readerBody);
                     return;
                 }
-                if (readerTitle) readerTitle.textContent = data.title || title || '';
-                var botLabel = data.bot ? '<span class="reader-bot">' + escapeHtml(data.bot) + '</span>' : '';
-                var tickerBadges = (data.tickers || []).map(function (t) {
-                    return '<span class="reader-ticker" onclick="if(window._navigateToSecurity)window._navigateToSecurity(\'' + t + '\')">' + t + '</span>';
-                }).join('');
-                var peopleBadges = (data.people || []).map(function (p) {
-                    return '<span class="reader-person-badge">' + escapeHtml(p) + '</span>';
-                }).join('');
-                var companyBadges = (data.companies || []).filter(function (c) {
-                    return (data.tickers || []).indexOf(c) < 0;
-                }).map(function (c) {
-                    return '<span class="reader-company-badge">' + escapeHtml(c) + '</span>';
-                }).join('');
-                var sectorBadges = (data.sectors || []).map(function (s) {
-                    return '<span class="reader-sector-badge">' + escapeHtml(s) + '</span>';
-                }).join('');
 
-                var html = '<div class="reader-meta">'
-                    + (data.wordCount || 0) + ' words '
-                    + botLabel
-                    + '</div>';
-                var allBadges = tickerBadges + companyBadges + peopleBadges + sectorBadges;
-                if (allBadges) html += '<div class="reader-entities">' + allBadges + '</div>';
-                html += '<div class="reader-content" id="reader-paras">';
-                (data.paragraphs || []).forEach(function (p, idx) {
+                if (readerTitle) readerTitle.textContent = data.title || title || '';
+
+                var html = sourceLink;
+                html += '<div class="reader-meta">' + minWords + ' words</div>';
+
+                // Plain text content — no inline entity replacement
+                html += '<div class="reader-content">';
+                data.paragraphs.forEach(function (p) {
                     var tag = (p.tag === 'h1' || p.tag === 'h2' || p.tag === 'h3') ? p.tag : 'p';
-                    var enriched = renderEnrichedText(p.text, p.entities || []);
-                    html += '<' + tag + ' class="reader-para" data-idx="' + idx + '">' + enriched + '</' + tag + '>';
+                    html += '<' + tag + '>' + escapeHtml(p.text) + '</' + tag + '>';
                 });
                 html += '</div>';
+
+                // Related section — appended links for companies/sectors found
+                html += '<div class="reader-related" id="reader-related"></div>';
+
                 readerBody.innerHTML = html;
+
+                // Find related companies from the full text
+                var fullText = (data.title || '') + ' ' + data.paragraphs.map(function (p) { return p.text; }).join(' ');
+                findRelatedCompanies(fullText, document.getElementById('reader-related'));
             })
             .catch(function () {
-                readerBody.innerHTML = '<p style="color:var(--red)">Failed to load</p>'
-                    + '<a href="' + escapeHtml(url) + '" target="_blank" style="color:var(--blue)">Open in browser</a>';
+                readerBody.innerHTML = sourceLink
+                    + '<iframe class="reader-iframe" src="' + escapeHtml(url) + '" sandbox="allow-same-origin allow-scripts"></iframe>';
             });
     };
 
-    function renderEnrichedText(text, entities) {
-        if (!entities || entities.length === 0) return escapeHtml(text);
+    function findRelatedCompanies(text, container) {
+        if (!container || !text) return;
 
-        // Sort by start position
-        entities.sort(function (a, b) { return a.start - b.start; });
+        // Extract potential company names (capitalized multi-word phrases and known patterns)
+        var words = text.match(/[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*/g) || [];
+        // Also look for ticker-like patterns
+        var tickers = text.match(/\b[A-Z]{2,5}\b/g) || [];
 
-        var result = '';
-        var lastIdx = 0;
-        entities.forEach(function (e) {
-            // Add text before this entity
-            result += escapeHtml(text.substring(lastIdx, e.start));
-            // Add the entity as an interactive element
-            var val = escapeHtml(e.value);
-            if (e.type === 'ticker') {
-                var tickerSym = e.ticker || val;
-                result += '<span class="entity-ticker" onclick="if(window._navigateToSecurity)window._navigateToSecurity(\'' + escapeHtml(tickerSym) + '\')">' + val + '</span>';
-            } else if (e.type === 'company') {
-                var compTicker = e.ticker;
-                if (compTicker) {
-                    result += '<span class="entity-company" onclick="if(window._navigateToSecurity)window._navigateToSecurity(\'' + escapeHtml(compTicker) + '\')">' + val + '</span>';
-                } else {
-                    result += '<span class="entity-company">' + val + '</span>';
-                }
-            } else if (e.type === 'person') {
-                result += '<span class="entity-person">' + val + '</span>';
-            } else if (e.type === 'sector' || e.type === 'index') {
-                result += '<span class="entity-sector">' + val + '</span>';
-            } else {
-                result += val;
+        // Dedupe and take top candidates
+        var candidates = [];
+        var seen = {};
+        words.concat(tickers).forEach(function (w) {
+            w = w.trim();
+            if (w.length > 1 && !seen[w] && !isCommonWord(w)) {
+                seen[w] = true;
+                candidates.push(w);
             }
-            lastIdx = e.end;
         });
-        result += escapeHtml(text.substring(lastIdx));
-        return result;
+
+        if (candidates.length === 0) return;
+
+        // Search for the top 5 candidates via our API
+        var searches = candidates.slice(0, 8).map(function (q) {
+            return fetch('/api/search?q=' + encodeURIComponent(q))
+                .then(function (r) { return r.json(); })
+                .then(function (results) { return { query: q, results: results || [] }; })
+                .catch(function () { return { query: q, results: [] }; });
+        });
+
+        Promise.all(searches).then(function (allResults) {
+            var found = {};
+            allResults.forEach(function (sr) {
+                sr.results.forEach(function (r) {
+                    if (r.symbol && !found[r.symbol] && r.exchange !== 'CRYPTO') {
+                        found[r.symbol] = { symbol: r.symbol, name: r.name || '', exchange: r.exchange || '' };
+                    }
+                });
+            });
+
+            var symbols = Object.values(found).slice(0, 10);
+            if (symbols.length === 0) return;
+
+            var html = '<div class="reader-related-title">Related Securities</div>';
+            html += '<div class="reader-related-list">';
+            symbols.forEach(function (s) {
+                html += '<span class="reader-ticker" onclick="if(window._navigateToSecurity)window._navigateToSecurity(\'' + escapeHtml(s.symbol) + '\')">'
+                    + escapeHtml(s.symbol)
+                    + '<span class="reader-related-name">' + escapeHtml(s.name).substring(0, 25) + '</span>'
+                    + '</span>';
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        });
+    }
+
+    function isCommonWord(w) {
+        var common = ['The', 'This', 'That', 'With', 'From', 'Have', 'Will', 'Been',
+            'More', 'About', 'After', 'Before', 'Into', 'Over', 'Under', 'Also',
+            'Each', 'Most', 'Some', 'Many', 'Much', 'Such', 'Very', 'Just',
+            'CEO', 'CFO', 'CTO', 'Inc', 'Corp', 'Ltd', 'LLC', 'AND', 'THE',
+            'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HAS', 'NEW'];
+        return common.indexOf(w) >= 0;
     }
 
     window._closeReader = function () {
