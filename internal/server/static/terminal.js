@@ -1594,9 +1594,9 @@ window.onerror = function (msg, src, line, col, err) {
                 if (!hasContent || minWords < 30) {
                     if (readerTitle) readerTitle.textContent = title || 'Article';
                     readerBody.innerHTML = sourceLink
+                        + '<div class="reader-related" id="reader-related"></div>'
                         + '<iframe class="reader-iframe" src="' + escapeHtml(url) + '" sandbox="allow-same-origin allow-scripts"></iframe>';
-                    // Still try to find related companies from the title
-                    findRelatedCompanies(title || '', readerBody);
+                    findRelatedCompanies(title || '', document.getElementById('reader-related'));
                     return;
                 }
 
@@ -1624,33 +1624,50 @@ window.onerror = function (msg, src, line, col, err) {
             })
             .catch(function () {
                 readerBody.innerHTML = sourceLink
+                    + '<div class="reader-related" id="reader-related"></div>'
                     + '<iframe class="reader-iframe" src="' + escapeHtml(url) + '" sandbox="allow-same-origin allow-scripts"></iframe>';
+                findRelatedCompanies(title || '', document.getElementById('reader-related'));
             });
     };
 
     function findRelatedCompanies(text, container) {
         if (!container || !text) return;
 
-        // Extract potential company names (capitalized multi-word phrases and known patterns)
-        var words = text.match(/[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*/g) || [];
-        // Also look for ticker-like patterns
-        var tickers = text.match(/\b[A-Z]{2,5}\b/g) || [];
+        // Only extract multi-word proper nouns (company names) and explicit ticker patterns ($AAPL)
+        // Single capitalized words are too noisy (Grow, Small, etc.)
+        var companyNames = text.match(/[A-Z][a-z]+(?:[\s\-&][A-Z][a-z]+)+/g) || [];
+        var dollarTickers = text.match(/\$[A-Z]{1,5}\b/g) || [];
+        // Also look for "Inc.", "Corp.", "Ltd." preceded by a name
+        var incNames = text.match(/[A-Z][\w\-]+(?:\s+[A-Z][\w\-]+)*\s+(?:Inc|Corp|Ltd|LLC|Co|Group|Holdings|Technologies|Platforms|Systems)/g) || [];
 
-        // Dedupe and take top candidates
         var candidates = [];
         var seen = {};
-        words.concat(tickers).forEach(function (w) {
-            w = w.trim();
-            if (w.length > 1 && !seen[w] && !isCommonWord(w)) {
-                seen[w] = true;
-                candidates.push(w);
+
+        // Dollar tickers first (highest signal)
+        dollarTickers.forEach(function (t) {
+            t = t.replace('$', '');
+            if (!seen[t]) { seen[t] = true; candidates.push(t); }
+        });
+
+        // Company names with Inc/Corp (high signal)
+        incNames.forEach(function (n) {
+            n = n.trim();
+            if (n.length > 3 && !seen[n]) { seen[n] = true; candidates.push(n); }
+        });
+
+        // Multi-word proper nouns (medium signal, only 2+ words)
+        companyNames.forEach(function (n) {
+            n = n.trim();
+            if (n.length > 5 && n.split(/\s+/).length >= 2 && !seen[n]) {
+                seen[n] = true;
+                candidates.push(n);
             }
         });
 
         if (candidates.length === 0) return;
 
-        // Search for the top 5 candidates via our API
-        var searches = candidates.slice(0, 8).map(function (q) {
+        // Search top candidates via FMP API
+        var searches = candidates.slice(0, 6).map(function (q) {
             return fetch('/api/search?q=' + encodeURIComponent(q))
                 .then(function (r) { return r.json(); })
                 .then(function (results) { return { query: q, results: results || [] }; })
@@ -1660,14 +1677,16 @@ window.onerror = function (msg, src, line, col, err) {
         Promise.all(searches).then(function (allResults) {
             var found = {};
             allResults.forEach(function (sr) {
-                sr.results.forEach(function (r) {
-                    if (r.symbol && !found[r.symbol] && r.exchange !== 'CRYPTO') {
-                        found[r.symbol] = { symbol: r.symbol, name: r.name || '', exchange: r.exchange || '' };
-                    }
+                // Only take the first result per query (most relevant)
+                var top = (sr.results || []).find(function (r) {
+                    return r.symbol && r.exchange !== 'CRYPTO' && !found[r.symbol];
                 });
+                if (top) {
+                    found[top.symbol] = { symbol: top.symbol, name: top.name || '', exchange: top.exchange || '' };
+                }
             });
 
-            var symbols = Object.values(found).slice(0, 10);
+            var symbols = Object.values(found);
             if (symbols.length === 0) return;
 
             var html = '<div class="reader-related-title">Related Securities</div>';
@@ -1675,21 +1694,12 @@ window.onerror = function (msg, src, line, col, err) {
             symbols.forEach(function (s) {
                 html += '<span class="reader-ticker" onclick="if(window._navigateToSecurity)window._navigateToSecurity(\'' + escapeHtml(s.symbol) + '\')">'
                     + escapeHtml(s.symbol)
-                    + '<span class="reader-related-name">' + escapeHtml(s.name).substring(0, 25) + '</span>'
+                    + '<span class="reader-related-name">' + escapeHtml(s.name).substring(0, 30) + '</span>'
                     + '</span>';
             });
             html += '</div>';
             container.innerHTML = html;
         });
-    }
-
-    function isCommonWord(w) {
-        var common = ['The', 'This', 'That', 'With', 'From', 'Have', 'Will', 'Been',
-            'More', 'About', 'After', 'Before', 'Into', 'Over', 'Under', 'Also',
-            'Each', 'Most', 'Some', 'Many', 'Much', 'Such', 'Very', 'Just',
-            'CEO', 'CFO', 'CTO', 'Inc', 'Corp', 'Ltd', 'LLC', 'AND', 'THE',
-            'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HAS', 'NEW'];
-        return common.indexOf(w) >= 0;
     }
 
     window._closeReader = function () {
