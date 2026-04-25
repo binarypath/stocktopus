@@ -265,8 +265,10 @@ def call_gemini(prompt):
 def parse_entities_json(text):
     """Parse JSON array from LLM response, stripping markdown."""
     if not text:
+        log("parse: empty response")
         return []
     text = text.strip()
+    # Strip markdown code blocks
     if text.startswith("```"):
         text = re.sub(r'^```\w*\n?', '', text)
         text = re.sub(r'\n?```$', '', text)
@@ -274,20 +276,40 @@ def parse_entities_json(text):
     try:
         entities = json.loads(text)
         if isinstance(entities, list):
+            log(f"parse: got {len(entities)} entities")
             return entities
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        log(f"parse: direct JSON failed: {e}")
+        # Try to find JSON array in response
         match = re.search(r'\[.*\]', text, re.DOTALL)
         if match:
             try:
-                return json.loads(match.group())
-            except json.JSONDecodeError:
-                pass
+                entities = json.loads(match.group())
+                log(f"parse: extracted {len(entities)} entities from regex match")
+                return entities
+            except json.JSONDecodeError as e2:
+                log(f"parse: regex match also failed: {e2}")
+                # Try fixing truncated JSON by closing brackets
+                attempt = match.group()
+                # Count open/close brackets
+                opens = attempt.count('[') + attempt.count('{')
+                closes = attempt.count(']') + attempt.count('}')
+                if opens > closes:
+                    attempt = attempt.rstrip(',\n ') + '}]' * (opens - closes)
+                    try:
+                        entities = json.loads(attempt)
+                        log(f"parse: fixed truncated JSON, got {len(entities)} entities")
+                        return entities
+                    except json.JSONDecodeError:
+                        pass
+    log(f"parse: failed, first 200 chars: {text[:200]}")
     return []
 
 
 def extract_entities(full_text):
     """Extract entities: Ollama first, escalate low-confidence to Gemini."""
-    truncated = full_text[:4000]
+    # Keep it short — LLMs struggle with very long text for NER
+    truncated = full_text[:2000]
     prompt = NER_PROMPT + truncated
 
     # Step 1: Try Ollama
@@ -338,18 +360,23 @@ Context:
 
 def collect_entity_summary(entities):
     """Collect ticker/company/people/sector lists from entities."""
-    tickers = list(set(
-        e.get("ticker") or e.get("text", "")
-        for e in entities if e.get("type") == "ticker"
-    ))
+    # Tickers: from ticker entities AND from company entities that have a ticker field
+    tickers = set()
+    for e in entities:
+        if e.get("type") == "ticker":
+            tickers.add(e.get("ticker") or e.get("text", ""))
+        elif e.get("ticker"):
+            tickers.add(e["ticker"])
+    tickers = list(tickers - {""})
+
     companies = list(set(
-        e.get("text", "") for e in entities if e.get("type") == "company"
+        e.get("text", "") for e in entities if e.get("type") == "company" and e.get("text")
     ))
     people = list(set(
-        e.get("text", "") for e in entities if e.get("type") == "person"
+        e.get("text", "") for e in entities if e.get("type") == "person" and e.get("text")
     ))
     sectors = list(set(
-        e.get("text", "") for e in entities if e.get("type") in ("sector", "index")
+        e.get("text", "") for e in entities if e.get("type") in ("sector", "index") and e.get("text")
     ))
     return tickers, companies, people, sectors
 

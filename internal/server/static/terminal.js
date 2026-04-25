@@ -1706,7 +1706,16 @@ window.onerror = function (msg, src, line, col, err) {
         });
     }
 
+    var activeEntityFetch = null; // prevent duplicate entity requests
+
     function fetchArticleEntities(url) {
+        // Cancel any previous entity fetch
+        if (activeEntityFetch) {
+            activeEntityFetch.abort = true;
+        }
+        var thisFetch = { abort: false };
+        activeEntityFetch = thisFetch;
+
         var entitiesEl = document.getElementById('reader-entities');
         var relatedEl = document.getElementById('reader-related');
 
@@ -1720,7 +1729,7 @@ window.onerror = function (msg, src, line, col, err) {
         fetch('/api/article/entities?url=' + encodeURIComponent(url))
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                if (!entitiesEl) return;
+                if (thisFetch.abort || !entitiesEl) return;
                 var hasEntities = (data.tickers && data.tickers.length > 0) ||
                     (data.companies && data.companies.length > 0) ||
                     (data.people && data.people.length > 0);
