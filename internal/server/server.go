@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -628,6 +629,13 @@ func (s *Server) handleWatchlistQuotes(w http.ResponseWriter, r *http.Request) {
 	w.Write(body)
 }
 
+func getEnvOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
 // gatherFMPData collects all available FMP data for a symbol as JSON context.
 func (s *Server) gatherFMPData(ctx context.Context, symbol string) json.RawMessage {
 	data := map[string]json.RawMessage{}
@@ -698,10 +706,15 @@ func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
 		pythonCmd = venvPython
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, pythonCmd, "agents/fetch_article.py", articleURL)
+	cmd.Env = append(cmd.Environ(),
+		"OLLAMA_HOST="+getEnvOr("OLLAMA_HOST", "http://localhost:11434"),
+		"OLLAMA_MODEL="+getEnvOr("OLLAMA_MODEL", "gemma4"),
+		"GEMINI_API_KEY="+getEnvOr("GEMINI_API_KEY", ""),
+	)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

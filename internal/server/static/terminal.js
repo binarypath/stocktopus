@@ -1602,10 +1602,34 @@ window.onerror = function (msg, src, line, col, err) {
 
                 if (readerTitle) readerTitle.textContent = data.title || title || '';
 
-                var html = sourceLink;
-                html += '<div class="reader-meta">' + minWords + ' words</div>';
+                var botLabel = data.bot ? '<span class="reader-bot">' + escapeHtml(data.bot) + '</span>' : '';
 
-                // Plain text content — no inline entity replacement
+                var html = sourceLink;
+                html += '<div class="reader-meta">' + minWords + ' words ' + botLabel + '</div>';
+
+                // Show LLM-extracted entities if available
+                var hasLLMEntities = (data.tickers && data.tickers.length > 0) ||
+                    (data.companies && data.companies.length > 0) ||
+                    (data.people && data.people.length > 0);
+
+                if (hasLLMEntities) {
+                    html += '<div class="reader-entities">';
+                    (data.tickers || []).forEach(function (t) {
+                        html += '<span class="reader-ticker" onclick="if(window._navigateToSecurity)window._navigateToSecurity(\'' + escapeHtml(t) + '\')">' + escapeHtml(t) + '</span>';
+                    });
+                    (data.companies || []).forEach(function (c) {
+                        html += '<span class="reader-company-badge">' + escapeHtml(c) + '</span>';
+                    });
+                    (data.people || []).forEach(function (p) {
+                        html += '<span class="reader-person-badge">' + escapeHtml(p) + '</span>';
+                    });
+                    (data.sectors || []).forEach(function (s) {
+                        html += '<span class="reader-sector-badge">' + escapeHtml(s) + '</span>';
+                    });
+                    html += '</div>';
+                }
+
+                // Article text
                 html += '<div class="reader-content">';
                 data.paragraphs.forEach(function (p) {
                     var tag = (p.tag === 'h1' || p.tag === 'h2' || p.tag === 'h3') ? p.tag : 'p';
@@ -1613,14 +1637,15 @@ window.onerror = function (msg, src, line, col, err) {
                 });
                 html += '</div>';
 
-                // Related section — appended links for companies/sectors found
+                // Related section — LLM entities or fallback to client-side FMP search
                 html += '<div class="reader-related" id="reader-related"></div>';
 
                 readerBody.innerHTML = html;
 
-                // Find related companies from the full text
-                var fullText = (data.title || '') + ' ' + data.paragraphs.map(function (p) { return p.text; }).join(' ');
-                findRelatedCompanies(fullText, document.getElementById('reader-related'));
+                if (!hasLLMEntities) {
+                    var fullText = (data.title || '') + ' ' + data.paragraphs.map(function (p) { return p.text; }).join(' ');
+                    findRelatedCompanies(fullText, document.getElementById('reader-related'));
+                }
             })
             .catch(function () {
                 readerBody.innerHTML = sourceLink

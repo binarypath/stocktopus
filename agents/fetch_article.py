@@ -179,6 +179,181 @@ def extract_content(html):
     return title, paragraphs[:60]
 
 
+# ── LLM Entity Extraction ──
+
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4")
+GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
+CONFIDENCE_THRESHOLD = 0.6
+
+NER_PROMPT = """Extract named entities from this financial article text. Return ONLY a valid JSON array.
+Each entity: {"text": "exact text", "type": "ticker|company|person|sector|index", "ticker": "AAPL or null", "confidence": 0.0-1.0}
+
+Rules:
+- ticker: stock/crypto symbols like AAPL, MSFT, BTC
+- company: company names like "Apple Inc.", "Meta Platforms"
+- person: people names like "Tim Cook", "Warren Buffett"
+- sector: industry terms like "semiconductor", "artificial intelligence"
+- index: market indices like "S&P 500", "Nasdaq", "Dow Jones"
+- For company entities, include the ticker if you know it
+- confidence: how certain you are (1.0 = certain, 0.5 = guess)
+
+Text:
+"""
+
+
+def call_ollama(prompt):
+    """Call local Ollama for NER. Returns raw text or None."""
+    try:
+        log("calling Ollama for entity extraction...")
+        resp = requests.post(
+            f"{OLLAMA_HOST}/api/generate",
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": prompt,
+                "stream": False,
+                "options": {"temperature": 0.1, "num_predict": 2048},
+            },
+            timeout=60,
+        )
+        if resp.status_code != 200:
+            log(f"Ollama returned {resp.status_code}")
+            return None
+        result = resp.json().get("response", "")
+        log(f"Ollama returned {len(result)} chars")
+        return result
+    except requests.exceptions.ConnectionError:
+        log("Ollama not available (connection refused)")
+        return None
+    except requests.exceptions.Timeout:
+        log("Ollama timed out (60s)")
+        return None
+    except Exception as e:
+        log(f"Ollama error: {e}")
+        return None
+
+
+def call_gemini(prompt):
+    """Escalate to Gemini Flash. Returns raw text or None."""
+    if not GEMINI_KEY:
+        return None
+    try:
+        log("escalating to Gemini Flash...")
+        resp = requests.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_KEY}",
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.1, "maxOutputTokens": 2048},
+            },
+            timeout=30,
+        )
+        if resp.status_code != 200:
+            log(f"Gemini returned {resp.status_code}")
+            return None
+        data = resp.json()
+        parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+        result = parts[0].get("text", "") if parts else None
+        log(f"Gemini returned {len(result) if result else 0} chars")
+        return result
+    except Exception as e:
+        log(f"Gemini error: {e}")
+        return None
+
+
+def parse_entities_json(text):
+    """Parse JSON array from LLM response, stripping markdown."""
+    if not text:
+        return []
+    text = text.strip()
+    if text.startswith("```"):
+        text = re.sub(r'^```\w*\n?', '', text)
+        text = re.sub(r'\n?```$', '', text)
+        text = text.strip()
+    try:
+        entities = json.loads(text)
+        if isinstance(entities, list):
+            return entities
+    except json.JSONDecodeError:
+        match = re.search(r'\[.*\]', text, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group())
+            except json.JSONDecodeError:
+                pass
+    return []
+
+
+def extract_entities(full_text):
+    """Extract entities: Ollama first, escalate low-confidence to Gemini."""
+    truncated = full_text[:4000]
+    prompt = NER_PROMPT + truncated
+
+    # Step 1: Try Ollama
+    raw = call_ollama(prompt)
+    entities = parse_entities_json(raw)
+
+    if not entities:
+        # Ollama failed — try Gemini as full fallback
+        raw = call_gemini(prompt)
+        entities = parse_entities_json(raw)
+        for e in entities:
+            e["source"] = "gemini"
+        log(f"entities from Gemini: {len(entities)}")
+        return entities
+
+    log(f"entities from Ollama: {len(entities)}")
+
+    # Step 2: Escalate low-confidence to Gemini
+    low_conf = [e for e in entities if e.get("confidence", 1.0) < CONFIDENCE_THRESHOLD]
+    high_conf = [e for e in entities if e.get("confidence", 1.0) >= CONFIDENCE_THRESHOLD]
+
+    if low_conf and GEMINI_KEY:
+        low_texts = [e.get("text", "") for e in low_conf]
+        escalation_prompt = f"""These entity extractions from a financial article have low confidence.
+Verify each and return ONLY a JSON array with corrected entities.
+Each: {{"text": "...", "type": "ticker|company|person|sector|index", "ticker": "AAPL or null", "confidence": 0.0-1.0}}
+
+Low confidence entities: {json.dumps(low_texts)}
+
+Context:
+{truncated[:2000]}"""
+
+        raw = call_gemini(escalation_prompt)
+        escalated = parse_entities_json(raw)
+        for e in escalated:
+            e["source"] = "gemini-escalated"
+        high_conf.extend(escalated)
+        log(f"escalated {len(low_conf)} low-conf entities, got {len(escalated)} back")
+    else:
+        high_conf.extend(low_conf)
+
+    for e in high_conf:
+        if "source" not in e:
+            e["source"] = "ollama"
+
+    return high_conf
+
+
+def collect_entity_summary(entities):
+    """Collect ticker/company/people/sector lists from entities."""
+    tickers = list(set(
+        e.get("ticker") or e.get("text", "")
+        for e in entities if e.get("type") == "ticker"
+    ))
+    companies = list(set(
+        e.get("text", "") for e in entities if e.get("type") == "company"
+    ))
+    people = list(set(
+        e.get("text", "") for e in entities if e.get("type") == "person"
+    ))
+    sectors = list(set(
+        e.get("text", "") for e in entities if e.get("type") in ("sector", "index")
+    ))
+    return tickers, companies, people, sectors
+
+
+# ── Main ──
+
 def main():
     if len(sys.argv) < 2:
         print(json.dumps({"error": "no URL provided"}))
@@ -195,7 +370,7 @@ def main():
         print(json.dumps({"error": f"fetch failed: {strategy}", "url": url}))
         sys.exit(0)
 
-    # Step 2: Extract text (no LLM — just HTML parsing)
+    # Step 2: Extract text
     title, paragraphs = extract_content(html)
 
     if not paragraphs:
@@ -210,16 +385,33 @@ def main():
     word_count = sum(len(p["text"].split()) for p in paragraphs)
     log(f"extracted {len(paragraphs)} paragraphs, {word_count} words via {strategy} in {time.time() - start:.1f}s")
 
-    # Step 3: Return plain text — entity extraction done client-side via FMP search
+    # Step 3: Only call LLM if we have real content
+    entities = []
+    tickers, companies, people, sectors = [], [], [], []
+
+    if word_count >= 30:
+        full_text = title + "\n" + "\n".join(p["text"] for p in paragraphs)
+        entities = extract_entities(full_text)
+        tickers, companies, people, sectors = collect_entity_summary(entities)
+        log(f"entities: {len(tickers)} tickers, {len(companies)} companies, {len(people)} people, {len(sectors)} sectors")
+    else:
+        log(f"skipping LLM — too little content ({word_count} words)")
+
     result = {
         "title": title,
         "url": url,
         "paragraphs": paragraphs,
         "wordCount": word_count,
+        "tickers": tickers,
+        "companies": companies,
+        "people": people,
+        "sectors": sectors,
+        "entityCount": len(entities),
         "strategy": strategy,
         "bot": "Distinguished Reader Bot 9000",
     }
 
+    log(f"done in {time.time() - start:.1f}s")
     print(json.dumps(result))
 
 
