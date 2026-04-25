@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"sync"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -691,6 +692,18 @@ func (s *Server) handleChartEOD(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(items)
 }
 
+// Simple in-memory article cache to prevent re-fetching the same URL
+var articleCache = struct {
+	sync.RWMutex
+	items map[string][]byte
+}{items: make(map[string][]byte)}
+
+var entityCache = struct {
+	sync.RWMutex
+	items   map[string][]byte
+	pending map[string]bool
+}{items: make(map[string][]byte), pending: make(map[string]bool)}
+
 func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
 	articleURL := r.URL.Query().Get("url")
 	if articleURL == "" {
@@ -700,14 +713,27 @@ func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use Python script to fetch and extract
+	// Check cache first
+	articleCache.RLock()
+	if cached, ok := articleCache.items[articleURL]; ok {
+		articleCache.RUnlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(cached)
+		return
+	}
+	articleCache.RUnlock()
+
 	venvPython := "agents/../.venv/bin/python3"
 	pythonCmd := "python3"
 	if _, err := exec.LookPath(venvPython); err == nil {
 		pythonCmd = venvPython
 	}
 
-	s.runArticleScript(w, r, pythonCmd, articleURL, "--no-llm")
+	s.runArticleScript(w, r, pythonCmd, articleURL, func(data []byte) {
+		articleCache.Lock()
+		articleCache.items[articleURL] = data
+		articleCache.Unlock()
+	}, "--no-llm")
 }
 
 func (s *Server) handleArticleEntities(w http.ResponseWriter, r *http.Request) {
@@ -719,16 +745,43 @@ func (s *Server) handleArticleEntities(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check cache
+	entityCache.RLock()
+	if cached, ok := entityCache.items[articleURL]; ok {
+		entityCache.RUnlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(cached)
+		return
+	}
+	// Check if already pending
+	if entityCache.pending[articleURL] {
+		entityCache.RUnlock()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "pending"})
+		return
+	}
+	entityCache.RUnlock()
+
+	// Mark as pending
+	entityCache.Lock()
+	entityCache.pending[articleURL] = true
+	entityCache.Unlock()
+
 	venvPython := "agents/../.venv/bin/python3"
 	pythonCmd := "python3"
 	if _, err := exec.LookPath(venvPython); err == nil {
 		pythonCmd = venvPython
 	}
 
-	s.runArticleScript(w, r, pythonCmd, articleURL)
+	s.runArticleScript(w, r, pythonCmd, articleURL, func(data []byte) {
+		entityCache.Lock()
+		entityCache.items[articleURL] = data
+		delete(entityCache.pending, articleURL)
+		entityCache.Unlock()
+	})
 }
 
-func (s *Server) runArticleScript(w http.ResponseWriter, r *http.Request, pythonCmd, articleURL string, extraArgs ...string) {
+func (s *Server) runArticleScript(w http.ResponseWriter, r *http.Request, pythonCmd, articleURL string, onSuccess func([]byte), extraArgs ...string) {
 	args := append([]string{"agents/fetch_article.py", articleURL}, extraArgs...)
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
@@ -755,8 +808,13 @@ func (s *Server) runArticleScript(w http.ResponseWriter, r *http.Request, python
 		s.logger.Debug("reader bot", "stderr", stderrStr)
 	}
 
+	data := stdout.Bytes()
+	if onSuccess != nil {
+		onSuccess(data)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(stdout.Bytes())
+	w.Write(data)
 }
 
 func (s *Server) handleChartIntraday(w http.ResponseWriter, r *http.Request) {

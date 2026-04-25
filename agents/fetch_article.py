@@ -245,7 +245,7 @@ def call_gemini(prompt):
             f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_KEY}",
             json={
                 "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.1, "maxOutputTokens": 2048},
+                "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096},
             },
             timeout=30,
         )
@@ -289,16 +289,25 @@ def parse_entities_json(text):
                 return entities
             except json.JSONDecodeError as e2:
                 log(f"parse: regex match also failed: {e2}")
-                # Try fixing truncated JSON by closing brackets
-                attempt = match.group()
-                # Count open/close brackets
-                opens = attempt.count('[') + attempt.count('{')
-                closes = attempt.count(']') + attempt.count('}')
-                if opens > closes:
-                    attempt = attempt.rstrip(',\n ') + '}]' * (opens - closes)
+                # Try fixing truncated JSON — find last complete entity
+                raw = match.group()
+                # Find all complete objects by looking for "},"
+                last_complete = raw.rfind('},')
+                if last_complete > 0:
+                    attempt = raw[:last_complete + 1] + ']'
                     try:
                         entities = json.loads(attempt)
-                        log(f"parse: fixed truncated JSON, got {len(entities)} entities")
+                        log(f"parse: recovered {len(entities)} entities from truncated JSON")
+                        return entities
+                    except json.JSONDecodeError:
+                        pass
+                # Try just the first complete object
+                first_close = raw.find('}')
+                if first_close > 0:
+                    attempt = raw[:first_close + 1] + ']'
+                    try:
+                        entities = json.loads(attempt)
+                        log(f"parse: recovered {len(entities)} entity from truncated JSON")
                         return entities
                     except json.JSONDecodeError:
                         pass
