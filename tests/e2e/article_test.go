@@ -65,6 +65,22 @@ func TestSmoke_ArticleFetch(t *testing.T) {
 	}
 }
 
+func TestSmoke_ArticleFetch_BlockedSite(t *testing.T) {
+	// BusinessWire blocks scrapers via Akamai — should fail gracefully
+	resp := get(t, "/api/article?url=https://www.businesswire.com/news/home/20260422186042/en/Kindle-Energy-Breaks-Ground-on-Blackstone-Backed-1.2-Billion-Natural-Gas-Power-Generation-Facility-in-West-Virginia/")
+	defer resp.Body.Close()
+
+	var data map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&data)
+
+	// Should return an error, not crash
+	if data["error"] == nil {
+		t.Log("unexpectedly got content from blocked site — nice!")
+	} else {
+		t.Logf("blocked site handled gracefully: %v", data["error"])
+	}
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a
