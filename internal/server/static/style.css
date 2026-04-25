@@ -344,6 +344,17 @@ body {
     color: var(--blue);
 }
 
+.reader-unavailable {
+    color: var(--text-muted);
+    font-size: 13px;
+    padding: 20px 0;
+}
+
+.reader-unavailable a {
+    color: var(--blue);
+    text-decoration: none;
+}
+
 .reader-iframe {
     width: 100%;
     height: calc(100% - 40px);

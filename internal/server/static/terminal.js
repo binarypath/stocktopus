@@ -1590,12 +1590,12 @@ window.onerror = function (msg, src, line, col, err) {
                 var hasContent = data.paragraphs && data.paragraphs.length > 0 && !data.error;
                 var minWords = hasContent ? data.wordCount || 0 : 0;
 
-                // If extraction failed or too little content, show iframe
+                // If extraction failed or too little content
                 if (!hasContent || minWords < 30) {
                     if (readerTitle) readerTitle.textContent = title || 'Article';
                     readerBody.innerHTML = sourceLink
-                        + '<div class="reader-related" id="reader-related"></div>'
-                        + '<iframe class="reader-iframe" src="' + escapeHtml(url) + '" sandbox="allow-same-origin allow-scripts"></iframe>';
+                        + '<p class="reader-unavailable">Article content unavailable — <a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">open in browser</a></p>'
+                        + '<div class="reader-related" id="reader-related"></div>';
                     findRelatedCompanies(title || '', document.getElementById('reader-related'));
                     return;
                 }
@@ -1624,8 +1624,8 @@ window.onerror = function (msg, src, line, col, err) {
             })
             .catch(function () {
                 readerBody.innerHTML = sourceLink
-                    + '<div class="reader-related" id="reader-related"></div>'
-                    + '<iframe class="reader-iframe" src="' + escapeHtml(url) + '" sandbox="allow-same-origin allow-scripts"></iframe>';
+                    + '<p class="reader-unavailable">Failed to load — <a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">open in browser</a></p>'
+                    + '<div class="reader-related" id="reader-related"></div>';
                 findRelatedCompanies(title || '', document.getElementById('reader-related'));
             });
     };
