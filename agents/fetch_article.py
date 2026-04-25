@@ -214,7 +214,7 @@ def call_ollama(prompt):
                 "model": OLLAMA_MODEL,
                 "prompt": prompt,
                 "stream": False,
-                "options": {"temperature": 0.1, "num_predict": 2048},
+                "options": {"temperature": 0.1, "num_predict": 4096},
             },
             timeout=60,
         )
@@ -308,8 +308,7 @@ def parse_entities_json(text):
 
 def extract_entities(full_text):
     """Extract entities: Ollama first, escalate low-confidence to Gemini."""
-    # Keep it short — LLMs struggle with very long text for NER
-    truncated = full_text[:2000]
+    truncated = full_text[:6000]
     prompt = NER_PROMPT + truncated
 
     # Step 1: Try Ollama
