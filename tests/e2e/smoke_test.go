@@ -32,8 +32,12 @@ var (
 func TestMain(m *testing.M) {
 	apiKey = os.Getenv("STOCK_API_KEY")
 	if apiKey == "" {
-		// Skip all tests if no API key
 		os.Exit(0)
+	}
+
+	// Ensure CWD is project root so agents/ scripts are found
+	if _, err := os.Stat("agents"); err != nil {
+		os.Chdir("../..")
 	}
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))

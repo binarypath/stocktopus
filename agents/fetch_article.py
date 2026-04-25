@@ -42,35 +42,35 @@ def fetch_article(url):
 
     for name, fetcher in strategies:
         log(f"trying {name}...")
-        start = time.time()
+        t0 = time.time()
         try:
             html, final_url = fetcher(url)
         except Exception as e:
             log(f"  {name} exception: {e}")
             continue
 
-        elapsed = time.time() - start
+        elapsed = time.time() - t0
 
         if not html or len(html) < 500:
             log(f"  {name} returned no/short content ({len(html) if html else 0} bytes) in {elapsed:.1f}s")
             continue
 
-        # Validate: does it have real text content?
-        soup = BeautifulSoup(html, "html.parser")
-        text = soup.get_text()
-        text_len = len(text.strip())
+        # Validate: can we actually extract paragraphs from this HTML?
+        title, paragraphs = extract_content(html)
+        word_count = sum(len(p["text"].split()) for p in paragraphs) if paragraphs else 0
 
-        if text_len < 100:
-            log(f"  {name} HTML ok ({len(html)} bytes) but text too short ({text_len} chars) in {elapsed:.1f}s")
+        if word_count < 30:
+            log(f"  {name} got HTML ({len(html)} bytes) but only {word_count} words extracted in {elapsed:.1f}s")
             continue
 
         blockers = ["enable javascript", "enable js", "please turn javascript",
                      "browser doesn't support", "cookies are disabled"]
-        if any(b in text.lower() for b in blockers):
+        full_text = " ".join(p["text"] for p in paragraphs)
+        if any(b in full_text.lower() for b in blockers):
             log(f"  {name} blocked by JS/cookie wall in {elapsed:.1f}s")
             continue
 
-        log(f"  {name} success: {len(html)} bytes, {text_len} chars text in {elapsed:.1f}s")
+        log(f"  {name} success: {len(html)} bytes, {len(paragraphs)} paras, {word_count} words in {elapsed:.1f}s")
         return html, name
 
     log("all strategies failed")
@@ -152,8 +152,10 @@ def extract_content(html):
     # Find article body
     article = None
     for sel in ["article", '[role="main"]', ".article-body", ".article__body",
-                ".post-content", ".entry-content", ".story-body", ".article-content",
-                ".caas-body", '[data-testid="article-body"]', "main"]:
+                ".ArticleBody-articleBody", ".post-content", ".entry-content",
+                ".story-body", ".article-content", ".caas-body",
+                '[data-testid="article-body"]', ".article-text",
+                ".story-content", ".post-body", "main"]:
         article = soup.select_one(sel)
         if article:
             break
