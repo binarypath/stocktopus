@@ -143,6 +143,7 @@ func (p *Poller) renderQuoteRow(q *model.Quote) (string, error) {
 	if err := p.tmpl.Execute(&buf, data); err != nil {
 		return "", err
 	}
+
 	return buf.String(), nil
 }
 

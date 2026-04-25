@@ -67,7 +67,7 @@ func New(cfg Config, h *hub.Hub, debug *DebugBroadcaster, symbols SymbolLister, 
 		symbols:  symbols,
 		pipeline: pipeline,
 		store:    st,
-		news:    newsClient,
+		news:     newsClient,
 	}
 
 	if err := s.loadTemplates(); err != nil {
@@ -702,6 +702,7 @@ func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
 
+	s.logger.Info("OLLAMA_MODEL", "host", os.Getenv("OLLAMA_MODEL"))
 	cmd := exec.CommandContext(ctx, pythonCmd, "agents/fetch_article.py", articleURL)
 	cmd.Env = append(cmd.Environ(),
 		"GEMINI_API_KEY="+os.Getenv("GEMINI_API_KEY"),
