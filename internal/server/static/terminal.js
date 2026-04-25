@@ -1607,28 +1607,6 @@ window.onerror = function (msg, src, line, col, err) {
                 var html = sourceLink;
                 html += '<div class="reader-meta">' + minWords + ' words ' + botLabel + '</div>';
 
-                // Show LLM-extracted entities if available
-                var hasLLMEntities = (data.tickers && data.tickers.length > 0) ||
-                    (data.companies && data.companies.length > 0) ||
-                    (data.people && data.people.length > 0);
-
-                if (hasLLMEntities) {
-                    html += '<div class="reader-entities">';
-                    (data.tickers || []).forEach(function (t) {
-                        html += '<span class="reader-ticker" onclick="if(window._navigateToSecurity)window._navigateToSecurity(\'' + escapeHtml(t) + '\')">' + escapeHtml(t) + '</span>';
-                    });
-                    (data.companies || []).forEach(function (c) {
-                        html += '<span class="reader-company-badge">' + escapeHtml(c) + '</span>';
-                    });
-                    (data.people || []).forEach(function (p) {
-                        html += '<span class="reader-person-badge">' + escapeHtml(p) + '</span>';
-                    });
-                    (data.sectors || []).forEach(function (s) {
-                        html += '<span class="reader-sector-badge">' + escapeHtml(s) + '</span>';
-                    });
-                    html += '</div>';
-                }
-
                 // Article text
                 html += '<div class="reader-content">';
                 data.paragraphs.forEach(function (p) {
@@ -1637,15 +1615,16 @@ window.onerror = function (msg, src, line, col, err) {
                 });
                 html += '</div>';
 
-                // Related section — LLM entities or fallback to client-side FMP search
+                // Entity badges — populated async
+                html += '<div class="reader-entities" id="reader-entities"></div>';
+
+                // Related section
                 html += '<div class="reader-related" id="reader-related"></div>';
 
                 readerBody.innerHTML = html;
 
-                if (!hasLLMEntities) {
-                    var fullText = (data.title || '') + ' ' + data.paragraphs.map(function (p) { return p.text; }).join(' ');
-                    findRelatedCompanies(fullText, document.getElementById('reader-related'));
-                }
+                // Async: fetch LLM entities in background
+                fetchArticleEntities(url);
             })
             .catch(function () {
                 readerBody.innerHTML = sourceLink
@@ -1725,6 +1704,45 @@ window.onerror = function (msg, src, line, col, err) {
             html += '</div>';
             container.innerHTML = html;
         });
+    }
+
+    function fetchArticleEntities(url) {
+        var entitiesEl = document.getElementById('reader-entities');
+        var relatedEl = document.getElementById('reader-related');
+
+        // First: quick client-side FMP search from title
+        var readerTitle = document.getElementById('reader-title');
+        if (readerTitle && readerTitle.textContent) {
+            findRelatedCompanies(readerTitle.textContent, relatedEl);
+        }
+
+        // Then: async LLM entity extraction (can take 30-60s)
+        fetch('/api/article/entities?url=' + encodeURIComponent(url))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!entitiesEl) return;
+                var hasEntities = (data.tickers && data.tickers.length > 0) ||
+                    (data.companies && data.companies.length > 0) ||
+                    (data.people && data.people.length > 0);
+
+                if (!hasEntities) return;
+
+                var html = '';
+                (data.tickers || []).forEach(function (t) {
+                    html += '<span class="reader-ticker" onclick="if(window._navigateToSecurity)window._navigateToSecurity(\'' + escapeHtml(t) + '\')">' + escapeHtml(t) + '</span>';
+                });
+                (data.companies || []).forEach(function (c) {
+                    html += '<span class="reader-company-badge">' + escapeHtml(c) + '</span>';
+                });
+                (data.people || []).forEach(function (p) {
+                    html += '<span class="reader-person-badge">' + escapeHtml(p) + '</span>';
+                });
+                (data.sectors || []).forEach(function (s) {
+                    html += '<span class="reader-sector-badge">' + escapeHtml(s) + '</span>';
+                });
+                entitiesEl.innerHTML = html;
+            })
+            .catch(function () { /* LLM entities are optional */ });
     }
 
     window._closeReader = function () {

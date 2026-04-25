@@ -134,6 +134,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/search", s.handleSearch)
 	mux.HandleFunc("GET /api/chart/eod/{symbol}", s.handleChartEOD)
 	mux.HandleFunc("GET /api/article", s.handleArticle)
+	mux.HandleFunc("GET /api/article/entities", s.handleArticleEntities)
 	mux.HandleFunc("GET /api/chart/intraday/{interval}/{symbol}", s.handleChartIntraday)
 	mux.HandleFunc("GET /api/security/{symbol}/profile", s.handleSecurityProfile)
 	mux.HandleFunc("GET /api/security/{symbol}/metrics", s.handleSecurityMetrics)
@@ -706,10 +707,33 @@ func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
 		pythonCmd = venvPython
 	}
 
+	s.runArticleScript(w, r, pythonCmd, articleURL, "--no-llm")
+}
+
+func (s *Server) handleArticleEntities(w http.ResponseWriter, r *http.Request) {
+	articleURL := r.URL.Query().Get("url")
+	if articleURL == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "url required"})
+		return
+	}
+
+	venvPython := "agents/../.venv/bin/python3"
+	pythonCmd := "python3"
+	if _, err := exec.LookPath(venvPython); err == nil {
+		pythonCmd = venvPython
+	}
+
+	s.runArticleScript(w, r, pythonCmd, articleURL)
+}
+
+func (s *Server) runArticleScript(w http.ResponseWriter, r *http.Request, pythonCmd, articleURL string, extraArgs ...string) {
+	args := append([]string{"agents/fetch_article.py", articleURL}, extraArgs...)
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, pythonCmd, "agents/fetch_article.py", articleURL)
+	cmd := exec.CommandContext(ctx, pythonCmd, args...)
 	cmd.Env = append(cmd.Environ(),
 		"OLLAMA_HOST="+getEnvOr("OLLAMA_HOST", "http://localhost:11434"),
 		"OLLAMA_MODEL="+getEnvOr("OLLAMA_MODEL", "gemma4"),
@@ -727,7 +751,6 @@ func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Log bot's stderr output (debug info)
 	if stderrStr := stderr.String(); stderrStr != "" {
 		s.logger.Debug("reader bot", "stderr", stderrStr)
 	}

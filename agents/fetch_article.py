@@ -387,15 +387,19 @@ def main():
     word_count = sum(len(p["text"].split()) for p in paragraphs)
     log(f"extracted {len(paragraphs)} paragraphs, {word_count} words via {strategy} in {time.time() - start:.1f}s")
 
-    # Step 3: Only call LLM if we have real content
+    # Step 3: Check if --no-llm flag is set (fast mode)
+    skip_llm = "--no-llm" in sys.argv
+
     entities = []
     tickers, companies, people, sectors = [], [], [], []
 
-    if word_count >= 30:
+    if not skip_llm and word_count >= 30:
         full_text = title + "\n" + "\n".join(p["text"] for p in paragraphs)
         entities = extract_entities(full_text)
         tickers, companies, people, sectors = collect_entity_summary(entities)
         log(f"entities: {len(tickers)} tickers, {len(companies)} companies, {len(people)} people, {len(sectors)} sectors")
+    elif skip_llm:
+        log("LLM skipped (--no-llm mode)")
     else:
         log(f"skipping LLM — too little content ({word_count} words)")
 
