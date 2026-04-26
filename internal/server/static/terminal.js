@@ -1729,7 +1729,10 @@ window.onerror = function (msg, src, line, col, err) {
         fetch('/api/article/entities?url=' + encodeURIComponent(url))
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                if (thisFetch.abort || !entitiesEl) return;
+                if (thisFetch.abort) return;
+                // Re-query DOM — original reference may be stale after 30s
+                var el = document.getElementById('reader-entities');
+                if (!el) return;
                 var hasEntities = (data.tickers && data.tickers.length > 0) ||
                     (data.companies && data.companies.length > 0) ||
                     (data.people && data.people.length > 0);
@@ -1749,7 +1752,7 @@ window.onerror = function (msg, src, line, col, err) {
                 (data.sectors || []).forEach(function (s) {
                     html += '<span class="reader-sector-badge">' + escapeHtml(s) + '</span>';
                 });
-                entitiesEl.innerHTML = html;
+                el.innerHTML = html;
             })
             .catch(function () { /* LLM entities are optional */ });
     }

@@ -424,7 +424,7 @@
                         var text = item.text || '';
                         if (text.length > 200) text = text.substring(0, 200) + '...';
                         return '<div class="news-card news-unread">'
-                            + '<div class="news-card-title"><a href="' + esc(item.url) + '" target="_blank" rel="noopener">' + esc(item.title) + '</a></div>'
+                            + '<div class="news-card-title"><a href="' + esc(item.url) + '" onclick="event.preventDefault();if(window._openReader)window._openReader(this.href,this.textContent)">' + esc(item.title) + '</a></div>'
                             + '<div class="news-card-meta"><span>' + esc(item.source) + '</span><span>' + date + '</span></div>'
                             + '<div class="news-card-text">' + esc(text) + '</div>'
                             + '</div>';
