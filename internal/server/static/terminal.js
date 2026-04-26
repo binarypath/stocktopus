@@ -1707,17 +1707,11 @@ window.onerror = function (msg, src, line, col, err) {
         });
     }
 
-    var activeEntityFetch = null; // prevent duplicate entity requests
+    var activeEntityURL = ''; // track which URL is being fetched
 
     function fetchArticleEntities(url) {
-        // Cancel any previous entity fetch
-        if (activeEntityFetch) {
-            activeEntityFetch.abort = true;
-        }
-        var thisFetch = { abort: false };
-        activeEntityFetch = thisFetch;
+        activeEntityURL = url;
 
-        var entitiesEl = document.getElementById('reader-entities');
         var relatedEl = document.getElementById('reader-related');
 
         // First: quick client-side FMP search from title
@@ -1730,17 +1724,16 @@ window.onerror = function (msg, src, line, col, err) {
         fetch('/api/article/entities?url=' + encodeURIComponent(url))
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                if (thisFetch.abort) return;
+                // Ignore if user opened a different article
+                if (activeEntityURL !== url) return;
 
                 var statusEl = document.getElementById('reader-llm-status');
                 var el = document.getElementById('reader-entities');
 
-                // Check if still pending (server returned "pending" status)
                 if (data.status === 'pending') {
                     if (statusEl) statusEl.innerHTML = '<span class="spinner"></span> Waiting for LLM (another request in progress)...';
-                    // Retry in 5s
                     setTimeout(function () {
-                        if (!thisFetch.abort) fetchArticleEntities(url);
+                        if (activeEntityURL === url) fetchArticleEntities(url);
                     }, 5000);
                     return;
                 }
@@ -1748,6 +1741,8 @@ window.onerror = function (msg, src, line, col, err) {
                 var hasEntities = (data.tickers && data.tickers.length > 0) ||
                     (data.companies && data.companies.length > 0) ||
                     (data.people && data.people.length > 0);
+
+                console.log('LLM entities received:', data.tickers, data.companies, data.people, 'statusEl:', !!statusEl, 'entitiesEl:', !!el);
 
                 if (statusEl) {
                     if (hasEntities) {
