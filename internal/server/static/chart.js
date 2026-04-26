@@ -3,10 +3,18 @@
 (function () {
     'use strict';
 
+    function waitForChartLib(cb) {
+        if (window.LightweightCharts) { cb(); }
+        else { setTimeout(function () { waitForChartLib(cb); }, 100); }
+    }
+
     var container = document.getElementById('chart-container');
     if (!container) return;
     var symbol = container.dataset.symbol;
     if (!symbol) return;
+
+    waitForChartLib(initChart);
+    function initChart() {
 
     // ── Persisted State ──
     var RANGE_KEY = 'stocktopus-chart-range';
@@ -518,4 +526,5 @@
     updateAutoRefreshVisibility();
     if (isIntraday) { chart.timeScale().applyOptions({ timeVisible: true }); loadIntraday(defaultRange); if (autoRefresh) scheduleAutoRefresh(); }
     else { loadEOD(defaultRange); }
+    } // end initChart
 })();
