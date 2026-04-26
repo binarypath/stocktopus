@@ -217,6 +217,9 @@ window.onerror = function (msg, src, line, col, err) {
             };
         }
 
+        // Re-render tabs (DOM is fresh on SPA navigation)
+        renderWatchlistTabs();
+
         // Fetch batch quotes immediately
         fetchWatchlistQuotes();
     }

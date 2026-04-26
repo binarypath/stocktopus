@@ -14,7 +14,7 @@
     var toggleState = JSON.parse(localStorage.getItem('stocktopus-chart-toggles') || '{}');
 
     var EOD_RANGES = {
-        '1W': { fetch: 30, view: 7 }, '1M': { fetch: 90, view: 30 },
+        '1W': { fetch: 60, view: 30 }, '1M': { fetch: 90, view: 30 },
         '3M': { fetch: 180, view: 90 }, '6M': { fetch: 365, view: 180 },
     };
     var INTRADAY_RANGES = {
