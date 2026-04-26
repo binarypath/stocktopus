@@ -171,10 +171,12 @@ def extract_content(html):
             if title:
                 break
 
-    # Paragraphs
+    # Paragraphs — use separator=' ' to add spaces between inline elements
     paragraphs = []
     for p in article.find_all(["p", "h1", "h2", "h3", "h4", "h5", "blockquote", "li"]):
-        text = p.get_text(strip=True)
+        text = p.get_text(separator=' ')
+        # Clean up: collapse multiple spaces, strip edges
+        text = re.sub(r'\s+', ' ', text).strip()
         if len(text) > 15:
             paragraphs.append({"tag": p.name, "text": text})
 

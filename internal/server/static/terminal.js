@@ -1615,7 +1615,8 @@ window.onerror = function (msg, src, line, col, err) {
                 });
                 html += '</div>';
 
-                // Entity badges — populated async
+                // LLM status + entity badges — populated async
+                html += '<div class="reader-llm-status" id="reader-llm-status"><span class="spinner"></span> Analyzing with LLM...</div>';
                 html += '<div class="reader-entities" id="reader-entities"></div>';
 
                 // Related section
@@ -1706,17 +1707,11 @@ window.onerror = function (msg, src, line, col, err) {
         });
     }
 
-    var activeEntityFetch = null; // prevent duplicate entity requests
+    var activeEntityURL = ''; // track which URL is being fetched
 
     function fetchArticleEntities(url) {
-        // Cancel any previous entity fetch
-        if (activeEntityFetch) {
-            activeEntityFetch.abort = true;
-        }
-        var thisFetch = { abort: false };
-        activeEntityFetch = thisFetch;
+        activeEntityURL = url;
 
-        var entitiesEl = document.getElementById('reader-entities');
         var relatedEl = document.getElementById('reader-related');
 
         // First: quick client-side FMP search from title
@@ -1726,15 +1721,50 @@ window.onerror = function (msg, src, line, col, err) {
         }
 
         // Then: async LLM entity extraction (can take 30-60s)
-        fetch('/api/article/entities?url=' + encodeURIComponent(url))
-            .then(function (r) { return r.json(); })
+        var entityController = new AbortController();
+        setTimeout(function () { entityController.abort(); }, 120000); // 2 min timeout
+        fetch('/api/article/entities?url=' + encodeURIComponent(url), { signal: entityController.signal })
+            .then(function (r) {
+                if (!r.ok) {
+                    console.error('Entity fetch HTTP error:', r.status);
+                    throw new Error('HTTP ' + r.status);
+                }
+                return r.json();
+            })
             .then(function (data) {
-                if (thisFetch.abort || !entitiesEl) return;
+                // Ignore if user opened a different article
+                if (activeEntityURL !== url) return;
+
+                var statusEl = document.getElementById('reader-llm-status');
+                var el = document.getElementById('reader-entities');
+
+                if (data.status === 'pending') {
+                    if (statusEl) statusEl.innerHTML = '<span class="spinner"></span> Waiting for LLM (another request in progress)...';
+                    setTimeout(function () {
+                        if (activeEntityURL === url) fetchArticleEntities(url);
+                    }, 5000);
+                    return;
+                }
+
                 var hasEntities = (data.tickers && data.tickers.length > 0) ||
                     (data.companies && data.companies.length > 0) ||
                     (data.people && data.people.length > 0);
 
-                if (!hasEntities) return;
+                console.log('LLM entities received:', data.tickers, data.companies, data.people, 'statusEl:', !!statusEl, 'entitiesEl:', !!el);
+
+                if (statusEl) {
+                    if (hasEntities) {
+                        var count = (data.tickers || []).length + (data.companies || []).length +
+                            (data.people || []).length + (data.sectors || []).length;
+                        statusEl.innerHTML = '<span style="color:var(--green)">&#10003;</span> LLM found ' + count + ' entities';
+                        setTimeout(function () { if (statusEl) statusEl.style.display = 'none'; }, 3000);
+                    } else {
+                        statusEl.innerHTML = '<span style="color:var(--text-muted)">&#10003;</span> LLM analysis complete (no entities found)';
+                        setTimeout(function () { if (statusEl) statusEl.style.display = 'none'; }, 3000);
+                    }
+                }
+
+                if (!hasEntities || !el) return;
 
                 var html = '';
                 (data.tickers || []).forEach(function (t) {
@@ -1749,9 +1779,16 @@ window.onerror = function (msg, src, line, col, err) {
                 (data.sectors || []).forEach(function (s) {
                     html += '<span class="reader-sector-badge">' + escapeHtml(s) + '</span>';
                 });
-                entitiesEl.innerHTML = html;
+                el.innerHTML = html;
             })
-            .catch(function () { /* LLM entities are optional */ });
+            .catch(function (err) {
+                console.error('Entity fetch error:', err);
+                var statusEl = document.getElementById('reader-llm-status');
+                if (statusEl) {
+                    statusEl.innerHTML = '<span style="color:var(--text-muted)">LLM unavailable: ' + (err.message || err) + '</span>';
+                    setTimeout(function () { if (statusEl) statusEl.style.display = 'none'; }, 5000);
+                }
+            });
     }
 
     window._closeReader = function () {

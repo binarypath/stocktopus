@@ -783,7 +783,8 @@ func (s *Server) handleArticleEntities(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) runArticleScript(w http.ResponseWriter, r *http.Request, pythonCmd, articleURL string, onSuccess func([]byte), extraArgs ...string) {
 	args := append([]string{"agents/fetch_article.py", articleURL}, extraArgs...)
-	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+	// Use background context — don't kill the script if client disconnects
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, pythonCmd, args...)
