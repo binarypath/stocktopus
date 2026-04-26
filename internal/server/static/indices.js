@@ -7,11 +7,11 @@
     if (!container) return;
 
     // Major indices to show by default (most important first)
+    // Only indices available on our FMP plan (non-premium)
     var MAJOR_INDICES = [
         '^GSPC', '^DJI', '^IXIC', '^VIX', '^RUT',           // US
-        '^FTSE', '^GDAXI', '^FCHI', '^STOXX50E',             // Europe
-        '^N225', '^HSI', '^AXJO', '^KS11', '^TWII', '^STI',  // Asia-Pacific
-        '^GSPTSE', '^BVSP', '^MXX',                           // Americas
+        '^FTSE', '^STOXX50E',                                 // Europe
+        '^N225', '^HSI',                                       // Asia-Pacific
     ];
 
     // Exchange → timezone mapping for local time
