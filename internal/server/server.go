@@ -499,7 +499,7 @@ func (s *Server) handleCompetitors(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleIndicesPage(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, "indices.html", map[string]any{
 		"Title":  "Equity Indices",
-		"Active": "indices",
+		"Active": "ei",
 	})
 }
 
