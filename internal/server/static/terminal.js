@@ -31,6 +31,7 @@ window.onerror = function (msg, src, line, col, err) {
         graph:      { path: '/stock/{symbol}',  needsSecurity: true,  usage: 'graph <SECURITY>',    desc: 'show stock price chart for SECURITY' },
         info:       { path: '/security/{symbol}', needsSecurity: true, usage: 'info <SECURITY>',     desc: 'deep-dive company fundamentals for SECURITY' },
         news:       { path: '/news',            needsSecurity: false, usage: 'news [SECURITY]',     desc: 'market news — optionally filter by security', optionalSecurity: true },
+        ei:         { path: '/indices',          needsSecurity: false, usage: 'ei',                  desc: 'equity indices — global market overview' },
         screener:   { path: '/screener',        needsSecurity: false, usage: 'screener',            desc: 'filter and scan stocks by criteria' },
         debug:      { path: '/debug',           needsSecurity: false, usage: 'debug',               desc: 'live server log console' },
     };
@@ -1449,6 +1450,40 @@ window.onerror = function (msg, src, line, col, err) {
                 if (!sym) return;
                 if (action === 'info' && window._navigateToSecurity) window._navigateToSecurity(sym);
                 if (action === 'graph' && window._navigateToGraph) window._navigateToGraph(sym);
+            }
+        },
+        ei: {
+            _colFocus: 'row', // 'row' or 'spark'
+            getItems: function () {
+                return Array.from(document.querySelectorAll('.idx-row'));
+            },
+            move: function (dir) {
+                var items = this.getItems();
+                if (items.length === 0) return;
+                if (dir === 'j') vimSelectedIndex = Math.min(vimSelectedIndex + 1, items.length - 1);
+                else if (dir === 'k') vimSelectedIndex = Math.max(vimSelectedIndex - 1, 0);
+                else if (dir === 'h') this._colFocus = 'row';
+                else if (dir === 'l') this._colFocus = 'spark';
+                vimSelect(items, vimSelectedIndex);
+            },
+            activate: function () {
+                var items = this.getItems();
+                if (vimSelectedIndex < 0 || vimSelectedIndex >= items.length) return;
+                var sym = items[vimSelectedIndex].dataset.symbol;
+                if (!sym) return;
+                if (this._colFocus === 'spark') {
+                    // Open graph for this index
+                    if (window._navigateToGraph) {
+                        setSecurity(sym);
+                        window._navigateToGraph(sym);
+                    }
+                } else {
+                    // Navigate to index page (coming soon → graph for now)
+                    if (window._navigateToGraph) {
+                        setSecurity(sym);
+                        window._navigateToGraph(sym);
+                    }
+                }
             }
         },
         debug: {
