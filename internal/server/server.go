@@ -791,6 +791,7 @@ func (s *Server) runArticleScript(w http.ResponseWriter, r *http.Request, python
 	cmd.Env = append(cmd.Environ(),
 		"OLLAMA_HOST="+getEnvOr("OLLAMA_HOST", "http://localhost:11434"),
 		"OLLAMA_MODEL="+getEnvOr("OLLAMA_MODEL", "gemma4"),
+		"OLLAMA_NER_MODEL="+getEnvOr("OLLAMA_NER_MODEL", "gemma3"),
 		"GEMINI_API_KEY="+getEnvOr("GEMINI_API_KEY", ""),
 	)
 	var stdout, stderr bytes.Buffer

@@ -186,22 +186,12 @@ def extract_content(html):
 # ── LLM Entity Extraction ──
 
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4")
+OLLAMA_NER_MODEL = os.environ.get("OLLAMA_NER_MODEL", os.environ.get("OLLAMA_MODEL", "gemma3"))
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
 CONFIDENCE_THRESHOLD = 0.6
 
-NER_PROMPT = """Extract named entities from this financial article text. Return ONLY a valid JSON array.
-Each entity: {"text": "exact text", "type": "ticker|company|person|sector|index", "ticker": "AAPL or null", "confidence": 0.0-1.0}
-
-Rules:
-- ticker: stock/crypto symbols like AAPL, MSFT, BTC
-- company: company names like "Apple Inc.", "Meta Platforms"
-- person: people names like "Tim Cook", "Warren Buffett"
-- sector: industry terms like "semiconductor", "artificial intelligence"
-- index: market indices like "S&P 500", "Nasdaq", "Dow Jones"
-- For company entities, include the ticker if you know it
-- confidence: how certain you are (1.0 = certain, 0.5 = guess)
-
+# Compact prompt — gemma3 produces concise JSON with this
+NER_PROMPT = """Extract named entities as a JSON array. Be concise. Each entity: {"text":"...","type":"ticker|company|person|sector","ticker":"SYM or null","confidence":0.9}
 Text:
 """
 
@@ -209,22 +199,28 @@ Text:
 def call_ollama(prompt):
     """Call local Ollama for NER. Returns raw text or None."""
     try:
-        log("calling Ollama for entity extraction...")
+        log(f"calling Ollama ({OLLAMA_NER_MODEL}) for entity extraction...")
+        t0 = time.time()
         resp = requests.post(
             f"{OLLAMA_HOST}/api/generate",
             json={
-                "model": OLLAMA_MODEL,
+                "model": OLLAMA_NER_MODEL,
                 "prompt": prompt,
                 "stream": False,
-                "options": {"temperature": 0.1, "num_predict": 4096},
+                "keep_alive": "30m",
+                "options": {"temperature": 0.1, "num_predict": 1024},
             },
             timeout=60,
         )
         if resp.status_code != 200:
             log(f"Ollama returned {resp.status_code}")
             return None
-        result = resp.json().get("response", "")
-        log(f"Ollama returned {len(result)} chars")
+        data = resp.json()
+        result = data.get("response", "")
+        load_s = data.get("load_duration", 0) / 1e9
+        gen_s = data.get("eval_duration", 0) / 1e9
+        tok = data.get("eval_count", 0)
+        log(f"Ollama done in {time.time()-t0:.1f}s (load:{load_s:.1f}s gen:{gen_s:.1f}s {tok}tok {len(result)}chars)")
         return result
     except requests.exceptions.ConnectionError:
         log("Ollama not available (connection refused)")
