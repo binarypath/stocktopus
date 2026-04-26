@@ -518,6 +518,13 @@
     function resizeChart() { chart.resize(container.clientWidth, container.clientHeight); }
     window.addEventListener('resize', resizeChart); resizeChart();
 
+    // ── Watermark ──
+    try {
+        LightweightCharts.createTextWatermark(chart, {
+            lines: [{ text: symbol, color: 'rgba(255, 255, 255, 0.04)', fontSize: 80, fontFamily: "'SF Mono','Consolas',monospace", fontStyle: 'bold' }],
+        });
+    } catch (e) { /* watermark optional */ }
+
     // ── Init ──
     updateToggleButtons();
     setActiveRangeBtn(defaultRange);
