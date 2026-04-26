@@ -77,12 +77,13 @@
                 var local = getLocalTime(idx.exchange);
                 var statusClass = local.open ? 'idx-open' : 'idx-closed';
                 var statusLabel = local.open ? 'O' : 'C';
+                var safeId = idx.symbol.replace('^', '');
                 html += '<tr class="idx-row" data-symbol="' + esc(idx.symbol) + '" data-exchange="' + esc(idx.exchange) + '">'
                     + '<td class="idx-name"><span class="idx-sym">' + esc(idx.symbol) + '</span> <span class="idx-label">' + esc(idx.name) + '</span></td>'
                     + '<td><div class="idx-spark" data-spark-sym="' + esc(idx.symbol) + '"></div></td>'
-                    + '<td class="idx-price" id="price-' + esc(idx.symbol) + '">—</td>'
-                    + '<td class="idx-change" id="change-' + esc(idx.symbol) + '">—</td>'
-                    + '<td class="idx-pct" id="pct-' + esc(idx.symbol) + '">—</td>'
+                    + '<td class="idx-price" id="price-' + safeId + '">—</td>'
+                    + '<td class="idx-change" id="change-' + safeId + '">—</td>'
+                    + '<td class="idx-pct" id="pct-' + safeId + '">—</td>'
                     + '<td class="idx-time"><span class="' + statusClass + '">' + statusLabel + '</span> ' + local.time + '</td>'
                     + '</tr>';
             });
@@ -117,9 +118,10 @@
                     changePercentage: ((latest.close - prev.close) / prev.close) * 100,
                 };
                 var chgClass = q.change >= 0 ? 'price-up' : 'price-down';
-                var priceEl = document.getElementById('price-' + symbol);
-                var changeEl = document.getElementById('change-' + symbol);
-                var pctEl = document.getElementById('pct-' + symbol);
+                var safeId = symbol.replace('^', '');
+                var priceEl = document.getElementById('price-' + safeId);
+                var changeEl = document.getElementById('change-' + safeId);
+                var pctEl = document.getElementById('pct-' + safeId);
                 if (priceEl) priceEl.textContent = fmt(q.price);
                 if (priceEl) priceEl.className = 'idx-price ' + chgClass;
                 if (changeEl) { changeEl.textContent = (q.change >= 0 ? '+' : '') + q.change.toFixed(2); changeEl.className = 'idx-change ' + chgClass; }
@@ -131,7 +133,7 @@
     function loadIndexSparklines(indices) {
         function tryRender() {
             if (!window.LightweightCharts) { setTimeout(tryRender, 200); return; }
-            var from = new Date(); from.setDate(from.getDate() - 2);
+            var from = new Date(); from.setDate(from.getDate() - 5);
             var fromStr = from.toISOString().slice(0, 10);
             var toStr = new Date().toISOString().slice(0, 10);
 
