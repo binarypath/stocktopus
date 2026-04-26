@@ -186,22 +186,12 @@ def extract_content(html):
 # ── LLM Entity Extraction ──
 
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4")
+OLLAMA_NER_MODEL = os.environ.get("OLLAMA_NER_MODEL", os.environ.get("OLLAMA_MODEL", "gemma3"))
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
 CONFIDENCE_THRESHOLD = 0.6
 
-NER_PROMPT = """Extract named entities from this financial article text. Return ONLY a valid JSON array.
-Each entity: {"text": "exact text", "type": "ticker|company|person|sector|index", "ticker": "AAPL or null", "confidence": 0.0-1.0}
-
-Rules:
-- ticker: stock/crypto symbols like AAPL, MSFT, BTC
-- company: company names like "Apple Inc.", "Meta Platforms"
-- person: people names like "Tim Cook", "Warren Buffett"
-- sector: industry terms like "semiconductor", "artificial intelligence"
-- index: market indices like "S&P 500", "Nasdaq", "Dow Jones"
-- For company entities, include the ticker if you know it
-- confidence: how certain you are (1.0 = certain, 0.5 = guess)
-
+# Compact prompt — max 5 entities, clear field names
+NER_PROMPT = """List the 5 most important companies, stock tickers, and people mentioned. Return JSON: {"entities":[{"name":"...","type":"company|ticker|person","ticker":"AAPL or null"}]}
 Text:
 """
 
@@ -209,22 +199,29 @@ Text:
 def call_ollama(prompt):
     """Call local Ollama for NER. Returns raw text or None."""
     try:
-        log("calling Ollama for entity extraction...")
+        log(f"calling Ollama ({OLLAMA_NER_MODEL}) for entity extraction...")
+        t0 = time.time()
         resp = requests.post(
             f"{OLLAMA_HOST}/api/generate",
             json={
-                "model": OLLAMA_MODEL,
+                "model": OLLAMA_NER_MODEL,
                 "prompt": prompt,
                 "stream": False,
-                "options": {"temperature": 0.1, "num_predict": 4096},
+                "format": "json",
+                "keep_alive": "30m",
+                "options": {"temperature": 0.1, "num_predict": 256},
             },
-            timeout=60,
+            timeout=30,
         )
         if resp.status_code != 200:
             log(f"Ollama returned {resp.status_code}")
             return None
-        result = resp.json().get("response", "")
-        log(f"Ollama returned {len(result)} chars")
+        data = resp.json()
+        result = data.get("response", "")
+        load_s = data.get("load_duration", 0) / 1e9
+        gen_s = data.get("eval_duration", 0) / 1e9
+        tok = data.get("eval_count", 0)
+        log(f"Ollama done in {time.time()-t0:.1f}s (load:{load_s:.1f}s gen:{gen_s:.1f}s {tok}tok {len(result)}chars)")
         return result
     except requests.exceptions.ConnectionError:
         log("Ollama not available (connection refused)")
@@ -276,10 +273,16 @@ def parse_entities_json(text):
         text = re.sub(r'\n?```$', '', text)
         text = text.strip()
     try:
-        entities = json.loads(text)
-        if isinstance(entities, list):
-            log(f"parse: got {len(entities)} entities")
-            return entities
+        parsed = json.loads(text)
+        if isinstance(parsed, list):
+            log(f"parse: got {len(parsed)} entities")
+            return parsed
+        # format:json sometimes wraps in an object like {"entities": [...]}
+        if isinstance(parsed, dict):
+            for v in parsed.values():
+                if isinstance(v, list):
+                    log(f"parse: unwrapped {len(v)} entities from object")
+                    return v
     except json.JSONDecodeError as e:
         log(f"parse: direct JSON failed: {e}")
         # Try to find JSON array in response
@@ -369,26 +372,33 @@ Context:
 
 
 def collect_entity_summary(entities):
-    """Collect ticker/company/people/sector lists from entities."""
-    # Tickers: from ticker entities AND from company entities that have a ticker field
+    """Collect ticker/company/people/sector lists from entities.
+    Handles both full keys (text/type/ticker) and short keys (t/k/s)."""
     tickers = set()
-    for e in entities:
-        if e.get("type") == "ticker":
-            tickers.add(e.get("ticker") or e.get("text", ""))
-        elif e.get("ticker"):
-            tickers.add(e["ticker"])
-    tickers = list(tickers - {""})
+    companies = set()
+    people = set()
+    sectors = set()
 
-    companies = list(set(
-        e.get("text", "") for e in entities if e.get("type") == "company" and e.get("text")
-    ))
-    people = list(set(
-        e.get("text", "") for e in entities if e.get("type") == "person" and e.get("text")
-    ))
-    sectors = list(set(
-        e.get("text", "") for e in entities if e.get("type") in ("sector", "index") and e.get("text")
-    ))
-    return tickers, companies, people, sectors
+    for e in entities:
+        text = e.get("name") or e.get("text") or e.get("t", "")
+        etype = e.get("type") or e.get("k", "")
+        sym = e.get("ticker") or e.get("s")
+
+        if not text:
+            continue
+
+        if etype == "ticker":
+            tickers.add(sym or text)
+        elif etype == "company":
+            companies.add(text)
+            if sym and sym != "null" and sym != "NULL":
+                tickers.add(sym)
+        elif etype == "person":
+            people.add(text)
+        elif etype in ("sector", "index"):
+            sectors.add(text)
+
+    return list(tickers - {"", "null", "NULL", None}), list(companies), list(people), list(sectors)
 
 
 # ── Main ──

@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -135,6 +137,33 @@ func main() {
 
 		slog.Info("agent pipeline ready", "ollamaModel", ollamaModel, "cacheTTL", cacheTTL)
 	}
+
+	// Warm up Ollama NER model so first article request is fast
+	go func() {
+		nerModel := os.Getenv("OLLAMA_NER_MODEL")
+		if nerModel == "" {
+			nerModel = "gemma3"
+		}
+		ollamaHost := os.Getenv("OLLAMA_HOST")
+		if ollamaHost == "" {
+			ollamaHost = "http://localhost:11434"
+		}
+		slog.Info("warming up NER model", "model", nerModel)
+		body, _ := json.Marshal(map[string]interface{}{
+			"model":      nerModel,
+			"prompt":     "hello",
+			"stream":     false,
+			"keep_alive": "30m",
+			"options":    map[string]interface{}{"num_predict": 1},
+		})
+		resp, err := http.Post(ollamaHost+"/api/generate", "application/json", bytes.NewReader(body))
+		if err != nil {
+			slog.Warn("NER model warm-up failed", "error", err)
+		} else {
+			resp.Body.Close()
+			slog.Info("NER model warm", "model", nerModel)
+		}
+	}()
 
 	// Populate SIC codes on first boot
 	if st != nil && st.SICCodeCount() == 0 {
