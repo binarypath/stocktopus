@@ -3,10 +3,18 @@
 (function () {
     'use strict';
 
+    function waitForChartLib(cb) {
+        if (window.LightweightCharts) { cb(); }
+        else { setTimeout(function () { waitForChartLib(cb); }, 100); }
+    }
+
     var container = document.getElementById('chart-container');
     if (!container) return;
     var symbol = container.dataset.symbol;
     if (!symbol) return;
+
+    waitForChartLib(initChart);
+    function initChart() {
 
     // ── Persisted State ──
     var RANGE_KEY = 'stocktopus-chart-range';
@@ -14,7 +22,7 @@
     var toggleState = JSON.parse(localStorage.getItem('stocktopus-chart-toggles') || '{}');
 
     var EOD_RANGES = {
-        '1W': { fetch: 30, view: 7 }, '1M': { fetch: 90, view: 30 },
+        '1W': { fetch: 60, view: 30 }, '1M': { fetch: 90, view: 30 },
         '3M': { fetch: 180, view: 90 }, '6M': { fetch: 365, view: 180 },
     };
     var INTRADAY_RANGES = {
@@ -510,6 +518,15 @@
     function resizeChart() { chart.resize(container.clientWidth, container.clientHeight); }
     window.addEventListener('resize', resizeChart); resizeChart();
 
+    // ── Watermark ──
+    try {
+        var panes = chart.panes();
+        var mainPane = panes && panes[0] ? panes[0] : chart;
+        LightweightCharts.createTextWatermark(mainPane, {
+            lines: [{ text: symbol, color: 'rgba(255, 255, 255, 0.07)', fontSize: 72, fontFamily: "'SF Mono','Consolas',monospace", fontStyle: 'bold' }],
+        });
+    } catch (e) { console.log('watermark:', e.message); }
+
     // ── Init ──
     updateToggleButtons();
     setActiveRangeBtn(defaultRange);
@@ -518,4 +535,5 @@
     updateAutoRefreshVisibility();
     if (isIntraday) { chart.timeScale().applyOptions({ timeVisible: true }); loadIntraday(defaultRange); if (autoRefresh) scheduleAutoRefresh(); }
     else { loadEOD(defaultRange); }
+    } // end initChart
 })();

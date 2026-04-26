@@ -377,6 +377,11 @@ func (c *Client) GetSICList(ctx context.Context) (json.RawMessage, error) {
 	return c.fetchJSON(ctx, "/stable/standard-industrial-classification-list", nil)
 }
 
+// GetIndexList fetches the list of all equity indices.
+func (c *Client) GetIndexList(ctx context.Context) (json.RawMessage, error) {
+	return c.fetchJSON(ctx, "/stable/index-list", nil)
+}
+
 // GetPeers returns sector peers for a symbol.
 func (c *Client) GetPeers(ctx context.Context, symbol string) (json.RawMessage, error) {
 	params := url.Values{"symbol": {symbol}}

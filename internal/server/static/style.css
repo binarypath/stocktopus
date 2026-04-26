@@ -1873,6 +1873,86 @@ body {
     outline-offset: -1px;
 }
 
+/* ── Equity Indices ── */
+
+.indices-table {
+    width: 100%;
+}
+
+.idx-row {
+    cursor: pointer;
+}
+
+.idx-row:hover {
+    background: var(--bg-secondary);
+}
+
+.idx-sym {
+    color: var(--blue);
+    font-weight: 700;
+    margin-right: 6px;
+}
+
+.idx-label {
+    color: var(--text-secondary);
+    font-size: 11px;
+}
+
+.idx-name {
+    min-width: 200px;
+    text-align: left !important;
+}
+
+.indices-table td {
+    text-align: left;
+}
+
+.indices-table th {
+    text-align: left !important;
+}
+
+.idx-spark {
+    width: 80px;
+    height: 24px;
+}
+
+.idx-spark-selected {
+    outline: 1px solid var(--orange);
+    outline-offset: 1px;
+    border-radius: 3px;
+}
+
+.idx-spark a[href*="tradingview"] {
+    display: none !important;
+}
+
+.idx-price {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.idx-change, .idx-pct {
+    font-variant-numeric: tabular-nums;
+}
+
+.idx-time {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.idx-open {
+    color: var(--green);
+    font-weight: 700;
+    font-size: 10px;
+}
+
+.idx-closed {
+    color: var(--red);
+    font-weight: 700;
+    font-size: 10px;
+}
+
 /* ── Flash Animations ── */
 
 @keyframes flash-green {

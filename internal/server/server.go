@@ -106,7 +106,7 @@ func (s *Server) loadTemplates() error {
 	layoutPath := filepath.Join(templatesDir(), "layout.html")
 	s.pages = make(map[string]*template.Template)
 
-	pageNames := []string{"watchlist", "stock", "security", "screener", "feed", "debug", "news"}
+	pageNames := []string{"watchlist", "stock", "security", "screener", "feed", "debug", "news", "indices"}
 	for _, page := range pageNames {
 		pagePath := filepath.Join(templatesDir(), page+".html")
 		t, err := template.ParseFiles(layoutPath, pagePath)
@@ -147,6 +147,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/security/{symbol}/intelligence/refresh", s.handleIntelligenceRefresh)
 	mux.HandleFunc("GET /api/agent/status", s.handleAgentStatus)
 	mux.HandleFunc("GET /api/sic", s.handleSICCodes)
+	mux.HandleFunc("GET /api/indices", s.handleIndices)
 	mux.HandleFunc("GET /api/watchlists", s.handleGetWatchlists)
 	mux.HandleFunc("POST /api/watchlists", s.handleCreateWatchlist)
 	mux.HandleFunc("POST /api/watchlists/{id}/symbols", s.handleAddToWatchlist)
@@ -161,11 +162,13 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	// Pages
 	mux.HandleFunc("GET /{$}", s.handleIndex)
 	mux.HandleFunc("GET /watchlist", s.handleWatchlist)
-	mux.HandleFunc("GET /stock/{symbol}", s.handleStock)
+	mux.HandleFunc("GET /graph/{symbol}", s.handleStock)
+	mux.HandleFunc("GET /stock/{symbol}", s.handleStock) // legacy redirect
 	mux.HandleFunc("GET /security/{symbol}", s.handleSecurity)
 	mux.HandleFunc("GET /screener", s.handleScreener)
 	mux.HandleFunc("GET /feed", s.handleFeed)
 	mux.HandleFunc("GET /news", s.handleNews)
+	mux.HandleFunc("GET /indices", s.handleIndicesPage)
 	mux.HandleFunc("GET /debug", s.handleDebug)
 }
 
@@ -492,6 +495,24 @@ func (s *Server) handleCompetitors(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(results)
+}
+
+func (s *Server) handleIndicesPage(w http.ResponseWriter, r *http.Request) {
+	s.renderPage(w, r, "indices.html", map[string]any{
+		"Title":  "Equity Indices",
+		"Active": "ei",
+	})
+}
+
+func (s *Server) handleIndices(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	data, err := s.news.GetIndexList(r.Context())
+	if err != nil {
+		s.logger.Error("index list failed", "error", err)
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+	w.Write(data)
 }
 
 func (s *Server) handleSICCodes(w http.ResponseWriter, r *http.Request) {
