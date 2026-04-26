@@ -190,8 +190,8 @@ OLLAMA_NER_MODEL = os.environ.get("OLLAMA_NER_MODEL", os.environ.get("OLLAMA_MOD
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
 CONFIDENCE_THRESHOLD = 0.6
 
-# Compact prompt — gemma3 produces concise JSON with this
-NER_PROMPT = """Extract named entities as a JSON array. Be concise. Each entity: {"text":"...","type":"ticker|company|person|sector","ticker":"SYM or null","confidence":0.9}
+# Compact prompt — max 5 entities, clear field names
+NER_PROMPT = """List the 5 most important companies, stock tickers, and people mentioned. Return JSON: {"entities":[{"name":"...","type":"company|ticker|person","ticker":"AAPL or null"}]}
 Text:
 """
 
@@ -207,10 +207,11 @@ def call_ollama(prompt):
                 "model": OLLAMA_NER_MODEL,
                 "prompt": prompt,
                 "stream": False,
+                "format": "json",
                 "keep_alive": "30m",
-                "options": {"temperature": 0.1, "num_predict": 1024},
+                "options": {"temperature": 0.1, "num_predict": 256},
             },
-            timeout=60,
+            timeout=30,
         )
         if resp.status_code != 200:
             log(f"Ollama returned {resp.status_code}")
@@ -272,10 +273,16 @@ def parse_entities_json(text):
         text = re.sub(r'\n?```$', '', text)
         text = text.strip()
     try:
-        entities = json.loads(text)
-        if isinstance(entities, list):
-            log(f"parse: got {len(entities)} entities")
-            return entities
+        parsed = json.loads(text)
+        if isinstance(parsed, list):
+            log(f"parse: got {len(parsed)} entities")
+            return parsed
+        # format:json sometimes wraps in an object like {"entities": [...]}
+        if isinstance(parsed, dict):
+            for v in parsed.values():
+                if isinstance(v, list):
+                    log(f"parse: unwrapped {len(v)} entities from object")
+                    return v
     except json.JSONDecodeError as e:
         log(f"parse: direct JSON failed: {e}")
         # Try to find JSON array in response
@@ -365,26 +372,33 @@ Context:
 
 
 def collect_entity_summary(entities):
-    """Collect ticker/company/people/sector lists from entities."""
-    # Tickers: from ticker entities AND from company entities that have a ticker field
+    """Collect ticker/company/people/sector lists from entities.
+    Handles both full keys (text/type/ticker) and short keys (t/k/s)."""
     tickers = set()
-    for e in entities:
-        if e.get("type") == "ticker":
-            tickers.add(e.get("ticker") or e.get("text", ""))
-        elif e.get("ticker"):
-            tickers.add(e["ticker"])
-    tickers = list(tickers - {""})
+    companies = set()
+    people = set()
+    sectors = set()
 
-    companies = list(set(
-        e.get("text", "") for e in entities if e.get("type") == "company" and e.get("text")
-    ))
-    people = list(set(
-        e.get("text", "") for e in entities if e.get("type") == "person" and e.get("text")
-    ))
-    sectors = list(set(
-        e.get("text", "") for e in entities if e.get("type") in ("sector", "index") and e.get("text")
-    ))
-    return tickers, companies, people, sectors
+    for e in entities:
+        text = e.get("name") or e.get("text") or e.get("t", "")
+        etype = e.get("type") or e.get("k", "")
+        sym = e.get("ticker") or e.get("s")
+
+        if not text:
+            continue
+
+        if etype == "ticker":
+            tickers.add(sym or text)
+        elif etype == "company":
+            companies.add(text)
+            if sym and sym != "null" and sym != "NULL":
+                tickers.add(sym)
+        elif etype == "person":
+            people.add(text)
+        elif etype in ("sector", "index"):
+            sectors.add(text)
+
+    return list(tickers - {"", "null", "NULL", None}), list(companies), list(people), list(sectors)
 
 
 # ── Main ──
