@@ -1615,7 +1615,8 @@ window.onerror = function (msg, src, line, col, err) {
                 });
                 html += '</div>';
 
-                // Entity badges — populated async
+                // LLM status + entity badges — populated async
+                html += '<div class="reader-llm-status" id="reader-llm-status"><span class="spinner"></span> Analyzing with LLM...</div>';
                 html += '<div class="reader-entities" id="reader-entities"></div>';
 
                 // Related section
@@ -1730,14 +1731,37 @@ window.onerror = function (msg, src, line, col, err) {
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (thisFetch.abort) return;
-                // Re-query DOM — original reference may be stale after 30s
+
+                var statusEl = document.getElementById('reader-llm-status');
                 var el = document.getElementById('reader-entities');
-                if (!el) return;
+
+                // Check if still pending (server returned "pending" status)
+                if (data.status === 'pending') {
+                    if (statusEl) statusEl.innerHTML = '<span class="spinner"></span> Waiting for LLM (another request in progress)...';
+                    // Retry in 5s
+                    setTimeout(function () {
+                        if (!thisFetch.abort) fetchArticleEntities(url);
+                    }, 5000);
+                    return;
+                }
+
                 var hasEntities = (data.tickers && data.tickers.length > 0) ||
                     (data.companies && data.companies.length > 0) ||
                     (data.people && data.people.length > 0);
 
-                if (!hasEntities) return;
+                if (statusEl) {
+                    if (hasEntities) {
+                        var count = (data.tickers || []).length + (data.companies || []).length +
+                            (data.people || []).length + (data.sectors || []).length;
+                        statusEl.innerHTML = '<span style="color:var(--green)">&#10003;</span> LLM found ' + count + ' entities';
+                        setTimeout(function () { if (statusEl) statusEl.style.display = 'none'; }, 3000);
+                    } else {
+                        statusEl.innerHTML = '<span style="color:var(--text-muted)">&#10003;</span> LLM analysis complete (no entities found)';
+                        setTimeout(function () { if (statusEl) statusEl.style.display = 'none'; }, 3000);
+                    }
+                }
+
+                if (!hasEntities || !el) return;
 
                 var html = '';
                 (data.tickers || []).forEach(function (t) {
@@ -1754,7 +1778,13 @@ window.onerror = function (msg, src, line, col, err) {
                 });
                 el.innerHTML = html;
             })
-            .catch(function () { /* LLM entities are optional */ });
+            .catch(function () {
+                var statusEl = document.getElementById('reader-llm-status');
+                if (statusEl) {
+                    statusEl.innerHTML = '<span style="color:var(--text-muted)">LLM unavailable</span>';
+                    setTimeout(function () { if (statusEl) statusEl.style.display = 'none'; }, 3000);
+                }
+            });
     }
 
     window._closeReader = function () {
