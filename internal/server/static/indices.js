@@ -103,11 +103,19 @@
         });
 
     function fetchIndexQuote(symbol) {
-        fetch('/api/security/' + encodeURIComponent(symbol) + '/profile')
+        // Use chart EOD for latest price — profile doesn't support indices
+        fetch('/api/chart/eod/' + encodeURIComponent(symbol) + '?from=' + new Date(Date.now() - 7*86400000).toISOString().slice(0,10) + '&to=' + new Date().toISOString().slice(0,10))
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                if (!data || !data[0]) return;
-                var q = data[0];
+                if (!data || data.length < 1) return;
+                // Latest day's data
+                var latest = data[data.length - 1];
+                var prev = data.length > 1 ? data[data.length - 2] : latest;
+                var q = {
+                    price: latest.close,
+                    change: latest.close - prev.close,
+                    changePercentage: ((latest.close - prev.close) / prev.close) * 100,
+                };
                 var chgClass = q.change >= 0 ? 'price-up' : 'price-down';
                 var priceEl = document.getElementById('price-' + symbol);
                 var changeEl = document.getElementById('change-' + symbol);

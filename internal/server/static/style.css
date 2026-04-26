@@ -1900,6 +1900,15 @@ body {
 
 .idx-name {
     min-width: 200px;
+    text-align: left !important;
+}
+
+.indices-table td {
+    text-align: left;
+}
+
+.indices-table th {
+    text-align: left !important;
 }
 
 .idx-spark {
