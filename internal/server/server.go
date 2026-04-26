@@ -162,7 +162,8 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	// Pages
 	mux.HandleFunc("GET /{$}", s.handleIndex)
 	mux.HandleFunc("GET /watchlist", s.handleWatchlist)
-	mux.HandleFunc("GET /stock/{symbol}", s.handleStock)
+	mux.HandleFunc("GET /graph/{symbol}", s.handleStock)
+	mux.HandleFunc("GET /stock/{symbol}", s.handleStock) // legacy redirect
 	mux.HandleFunc("GET /security/{symbol}", s.handleSecurity)
 	mux.HandleFunc("GET /screener", s.handleScreener)
 	mux.HandleFunc("GET /feed", s.handleFeed)

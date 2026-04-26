@@ -28,7 +28,7 @@ window.onerror = function (msg, src, line, col, err) {
 
     const COMMANDS = {
         watchlist:  { path: '/watchlist',       needsSecurity: false, usage: 'watchlist',           desc: 'real-time price table for tracked securities' },
-        graph:      { path: '/stock/{symbol}',  needsSecurity: true,  usage: 'graph <SECURITY>',    desc: 'show stock price chart for SECURITY' },
+        graph:      { path: '/graph/{symbol}',   needsSecurity: true,  usage: 'graph <SECURITY>',    desc: 'show price chart for any security' },
         info:       { path: '/security/{symbol}', needsSecurity: true, usage: 'info <SECURITY>',     desc: 'deep-dive company fundamentals for SECURITY' },
         news:       { path: '/news',            needsSecurity: false, usage: 'news [SECURITY]',     desc: 'market news — optionally filter by security', optionalSecurity: true },
         ei:         { path: '/indices',          needsSecurity: false, usage: 'ei',                  desc: 'equity indices — global market overview' },
@@ -1901,24 +1901,56 @@ window.onerror = function (msg, src, line, col, err) {
             });
         }
 
-        // Fetch profile
+        // Fetch profile — falls back to EOD data for indices
         fetch('/api/security/' + symbol + '/profile')
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                if (!data || !data.length) return;
-                var p = data[0];
-                var nameEl = document.getElementById('cpanel-name');
-                var priceEl = document.getElementById('cpanel-price');
-                var changeEl = document.getElementById('cpanel-change');
-                if (nameEl) nameEl.textContent = p.companyName || '';
-                if (priceEl) priceEl.textContent = p.price ? p.price.toFixed(2) : '';
-                if (changeEl) {
-                    var chg = p.change || 0;
-                    var chgPct = p.changePercentage || 0;
-                    changeEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + ' (' + chgPct.toFixed(2) + '%)';
-                    changeEl.className = 'cpanel-change ' + (chg >= 0 ? 'price-up' : 'price-down');
+                if (data && data.length) {
+                    var p = data[0];
+                    setCpanelData(p.companyName || '', p.price, p.change, p.changePercentage);
+                } else {
+                    // Profile empty (index/crypto) — use EOD data
+                    fetchCpanelFromEOD(symbol);
                 }
-            });
+            })
+            .catch(function () { fetchCpanelFromEOD(symbol); });
+
+        function fetchCpanelFromEOD(sym) {
+            var from = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+            var to = new Date().toISOString().slice(0, 10);
+            fetch('/api/chart/eod/' + encodeURIComponent(sym) + '?from=' + from + '&to=' + to)
+                .then(function (r) { return r.json(); })
+                .then(function (eod) {
+                    if (!eod || eod.length < 1) return;
+                    var latest = eod[eod.length - 1];
+                    var prev = eod.length > 1 ? eod[eod.length - 2] : latest;
+                    var chg = latest.close - prev.close;
+                    var pct = (chg / prev.close) * 100;
+                    // Try to get name from index list
+                    fetch('/api/indices')
+                        .then(function (r) { return r.json(); })
+                        .then(function (indices) {
+                            var idx = (indices || []).find(function (i) { return i.symbol === sym; });
+                            setCpanelData(idx ? idx.name : sym, latest.close, chg, pct);
+                        })
+                        .catch(function () { setCpanelData(sym, latest.close, chg, pct); });
+                })
+                .catch(function () {});
+        }
+
+        function setCpanelData(name, price, change, changePct) {
+            var nameEl = document.getElementById('cpanel-name');
+            var priceEl = document.getElementById('cpanel-price');
+            var changeEl = document.getElementById('cpanel-change');
+            if (nameEl) nameEl.textContent = name;
+            if (priceEl) priceEl.textContent = price ? price.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '';
+            if (changeEl) {
+                var chg = change || 0;
+                var chgPct = changePct || 0;
+                changeEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + ' (' + chgPct.toFixed(2) + '%)';
+                changeEl.className = 'cpanel-change ' + (chg >= 0 ? 'price-up' : 'price-down');
+            }
+        }
 
         // Skip sparkline if container has no-spark class
         if (!spark || el.classList.contains('no-spark')) return;
