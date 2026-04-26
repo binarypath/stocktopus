@@ -174,6 +174,7 @@
                 case 'estimates': loadEstimates(); break;
                 case 'news': loadNews(); break;
                 case 'ai': loadAI(); break;
+                case 'sector': loadSector(); break;
             }
         } catch (e) {
             console.error('Tab load error:', tab, e);
@@ -434,6 +435,209 @@
             });
     }
 
+    // ── Sector ──
+
+    var subscribedSector = '';
+
+    function unsubscribeSector() {
+        if (subscribedSector && window._wsSend) {
+            window._wsSend({ type: 'unsubscribe', topic: 'sector:' + subscribedSector });
+            subscribedSector = '';
+        }
+    }
+
+    var sectorPerfChart = null; // exposed for vim h/l
+
+    function loadSector() {
+        container.innerHTML = '<p class="empty-state">Loading sector data...</p>';
+
+        Promise.all([
+            fetch('/api/security/' + symbol + '/profile').then(function (r) { return r.json(); }),
+            fetch('/api/security/' + symbol + '/peers').then(function (r) { return r.json(); }),
+        ]).then(function (results) {
+            var profile = results[0] && results[0][0] ? results[0][0] : {};
+            var peers = results[1] || [];
+
+            var sector = profile.sector || 'Unknown';
+            var industry = profile.industry || '';
+
+            if (sector !== 'Unknown' && window._wsSend) {
+                unsubscribeSector();
+                subscribedSector = sector;
+                window._wsSend({ type: 'subscribe', topic: 'sector:' + sector });
+            }
+
+            var html = '<div class="sector-view">';
+
+            // Sector header
+            html += '<div class="sector-header">';
+            html += '<span class="sector-name">' + esc(sector) + '</span>';
+            if (industry) html += '<span class="sector-industry"> / ' + esc(industry) + '</span>';
+            html += '<span class="sector-hint"> j/k nav · i info · g graph</span>';
+            html += '</div>';
+
+            // Peer comparison table with mini sparkline column
+            if (peers.length > 0) {
+                peers.sort(function (a, b) { return (b.mktCap || b.marketCap || 0) - (a.mktCap || a.marketCap || 0); });
+
+                html += '<div class="sector-section-title">Peer Comparison</div>';
+                html += '<table class="fin-table peer-table" id="peer-table"><thead><tr>';
+                html += '<th>Security</th><th>Company</th><th>Price</th><th>Market Cap</th><th>1M</th>';
+                html += '</tr></thead><tbody>';
+
+                // Current company
+                html += '<tr class="peer-row peer-current" data-symbol="' + esc(symbol) + '"><td><span class="sym-link">' + esc(symbol) + '</span></td>'
+                    + '<td>' + esc(profile.companyName || '') + '</td>'
+                    + '<td>' + (profile.price ? profile.price.toFixed(2) : '—') + '</td>'
+                    + '<td>' + fmt(profile.marketCap) + '</td>'
+                    + '<td><div class="peer-spark" data-spark-sym="' + esc(symbol) + '"></div></td></tr>';
+
+                peers.forEach(function (p) {
+                    var cap = p.mktCap || p.marketCap || 0;
+                    html += '<tr class="peer-row" data-symbol="' + esc(p.symbol) + '"><td><span class="sym-link">' + esc(p.symbol) + '</span></td>'
+                        + '<td>' + esc(p.companyName || '') + '</td>'
+                        + '<td>' + (p.price ? p.price.toFixed(2) : '—') + '</td>'
+                        + '<td>' + fmt(cap) + '</td>'
+                        + '<td><div class="peer-spark" data-spark-sym="' + esc(p.symbol) + '"></div></td></tr>';
+                });
+                html += '</tbody></table>';
+            }
+
+            // Performance chart
+            html += '<div class="sector-section-title">6M Performance Comparison</div>';
+            html += '<div id="sector-perf-chart" class="sector-perf-chart"></div>';
+
+            // Sector news
+            html += '<div class="sector-section-title">Sector News</div>';
+            html += '<div id="sector-news" class="sector-news"><p class="empty-state">Loading...</p></div>';
+
+            html += '</div>';
+            container.innerHTML = html;
+
+            // Load mini sparklines
+            loadPeerSparklines();
+
+            // Load performance chart
+            loadSectorPerfChart(symbol, peers.slice(0, 3));
+
+            // Load sector news
+            loadSectorNews(peers.slice(0, 5));
+
+        }).catch(function (err) {
+            console.error('Sector load error:', err);
+            container.innerHTML = '<p class="empty-state">Failed to load sector data</p>';
+        });
+    }
+
+    function loadPeerSparklines() {
+        function tryRender() {
+            if (!window.LightweightCharts) { setTimeout(tryRender, 200); return; }
+            var from = new Date(); from.setMonth(from.getMonth() - 1);
+            var fromStr = from.toISOString().slice(0, 10);
+            var toStr = new Date().toISOString().slice(0, 10);
+
+            document.querySelectorAll('.peer-spark').forEach(function (el) {
+                var sym = el.dataset.sparkSym;
+                if (!sym) return;
+                fetch('/api/chart/eod/' + sym + '?from=' + fromStr + '&to=' + toStr)
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data || data.length < 2) return;
+                        var first = data[0].close, last = data[data.length - 1].close;
+                        var color = last >= first ? '#00cc66' : '#ff4444';
+                        var chart = LightweightCharts.createChart(el, {
+                            width: 80, height: 24,
+                            layout: { background: { color: 'transparent' }, textColor: 'transparent' },
+                            grid: { vertLines: { visible: false }, horzLines: { visible: false } },
+                            rightPriceScale: { visible: false }, timeScale: { visible: false },
+                            handleScroll: false, handleScale: false,
+                            crosshair: { vertLine: { visible: false }, horzLine: { visible: false } },
+                        });
+                        var series = chart.addSeries(LightweightCharts.AreaSeries, {
+                            lineColor: color, topColor: color.replace(')', ',0.15)').replace('rgb', 'rgba'),
+                            bottomColor: 'transparent', lineWidth: 1,
+                            priceLineVisible: false, lastValueVisible: false,
+                        });
+                        series.setData(data.map(function (d) { return { time: d.date, value: d.close }; }));
+                        chart.timeScale().fitContent();
+                    }).catch(function () {});
+            });
+        }
+        tryRender();
+    }
+
+    function loadSectorPerfChart(mainSymbol, topPeers) {
+        var chartEl = document.getElementById('sector-perf-chart');
+        if (!chartEl || !window.LightweightCharts) {
+            if (!window.LightweightCharts) setTimeout(function () { loadSectorPerfChart(mainSymbol, topPeers); }, 200);
+            return;
+        }
+
+        var from = new Date(); from.setMonth(from.getMonth() - 6);
+        var fromStr = from.toISOString().slice(0, 10);
+        var toStr = new Date().toISOString().slice(0, 10);
+        var allSymbols = [mainSymbol].concat(topPeers.map(function (p) { return p.symbol; }));
+        var colors = ['#ffcc00', '#4499ff', '#ff6699', '#00cccc'];
+
+        sectorPerfChart = LightweightCharts.createChart(chartEl, {
+            width: chartEl.clientWidth, height: 200,
+            layout: { background: { color: '#0a0a0a' }, textColor: '#888', fontFamily: "'SF Mono',monospace", fontSize: 10 },
+            grid: { vertLines: { color: '#1a1a1a' }, horzLines: { color: '#1a1a1a' } },
+            rightPriceScale: { borderColor: '#2a2a2a' },
+            timeScale: { borderColor: '#2a2a2a', timeVisible: false },
+            handleScroll: true, handleScale: true,
+            crosshair: { vertLine: { color: '#555', style: 2 }, horzLine: { color: '#555', style: 2 } },
+        });
+
+        // Expose for vim
+        window._sectorChart = sectorPerfChart;
+
+        allSymbols.forEach(function (sym, i) {
+            fetch('/api/chart/eod/' + sym + '?from=' + fromStr + '&to=' + toStr)
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (!data || data.length < 2) return;
+                    var basePrice = data[0].close;
+                    var series = sectorPerfChart.addSeries(LightweightCharts.LineSeries, {
+                        color: colors[i % colors.length], lineWidth: i === 0 ? 2 : 1,
+                        priceLineVisible: false, lastValueVisible: true, title: sym,
+                    });
+                    series.setData(data.map(function (d) {
+                        return { time: d.date, value: ((d.close - basePrice) / basePrice) * 100 };
+                    }));
+                    if (i === 0) sectorPerfChart.timeScale().fitContent();
+                }).catch(function () {});
+        });
+
+        window.addEventListener('resize', function () {
+            if (sectorPerfChart) sectorPerfChart.resize(chartEl.clientWidth, 200);
+        });
+    }
+
+    function loadSectorNews(peers) {
+        var newsEl = document.getElementById('sector-news');
+        if (!newsEl) return;
+
+        var peerSymbols = peers.map(function (p) { return p.symbol; }).join(',');
+        fetch('/api/news/stock?symbol=' + peerSymbols + '&limit=5')
+            .then(function (r) { return r.json(); })
+            .then(function (items) {
+                if (!items || items.length === 0) {
+                    newsEl.innerHTML = '<p class="empty-state">No sector news</p>';
+                    return;
+                }
+                newsEl.innerHTML = items.map(function (n) {
+                    var date = n.date ? new Date(n.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+                    return '<div class="sector-news-item" data-url="' + esc(n.url || '') + '" data-title="' + esc(n.title || '') + '">'
+                        + '<a href="' + esc(n.url) + '" onclick="event.preventDefault();if(window._openReader)window._openReader(this.href,this.textContent)">'
+                        + esc(n.title) + '</a>'
+                        + '<span class="sector-news-meta">' + esc(n.symbol || '') + ' · ' + esc(n.source || '') + ' · ' + date + '</span>'
+                        + '</div>';
+                }).join('');
+            })
+            .catch(function () { newsEl.innerHTML = '<p class="empty-state">Failed to load</p>'; });
+    }
+
     // ── AI Analysis ──
 
     function loadAI() {
@@ -467,27 +671,46 @@
             });
     }
 
+    var aiPollInterval = null;
+
+    function stopAIPolling() {
+        if (aiPollInterval) {
+            clearInterval(aiPollInterval);
+            aiPollInterval = null;
+        }
+    }
+
     function pollAIStatus() {
-        var pollInterval = setInterval(function () {
+        stopAIPolling();
+        aiPollInterval = setInterval(function () {
+            // Stop polling if we've left the AI tab
+            if (currentTab !== 'ai') {
+                stopAIPolling();
+                return;
+            }
             fetch('/api/security/' + symbol + '/intelligence/status')
                 .then(function (r) { return r.json(); })
                 .then(function (status) {
+                    if (currentTab !== 'ai') { stopAIPolling(); return; }
                     if (status.status === 'complete') {
-                        clearInterval(pollInterval);
-                        // Fetch the full result
+                        stopAIPolling();
                         fetch('/api/security/' + symbol + '/intelligence')
                             .then(function (r) { return r.json(); })
                             .then(function (data) {
+                                if (currentTab !== 'ai') return;
                                 container.innerHTML = renderAIAnalysis(data);
-                wireCompetitorLinks();
-                loadCompetitorScores();
+                                wireCompetitorLinks();
+                                loadCompetitorScores();
                             });
                     } else if (status.status === 'failed') {
-                        clearInterval(pollInterval);
-                        container.innerHTML = '<p class="empty-state">AI analysis failed: ' + esc(status.error || 'unknown error') + '</p>';
+                        stopAIPolling();
+                        if (currentTab === 'ai') {
+                            container.innerHTML = '<p class="empty-state">AI analysis failed: ' + esc(status.error || 'unknown error') + '</p>';
+                        }
                     } else {
-                        // Update progress
-                        container.innerHTML = renderAIProgress(status);
+                        if (currentTab === 'ai') {
+                            container.innerHTML = renderAIProgress(status);
+                        }
                     }
                 });
         }, 2000);
@@ -683,6 +906,12 @@
     // Override loadTab to track current tab and update URL hash
     var _origLoadTab = loadTab;
     loadTab = function (tab) {
+        if (currentTab === 'sector' && tab !== 'sector') {
+            unsubscribeSector();
+        }
+        if (currentTab === 'ai' && tab !== 'ai') {
+            stopAIPolling();
+        }
         currentTab = tab;
         history.replaceState(null, '', location.pathname + '#' + tab);
         _origLoadTab(tab);
@@ -742,7 +971,7 @@
     if (hash) {
         var parts = hash.split('-');
         var mainTab = parts[0];
-        if (['overview', 'financials', 'estimates', 'news', 'ai'].indexOf(mainTab) >= 0) {
+        if (['overview', 'financials', 'estimates', 'news', 'ai', 'sector'].indexOf(mainTab) >= 0) {
             initTab = mainTab;
             if (parts.length > 1) initSubTab = parts.slice(1).join('-');
         }

@@ -110,6 +110,22 @@ func (s *Store) migrate() error {
 		);
 
 		INSERT OR IGNORE INTO watchlists (name, color) VALUES ('Default', '#ff8800');
+
+		CREATE TABLE IF NOT EXISTS sic_codes (
+			sic_code TEXT PRIMARY KEY,
+			industry_title TEXT NOT NULL,
+			office TEXT DEFAULT ''
+		);
+
+		CREATE TABLE IF NOT EXISTS sector_intelligence (
+			sector TEXT PRIMARY KEY,
+			industry TEXT DEFAULT '',
+			peers JSON DEFAULT '[]',
+			news JSON DEFAULT '[]',
+			performance JSON DEFAULT '{}',
+			generated_at DATETIME,
+			model_version TEXT DEFAULT ''
+		);
 	`)
 	return err
 }
@@ -342,6 +358,116 @@ func (s *Store) GetSymbolWatchlists(symbol string) ([]Watchlist, error) {
 		lists = append(lists, w)
 	}
 	return lists, nil
+}
+
+// ── Sector Intelligence ──
+
+type SectorIntelligence struct {
+	Sector      string          `json:"sector"`
+	Industry    string          `json:"industry"`
+	Peers       json.RawMessage `json:"peers"`
+	News        json.RawMessage `json:"news"`
+	Performance json.RawMessage `json:"performance"`
+	GeneratedAt time.Time       `json:"generatedAt"`
+}
+
+func (s *Store) GetSector(sector string) (*SectorIntelligence, error) {
+	row := s.db.QueryRow(`SELECT sector, industry, peers, news, performance, generated_at FROM sector_intelligence WHERE sector = ?`, sector)
+	var si SectorIntelligence
+	var genAt string
+	err := row.Scan(&si.Sector, &si.Industry, &si.Peers, &si.News, &si.Performance, &genAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	si.GeneratedAt, _ = time.Parse("2006-01-02 15:04:05Z", genAt+"Z")
+	return &si, nil
+}
+
+func (s *Store) PutSector(si *SectorIntelligence) error {
+	_, err := s.db.Exec(`
+		INSERT INTO sector_intelligence (sector, industry, peers, news, performance, generated_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(sector) DO UPDATE SET
+			industry = excluded.industry,
+			peers = excluded.peers,
+			news = excluded.news,
+			performance = excluded.performance,
+			generated_at = excluded.generated_at`,
+		si.Sector, si.Industry, si.Peers, si.News, si.Performance,
+		si.GeneratedAt.UTC().Format("2006-01-02 15:04:05"))
+	return err
+}
+
+func (s *Store) IsSectorFresh(sector string, maxAge time.Duration) bool {
+	si, err := s.GetSector(sector)
+	if err != nil || si == nil {
+		return false
+	}
+	return time.Since(si.GeneratedAt) < maxAge
+}
+
+// ── SIC Codes ──
+
+type SICCode struct {
+	Code          string `json:"sicCode"`
+	IndustryTitle string `json:"industryTitle"`
+	Office        string `json:"office"`
+}
+
+// PopulateSIC bulk-inserts SIC codes (idempotent).
+func (s *Store) PopulateSIC(codes []SICCode) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	stmt, err := tx.Prepare(`INSERT OR IGNORE INTO sic_codes (sic_code, industry_title, office) VALUES (?, ?, ?)`)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	defer stmt.Close()
+
+	for _, c := range codes {
+		stmt.Exec(c.Code, c.IndustryTitle, c.Office)
+	}
+	return tx.Commit()
+}
+
+// GetSICCode returns an SIC entry by code.
+func (s *Store) GetSICCode(code string) (*SICCode, error) {
+	var c SICCode
+	err := s.db.QueryRow(`SELECT sic_code, industry_title, office FROM sic_codes WHERE sic_code = ?`, code).
+		Scan(&c.Code, &c.IndustryTitle, &c.Office)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return &c, err
+}
+
+// GetAllSICCodes returns all SIC codes.
+func (s *Store) GetAllSICCodes() ([]SICCode, error) {
+	rows, err := s.db.Query(`SELECT sic_code, industry_title, office FROM sic_codes ORDER BY sic_code`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var codes []SICCode
+	for rows.Next() {
+		var c SICCode
+		rows.Scan(&c.Code, &c.IndustryTitle, &c.Office)
+		codes = append(codes, c)
+	}
+	return codes, nil
+}
+
+// SICCodeCount returns the number of SIC codes stored.
+func (s *Store) SICCodeCount() int {
+	var count int
+	s.db.QueryRow(`SELECT COUNT(*) FROM sic_codes`).Scan(&count)
+	return count
 }
 
 // GetAllWatchedSymbols returns all unique symbols across all watchlists.

@@ -1,9 +1,6 @@
 {{template "layout" .}}
 {{define "content"}}
-<div class="page-header">
-    <h1>{{.Symbol}}</h1>
-    <div id="company-panel" class="company-panel"></div>
-</div>
+<div id="company-panel" class="company-panel"></div>
 <span id="help-indicator" class="help-indicator hidden">? help on</span>
 <div class="info-tabs" id="info-tabs">
     <button class="info-tab active" data-tab="overview"><span class="tab-key">1</span> Overview</button>
@@ -11,10 +8,10 @@
     <button class="info-tab" data-tab="estimates"><span class="tab-key">3</span> Estimates</button>
     <button class="info-tab" data-tab="news"><span class="tab-key">4</span> News</button>
     <button class="info-tab" data-tab="ai"><span class="tab-key">5</span> AI Analysis</button>
+    <button class="info-tab" data-tab="sector"><span class="tab-key">6</span> Sector</button>
 </div>
 <div id="info-content" class="info-content" data-symbol="{{.Symbol}}">
     <p class="empty-state">Loading...</p>
 </div>
-<script src="/static/lightweight-charts.js"></script>
 <script src="/static/info.js"></script>
 {{end}}

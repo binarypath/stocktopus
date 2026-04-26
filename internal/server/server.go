@@ -10,7 +10,9 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
+	"sync"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -66,7 +68,7 @@ func New(cfg Config, h *hub.Hub, debug *DebugBroadcaster, symbols SymbolLister, 
 		symbols:  symbols,
 		pipeline: pipeline,
 		store:    st,
-		news:    newsClient,
+		news:     newsClient,
 	}
 
 	if err := s.loadTemplates(); err != nil {
@@ -133,15 +135,18 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/search", s.handleSearch)
 	mux.HandleFunc("GET /api/chart/eod/{symbol}", s.handleChartEOD)
 	mux.HandleFunc("GET /api/article", s.handleArticle)
+	mux.HandleFunc("GET /api/article/entities", s.handleArticleEntities)
 	mux.HandleFunc("GET /api/chart/intraday/{interval}/{symbol}", s.handleChartIntraday)
 	mux.HandleFunc("GET /api/security/{symbol}/profile", s.handleSecurityProfile)
 	mux.HandleFunc("GET /api/security/{symbol}/metrics", s.handleSecurityMetrics)
 	mux.HandleFunc("GET /api/security/{symbol}/financials", s.handleSecurityFinancials)
 	mux.HandleFunc("GET /api/security/{symbol}/estimates", s.handleSecurityEstimates)
+	mux.HandleFunc("GET /api/security/{symbol}/peers", s.handleSecurityPeers)
 	mux.HandleFunc("GET /api/security/{symbol}/intelligence", s.handleIntelligence)
 	mux.HandleFunc("GET /api/security/{symbol}/intelligence/status", s.handleIntelligenceStatus)
 	mux.HandleFunc("POST /api/security/{symbol}/intelligence/refresh", s.handleIntelligenceRefresh)
 	mux.HandleFunc("GET /api/agent/status", s.handleAgentStatus)
+	mux.HandleFunc("GET /api/sic", s.handleSICCodes)
 	mux.HandleFunc("GET /api/watchlists", s.handleGetWatchlists)
 	mux.HandleFunc("POST /api/watchlists", s.handleCreateWatchlist)
 	mux.HandleFunc("POST /api/watchlists/{id}/symbols", s.handleAddToWatchlist)
@@ -303,6 +308,12 @@ func (s *Server) handleSecurityFinancials(w http.ResponseWriter, r *http.Request
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
+}
+
+func (s *Server) handleSecurityPeers(w http.ResponseWriter, r *http.Request) {
+	s.proxyFMP(w, r, func(sym string) (json.RawMessage, error) {
+		return s.news.GetPeers(r.Context(), sym)
+	})
 }
 
 func (s *Server) handleSecurityEstimates(w http.ResponseWriter, r *http.Request) {
@@ -483,6 +494,30 @@ func (s *Server) handleCompetitors(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(results)
 }
 
+func (s *Server) handleSICCodes(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if s.store == nil {
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+	code := r.URL.Query().Get("code")
+	if code != "" {
+		sic, err := s.store.GetSICCode(code)
+		if err != nil || sic == nil {
+			json.NewEncoder(w).Encode(map[string]string{})
+		} else {
+			json.NewEncoder(w).Encode(sic)
+		}
+		return
+	}
+	codes, err := s.store.GetAllSICCodes()
+	if err != nil {
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+	json.NewEncoder(w).Encode(codes)
+}
+
 func (s *Server) handleGetWatchlists(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if s.store == nil {
@@ -596,6 +631,13 @@ func (s *Server) handleWatchlistQuotes(w http.ResponseWriter, r *http.Request) {
 	w.Write(body)
 }
 
+func getEnvOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
 // gatherFMPData collects all available FMP data for a symbol as JSON context.
 func (s *Server) gatherFMPData(ctx context.Context, symbol string) json.RawMessage {
 	data := map[string]json.RawMessage{}
@@ -650,6 +692,18 @@ func (s *Server) handleChartEOD(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(items)
 }
 
+// Simple in-memory article cache to prevent re-fetching the same URL
+var articleCache = struct {
+	sync.RWMutex
+	items map[string][]byte
+}{items: make(map[string][]byte)}
+
+var entityCache = struct {
+	sync.RWMutex
+	items   map[string][]byte
+	pending map[string]bool
+}{items: make(map[string][]byte), pending: make(map[string]bool)}
+
 func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
 	articleURL := r.URL.Query().Get("url")
 	if articleURL == "" {
@@ -659,17 +713,85 @@ func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use Python script to fetch and extract
+	// Check cache first
+	articleCache.RLock()
+	if cached, ok := articleCache.items[articleURL]; ok {
+		articleCache.RUnlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(cached)
+		return
+	}
+	articleCache.RUnlock()
+
 	venvPython := "agents/../.venv/bin/python3"
 	pythonCmd := "python3"
 	if _, err := exec.LookPath(venvPython); err == nil {
 		pythonCmd = venvPython
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	s.runArticleScript(w, r, pythonCmd, articleURL, func(data []byte) {
+		articleCache.Lock()
+		articleCache.items[articleURL] = data
+		articleCache.Unlock()
+	}, "--no-llm")
+}
+
+func (s *Server) handleArticleEntities(w http.ResponseWriter, r *http.Request) {
+	articleURL := r.URL.Query().Get("url")
+	if articleURL == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "url required"})
+		return
+	}
+
+	// Check cache
+	entityCache.RLock()
+	if cached, ok := entityCache.items[articleURL]; ok {
+		entityCache.RUnlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(cached)
+		return
+	}
+	// Check if already pending
+	if entityCache.pending[articleURL] {
+		entityCache.RUnlock()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "pending"})
+		return
+	}
+	entityCache.RUnlock()
+
+	// Mark as pending
+	entityCache.Lock()
+	entityCache.pending[articleURL] = true
+	entityCache.Unlock()
+
+	venvPython := "agents/../.venv/bin/python3"
+	pythonCmd := "python3"
+	if _, err := exec.LookPath(venvPython); err == nil {
+		pythonCmd = venvPython
+	}
+
+	s.runArticleScript(w, r, pythonCmd, articleURL, func(data []byte) {
+		entityCache.Lock()
+		entityCache.items[articleURL] = data
+		delete(entityCache.pending, articleURL)
+		entityCache.Unlock()
+	})
+}
+
+func (s *Server) runArticleScript(w http.ResponseWriter, r *http.Request, pythonCmd, articleURL string, onSuccess func([]byte), extraArgs ...string) {
+	args := append([]string{"agents/fetch_article.py", articleURL}, extraArgs...)
+	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, pythonCmd, "agents/fetch_article.py", articleURL)
+	cmd := exec.CommandContext(ctx, pythonCmd, args...)
+	cmd.Env = append(cmd.Environ(),
+		"OLLAMA_HOST="+getEnvOr("OLLAMA_HOST", "http://localhost:11434"),
+		"OLLAMA_MODEL="+getEnvOr("OLLAMA_MODEL", "gemma4"),
+		"GEMINI_API_KEY="+getEnvOr("GEMINI_API_KEY", ""),
+	)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -682,8 +804,17 @@ func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if stderrStr := stderr.String(); stderrStr != "" {
+		s.logger.Debug("reader bot", "stderr", stderrStr)
+	}
+
+	data := stdout.Bytes()
+	if onSuccess != nil {
+		onSuccess(data)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(stdout.Bytes())
+	w.Write(data)
 }
 
 func (s *Server) handleChartIntraday(w http.ResponseWriter, r *http.Request) {

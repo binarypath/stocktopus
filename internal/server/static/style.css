@@ -328,8 +328,170 @@ body {
     margin-bottom: 12px;
 }
 
+.reader-source {
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+
+.reader-source a {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 11px;
+}
+
+.reader-source a:hover {
+    color: var(--blue);
+}
+
+.reader-unavailable {
+    color: var(--text-muted);
+    font-size: 13px;
+    padding: 20px 0;
+}
+
+.reader-unavailable a {
+    color: var(--blue);
+    text-decoration: none;
+}
+
+.reader-iframe {
+    width: 100%;
+    height: calc(100% - 40px);
+    border: none;
+    border-radius: 4px;
+    background: white;
+}
+
+.reader-related {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.reader-related-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.reader-related-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.reader-related-name {
+    display: block;
+    font-size: 9px;
+    font-weight: 400;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .reader-content {
     font-size: 13px;
+}
+
+.reader-bot {
+    font-size: 9px;
+    color: var(--green);
+    border: 1px solid var(--green);
+    border-radius: 3px;
+    padding: 1px 5px;
+    margin-left: 6px;
+}
+
+.reader-entities {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.reader-ticker {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--blue);
+    background: rgba(68, 153, 255, 0.1);
+    border: 1px solid rgba(68, 153, 255, 0.3);
+    border-radius: 3px;
+    padding: 1px 6px;
+    cursor: pointer;
+}
+
+.reader-ticker:hover {
+    background: rgba(68, 153, 255, 0.2);
+}
+
+.reader-sector-badge {
+    font-size: 10px;
+    color: var(--orange);
+    background: rgba(255, 136, 0, 0.1);
+    border: 1px solid rgba(255, 136, 0, 0.2);
+    border-radius: 3px;
+    padding: 1px 6px;
+}
+
+.entity-ticker {
+    color: var(--blue);
+    font-weight: 700;
+    cursor: pointer;
+    border-bottom: 1px dotted var(--blue);
+}
+
+.entity-ticker:hover {
+    color: var(--text-primary);
+}
+
+.entity-company {
+    color: var(--green);
+    cursor: pointer;
+    border-bottom: 1px dotted var(--green);
+}
+
+.entity-company:hover {
+    color: var(--text-primary);
+}
+
+.entity-person {
+    color: var(--yellow);
+    border-bottom: 1px dotted var(--yellow);
+}
+
+.entity-sector {
+    color: var(--orange);
+    font-style: italic;
+}
+
+.reader-person-badge {
+    font-size: 10px;
+    color: var(--yellow);
+    background: rgba(210, 153, 34, 0.1);
+    border: 1px solid rgba(210, 153, 34, 0.2);
+    border-radius: 3px;
+    padding: 1px 6px;
+}
+
+.reader-company-badge {
+    font-size: 10px;
+    color: var(--green);
+    background: rgba(0, 204, 102, 0.1);
+    border: 1px solid rgba(0, 204, 102, 0.2);
+    border-radius: 3px;
+    padding: 1px 6px;
+}
+
+.reader-para.vim-selected {
+    background: var(--bg-tertiary);
+    outline: 1px solid var(--orange);
+    outline-offset: 2px;
+    border-radius: 2px;
 }
 
 /* ── Terminal Footer ── */
@@ -401,12 +563,16 @@ body {
     margin-bottom: 16px;
 }
 
-.page-header h1 {
-    font-size: 14px;
+.page-header h1, .page-header h2 {
+    font-size: 12px;
     font-weight: 700;
     text-transform: uppercase;
-    color: var(--text-secondary);
+    color: var(--text-muted);
     letter-spacing: 0.5px;
+}
+
+.view-title {
+    margin-bottom: 4px;
 }
 
 /* ── Quote Table (Watchlist) ── */
@@ -542,29 +708,32 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
-    flex-shrink: 0;
+    margin-bottom: 8px;
+}
+
+.company-panel:empty {
+    display: none;
 }
 
 .cpanel-sym {
     font-weight: 700;
-    font-size: 13px;
+    font-size: 16px;
     color: var(--blue);
-    display: none; /* hidden when h1 already shows symbol */
 }
 
 .cpanel-name {
-    font-size: 12px;
+    font-size: 14px;
     color: var(--text-secondary);
 }
 
 .cpanel-price {
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
     color: var(--text-primary);
 }
 
 .cpanel-change {
-    font-size: 12px;
+    font-size: 13px;
 }
 
 .cpanel-spark-wrap {
@@ -589,11 +758,6 @@ body {
     display: none !important;
 }
 
-/* Show symbol in panel on news page (no h1 with symbol) */
-.news-cards ~ .company-panel .cpanel-sym,
-.page-header .company-panel .cpanel-sym {
-    display: inline;
-}
 
 .info-tabs {
     display: flex;
@@ -681,8 +845,9 @@ body {
     font-size: 12px;
     color: var(--text-muted);
     line-height: 1.6;
-    max-height: 100px;
-    overflow-y: auto;
+    max-height: 200px;
+    overflow-y: scroll;
+    padding-right: 8px;
 }
 
 .info-sub-tabs {
@@ -791,6 +956,107 @@ body {
 
 .help-indicator.hidden {
     display: none;
+}
+
+/* ── Sector View ── */
+
+.sector-view {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.sector-header {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.sector-name {
+    color: var(--orange);
+}
+
+.sector-industry {
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+
+.sector-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.peer-table .sym-link {
+    color: var(--blue);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.peer-current {
+    background: var(--bg-tertiary) !important;
+    border-left: 3px solid var(--orange);
+}
+
+.sector-hint {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-left: 12px;
+    font-weight: 400;
+}
+
+.peer-spark {
+    width: 80px;
+    height: 24px;
+}
+
+.peer-spark a[href*="tradingview"] {
+    display: none !important;
+}
+
+.peer-row {
+    cursor: pointer;
+}
+
+.sector-perf-chart {
+    width: 100%;
+    height: 200px;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.sector-perf-chart a[href*="tradingview"] {
+    display: none !important;
+}
+
+.sector-news {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sector-news-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(42, 42, 42, 0.3);
+}
+
+.sector-news-item a {
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 12px;
+}
+
+.sector-news-item a:hover {
+    color: var(--blue);
+}
+
+.sector-news-meta {
+    font-size: 10px;
+    color: var(--text-muted);
 }
 
 /* ── AI Analysis ── */
@@ -1198,13 +1464,6 @@ body {
 .chart-range-btn:hover {
     color: var(--text-primary);
     background: var(--bg-tertiary);
-}
-
-.chart-symbol {
-    font-weight: 700;
-    font-size: 13px;
-    color: var(--blue);
-    margin-right: 4px;
 }
 
 .chart-auto-refresh {

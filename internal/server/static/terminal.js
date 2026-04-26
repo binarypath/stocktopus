@@ -123,7 +123,16 @@ window.onerror = function (msg, src, line, col, err) {
         clearVimSelection();
         if (view === 'watchlist') initWatchlist();
         if (view === 'news') initNews();
+        if (view === 'graph') initGraph();
         if (view === 'debug') initDebug();
+    }
+
+    function initGraph() {
+        // Render company panel on graph page (no sparkline — chart IS the graph)
+        var panel = document.getElementById('company-panel');
+        if (panel && selectedSecurity && window._renderCompanyPanel) {
+            window._renderCompanyPanel('company-panel', selectedSecurity);
+        }
     }
 
     function onViewLeave(view) {
@@ -1284,7 +1293,14 @@ window.onerror = function (msg, src, line, col, err) {
                 return this.getActiveTab() === 'financials' && window._infoFinSubTabs && window._infoFinSubTabs().length > 0;
             },
             isNewsTab: function () { return this.getActiveTab() === 'news'; },
+            isSectorTab: function () { return this.getActiveTab() === 'sector'; },
             getNewsCards: function () { return document.querySelectorAll('#info-content .news-card'); },
+            getSectorItems: function () {
+                // Peer rows + news items as one navigable list
+                var rows = Array.from(document.querySelectorAll('.peer-row'));
+                var newsItems = Array.from(document.querySelectorAll('.sector-news-item'));
+                return rows.concat(newsItems);
+            },
             move: function (dir) {
                 var hasSub = this.hasSubTabs();
 
@@ -1303,15 +1319,26 @@ window.onerror = function (msg, src, line, col, err) {
                         this._highlightFocus();
                         return;
                     }
+                    // Sector tab: navigate items up
+                    if (this._focus === 'content' && this.isSectorTab()) {
+                        if (vimSelectedIndex > 0) {
+                            var items = this.getSectorItems();
+                            vimSelectedIndex = Math.max(vimSelectedIndex - 1, 0);
+                            vimSelect(items, vimSelectedIndex);
+                            return;
+                        }
+                        clearVimSelection();
+                        this._focus = 'main';
+                        this._highlightFocus();
+                        return;
+                    }
                     // Move up through layers: content → sub → main
                     if (this._focus === 'content') {
-                        // Scroll up first if not at top
                         var content = document.getElementById('info-content');
                         if (content && content.scrollTop > 0) {
                             content.scrollTop -= 60;
                             return;
                         }
-                        // At top — move to sub-tabs or main
                         this._focus = hasSub ? 'sub' : 'main';
                     } else if (this._focus === 'sub') {
                         this._focus = 'main';
@@ -1334,6 +1361,12 @@ window.onerror = function (msg, src, line, col, err) {
                         if (cards.length > 0) {
                             vimSelectedIndex = Math.min(vimSelectedIndex + 1, cards.length - 1);
                             vimSelect(cards, vimSelectedIndex);
+                        }
+                    } else if (this.isSectorTab()) {
+                        var items = this.getSectorItems();
+                        if (items.length > 0) {
+                            vimSelectedIndex = Math.min(vimSelectedIndex + 1, items.length - 1);
+                            vimSelect(items, vimSelectedIndex);
                         }
                     } else {
                         var content = document.getElementById('info-content');
@@ -1391,7 +1424,31 @@ window.onerror = function (msg, src, line, col, err) {
                         var link = cards[vimSelectedIndex].querySelector('.news-card-title a');
                         if (link && window._openReader) window._openReader(link.href, link.textContent);
                     }
+                } else if (this.isSectorTab()) {
+                    var items = this.getSectorItems();
+                    if (vimSelectedIndex >= 0 && vimSelectedIndex < items.length) {
+                        var el = items[vimSelectedIndex];
+                        // If it's a news item, open reader
+                        if (el.dataset.url && window._openReader) {
+                            window._openReader(el.dataset.url, el.dataset.title || '');
+                        }
+                        // If it's a peer row, go to info
+                        else if (el.dataset.symbol && window._navigateToSecurity) {
+                            window._navigateToSecurity(el.dataset.symbol);
+                        }
+                    }
                 }
+            },
+            // Sector: i→info, g→graph for selected peer
+            sectorNav: function (action) {
+                if (!this.isSectorTab()) return;
+                var items = this.getSectorItems();
+                if (vimSelectedIndex < 0 || vimSelectedIndex >= items.length) return;
+                var el = items[vimSelectedIndex];
+                var sym = el.dataset.symbol;
+                if (!sym) return;
+                if (action === 'info' && window._navigateToSecurity) window._navigateToSecurity(sym);
+                if (action === 'graph' && window._navigateToGraph) window._navigateToGraph(sym);
             }
         },
         debug: {
@@ -1482,7 +1539,8 @@ window.onerror = function (msg, src, line, col, err) {
                 return;
             case 'g':
                 e.preventDefault();
-                if (handler && handler.graph) handler.graph();
+                if (handler && handler.sectorNav) handler.sectorNav('graph');
+                else if (handler && handler.graph) handler.graph();
                 return;
             case 'r':
                 e.preventDefault();
@@ -1493,6 +1551,7 @@ window.onerror = function (msg, src, line, col, err) {
                 if (window._infoToggleHelp) window._infoToggleHelp();
                 return;
             case 'i':
+                if (handler && handler.sectorNav && handler.isSectorTab && handler.isSectorTab()) { e.preventDefault(); handler.sectorNav('info'); return; }
                 if (handler && handler.jumpToSubTab) { e.preventDefault(); handler.jumpToSubTab(0); }
                 return;
             case 'b':
@@ -1520,31 +1579,180 @@ window.onerror = function (msg, src, line, col, err) {
 
         reader.classList.remove('hidden');
         if (readerTitle) readerTitle.textContent = title || 'Loading...';
-        readerBody.innerHTML = '<p style="color:var(--text-muted)">Loading article...</p>';
+
+        // Always show source link at top
+        var sourceLink = '<div class="reader-source"><a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">&#8599; ' + escapeHtml(url.replace(/^https?:\/\//, '').substring(0, 50)) + '</a></div>';
+        readerBody.innerHTML = sourceLink + '<p style="color:var(--text-muted)">Loading article...</p>';
 
         fetch('/api/article?url=' + encodeURIComponent(url))
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                if (data.error) {
-                    readerBody.innerHTML = '<p style="color:var(--red)">' + escapeHtml(data.error) + '</p>'
-                        + '<a href="' + escapeHtml(url) + '" target="_blank" style="color:var(--blue)">Open in browser</a>';
+                var hasContent = data.paragraphs && data.paragraphs.length > 0 && !data.error;
+                var minWords = hasContent ? data.wordCount || 0 : 0;
+
+                // If extraction failed or too little content
+                if (!hasContent || minWords < 30) {
+                    if (readerTitle) readerTitle.textContent = title || 'Article';
+                    readerBody.innerHTML = sourceLink
+                        + '<p class="reader-unavailable">Article content unavailable — <a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">open in browser</a></p>'
+                        + '<div class="reader-related" id="reader-related"></div>';
+                    findRelatedCompanies(title || '', document.getElementById('reader-related'));
                     return;
                 }
+
                 if (readerTitle) readerTitle.textContent = data.title || title || '';
-                var html = '<div class="reader-meta">' + (data.wordCount || 0) + ' words</div>';
+
+                var botLabel = data.bot ? '<span class="reader-bot">' + escapeHtml(data.bot) + '</span>' : '';
+
+                var html = sourceLink;
+                html += '<div class="reader-meta">' + minWords + ' words ' + botLabel + '</div>';
+
+                // Article text
                 html += '<div class="reader-content">';
-                (data.paragraphs || []).forEach(function (p) {
+                data.paragraphs.forEach(function (p) {
                     var tag = (p.tag === 'h1' || p.tag === 'h2' || p.tag === 'h3') ? p.tag : 'p';
                     html += '<' + tag + '>' + escapeHtml(p.text) + '</' + tag + '>';
                 });
                 html += '</div>';
+
+                // Entity badges — populated async
+                html += '<div class="reader-entities" id="reader-entities"></div>';
+
+                // Related section
+                html += '<div class="reader-related" id="reader-related"></div>';
+
                 readerBody.innerHTML = html;
+
+                // Async: fetch LLM entities in background
+                fetchArticleEntities(url);
             })
             .catch(function () {
-                readerBody.innerHTML = '<p style="color:var(--red)">Failed to load</p>'
-                    + '<a href="' + escapeHtml(url) + '" target="_blank" style="color:var(--blue)">Open in browser</a>';
+                readerBody.innerHTML = sourceLink
+                    + '<p class="reader-unavailable">Failed to load — <a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">open in browser</a></p>'
+                    + '<div class="reader-related" id="reader-related"></div>';
+                findRelatedCompanies(title || '', document.getElementById('reader-related'));
             });
     };
+
+    function findRelatedCompanies(text, container) {
+        if (!container || !text) return;
+
+        // Only extract multi-word proper nouns (company names) and explicit ticker patterns ($AAPL)
+        // Single capitalized words are too noisy (Grow, Small, etc.)
+        var companyNames = text.match(/[A-Z][a-z]+(?:[\s\-&][A-Z][a-z]+)+/g) || [];
+        var dollarTickers = text.match(/\$[A-Z]{1,5}\b/g) || [];
+        // Also look for "Inc.", "Corp.", "Ltd." preceded by a name
+        var incNames = text.match(/[A-Z][\w\-]+(?:\s+[A-Z][\w\-]+)*\s+(?:Inc|Corp|Ltd|LLC|Co|Group|Holdings|Technologies|Platforms|Systems)/g) || [];
+
+        var candidates = [];
+        var seen = {};
+
+        // Dollar tickers first (highest signal)
+        dollarTickers.forEach(function (t) {
+            t = t.replace('$', '');
+            if (!seen[t]) { seen[t] = true; candidates.push(t); }
+        });
+
+        // Company names with Inc/Corp (high signal)
+        incNames.forEach(function (n) {
+            n = n.trim();
+            if (n.length > 3 && !seen[n]) { seen[n] = true; candidates.push(n); }
+        });
+
+        // Multi-word proper nouns (medium signal, only 2+ words)
+        companyNames.forEach(function (n) {
+            n = n.trim();
+            if (n.length > 5 && n.split(/\s+/).length >= 2 && !seen[n]) {
+                seen[n] = true;
+                candidates.push(n);
+            }
+        });
+
+        if (candidates.length === 0) return;
+
+        // Search top candidates via FMP API
+        var searches = candidates.slice(0, 6).map(function (q) {
+            return fetch('/api/search?q=' + encodeURIComponent(q))
+                .then(function (r) { return r.json(); })
+                .then(function (results) { return { query: q, results: results || [] }; })
+                .catch(function () { return { query: q, results: [] }; });
+        });
+
+        Promise.all(searches).then(function (allResults) {
+            var found = {};
+            allResults.forEach(function (sr) {
+                // Only take the first result per query (most relevant)
+                var top = (sr.results || []).find(function (r) {
+                    return r.symbol && r.exchange !== 'CRYPTO' && !found[r.symbol];
+                });
+                if (top) {
+                    found[top.symbol] = { symbol: top.symbol, name: top.name || '', exchange: top.exchange || '' };
+                }
+            });
+
+            var symbols = Object.values(found);
+            if (symbols.length === 0) return;
+
+            var html = '<div class="reader-related-title">Related Securities</div>';
+            html += '<div class="reader-related-list">';
+            symbols.forEach(function (s) {
+                html += '<span class="reader-ticker" onclick="if(window._navigateToSecurity)window._navigateToSecurity(\'' + escapeHtml(s.symbol) + '\')">'
+                    + escapeHtml(s.symbol)
+                    + '<span class="reader-related-name">' + escapeHtml(s.name).substring(0, 30) + '</span>'
+                    + '</span>';
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        });
+    }
+
+    var activeEntityFetch = null; // prevent duplicate entity requests
+
+    function fetchArticleEntities(url) {
+        // Cancel any previous entity fetch
+        if (activeEntityFetch) {
+            activeEntityFetch.abort = true;
+        }
+        var thisFetch = { abort: false };
+        activeEntityFetch = thisFetch;
+
+        var entitiesEl = document.getElementById('reader-entities');
+        var relatedEl = document.getElementById('reader-related');
+
+        // First: quick client-side FMP search from title
+        var readerTitle = document.getElementById('reader-title');
+        if (readerTitle && readerTitle.textContent) {
+            findRelatedCompanies(readerTitle.textContent, relatedEl);
+        }
+
+        // Then: async LLM entity extraction (can take 30-60s)
+        fetch('/api/article/entities?url=' + encodeURIComponent(url))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (thisFetch.abort || !entitiesEl) return;
+                var hasEntities = (data.tickers && data.tickers.length > 0) ||
+                    (data.companies && data.companies.length > 0) ||
+                    (data.people && data.people.length > 0);
+
+                if (!hasEntities) return;
+
+                var html = '';
+                (data.tickers || []).forEach(function (t) {
+                    html += '<span class="reader-ticker" onclick="if(window._navigateToSecurity)window._navigateToSecurity(\'' + escapeHtml(t) + '\')">' + escapeHtml(t) + '</span>';
+                });
+                (data.companies || []).forEach(function (c) {
+                    html += '<span class="reader-company-badge">' + escapeHtml(c) + '</span>';
+                });
+                (data.people || []).forEach(function (p) {
+                    html += '<span class="reader-person-badge">' + escapeHtml(p) + '</span>';
+                });
+                (data.sectors || []).forEach(function (s) {
+                    html += '<span class="reader-sector-badge">' + escapeHtml(s) + '</span>';
+                });
+                entitiesEl.innerHTML = html;
+            })
+            .catch(function () { /* LLM entities are optional */ });
+    }
 
     window._closeReader = function () {
         var reader = document.getElementById('article-reader');
@@ -1586,6 +1794,13 @@ window.onerror = function (msg, src, line, col, err) {
         setSecurity(sym);
         onViewLeave(currentView);
         navigate('info', sym);
+    };
+
+    // Send a message via the main WebSocket
+    window._wsSend = function (msg) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(msg));
+        }
     };
 
     window._navigateToGraph = function (sym) {
@@ -1637,8 +1852,8 @@ window.onerror = function (msg, src, line, col, err) {
                 }
             });
 
-        // Fetch sparkline (needs lightweight-charts loaded)
-        if (!spark) return;
+        // Skip sparkline if container has no-spark class
+        if (!spark || el.classList.contains('no-spark')) return;
 
         function renderSpark() {
             if (!window.LightweightCharts) {
