@@ -1465,6 +1465,17 @@ window.onerror = function (msg, src, line, col, err) {
                 else if (dir === 'h') this._colFocus = 'row';
                 else if (dir === 'l') this._colFocus = 'spark';
                 vimSelect(items, vimSelectedIndex);
+                this._updateColHighlight(items);
+            },
+            _updateColHighlight: function (items) {
+                // Remove all spark highlights
+                document.querySelectorAll('.idx-spark-selected').forEach(function (el) {
+                    el.classList.remove('idx-spark-selected');
+                });
+                if (this._colFocus === 'spark' && vimSelectedIndex >= 0 && items[vimSelectedIndex]) {
+                    var sparkCell = items[vimSelectedIndex].querySelector('.idx-spark');
+                    if (sparkCell) sparkCell.classList.add('idx-spark-selected');
+                }
             },
             activate: function () {
                 var items = this.getItems();

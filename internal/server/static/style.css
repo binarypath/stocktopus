@@ -1916,6 +1916,12 @@ body {
     height: 24px;
 }
 
+.idx-spark-selected {
+    outline: 1px solid var(--orange);
+    outline-offset: 1px;
+    border-radius: 3px;
+}
+
 .idx-spark a[href*="tradingview"] {
     display: none !important;
 }
