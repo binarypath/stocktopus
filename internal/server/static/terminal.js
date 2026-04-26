@@ -1721,8 +1721,16 @@ window.onerror = function (msg, src, line, col, err) {
         }
 
         // Then: async LLM entity extraction (can take 30-60s)
-        fetch('/api/article/entities?url=' + encodeURIComponent(url))
-            .then(function (r) { return r.json(); })
+        var entityController = new AbortController();
+        setTimeout(function () { entityController.abort(); }, 120000); // 2 min timeout
+        fetch('/api/article/entities?url=' + encodeURIComponent(url), { signal: entityController.signal })
+            .then(function (r) {
+                if (!r.ok) {
+                    console.error('Entity fetch HTTP error:', r.status);
+                    throw new Error('HTTP ' + r.status);
+                }
+                return r.json();
+            })
             .then(function (data) {
                 // Ignore if user opened a different article
                 if (activeEntityURL !== url) return;
@@ -1773,11 +1781,12 @@ window.onerror = function (msg, src, line, col, err) {
                 });
                 el.innerHTML = html;
             })
-            .catch(function () {
+            .catch(function (err) {
+                console.error('Entity fetch error:', err);
                 var statusEl = document.getElementById('reader-llm-status');
                 if (statusEl) {
-                    statusEl.innerHTML = '<span style="color:var(--text-muted)">LLM unavailable</span>';
-                    setTimeout(function () { if (statusEl) statusEl.style.display = 'none'; }, 3000);
+                    statusEl.innerHTML = '<span style="color:var(--text-muted)">LLM unavailable: ' + (err.message || err) + '</span>';
+                    setTimeout(function () { if (statusEl) statusEl.style.display = 'none'; }, 5000);
                 }
             });
     }
