@@ -520,10 +520,12 @@
 
     // ── Watermark ──
     try {
-        LightweightCharts.createTextWatermark(chart, {
-            lines: [{ text: symbol, color: 'rgba(255, 255, 255, 0.04)', fontSize: 80, fontFamily: "'SF Mono','Consolas',monospace", fontStyle: 'bold' }],
+        var panes = chart.panes();
+        var mainPane = panes && panes[0] ? panes[0] : chart;
+        LightweightCharts.createTextWatermark(mainPane, {
+            lines: [{ text: symbol, color: 'rgba(255, 255, 255, 0.07)', fontSize: 72, fontFamily: "'SF Mono','Consolas',monospace", fontStyle: 'bold' }],
         });
-    } catch (e) { /* watermark optional */ }
+    } catch (e) { console.log('watermark:', e.message); }
 
     // ── Init ──
     updateToggleButtons();
