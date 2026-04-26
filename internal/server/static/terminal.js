@@ -1472,17 +1472,13 @@ window.onerror = function (msg, src, line, col, err) {
                 var sym = items[vimSelectedIndex].dataset.symbol;
                 if (!sym) return;
                 if (this._colFocus === 'spark') {
-                    // Open graph for this index
-                    if (window._navigateToGraph) {
-                        setSecurity(sym);
-                        window._navigateToGraph(sym);
-                    }
+                    // Sparkline selected → open graph
+                    setSecurity(sym);
+                    if (window._navigateToGraph) window._navigateToGraph(sym);
                 } else {
-                    // Navigate to index page (coming soon → graph for now)
-                    if (window._navigateToGraph) {
-                        setSecurity(sym);
-                        window._navigateToGraph(sym);
-                    }
+                    // Row selected → open index info page
+                    setSecurity(sym);
+                    if (window._navigateToSecurity) window._navigateToSecurity(sym);
                 }
             }
         },
