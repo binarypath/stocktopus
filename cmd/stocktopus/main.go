@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"stocktopus/internal/agent"
+	"stocktopus/internal/agent/trading"
 	"stocktopus/internal/hub"
 	"stocktopus/internal/news"
 	"stocktopus/internal/newspoller"
@@ -193,7 +194,33 @@ func main() {
 
 	h.SetSubscriptionHandler(composite)
 
-	srv, err := server.New(server.Config{Port: 8080, Host: "localhost"}, h, debug, poll, newsClient, pipeline, st, logger)
+	// Trading analysis pipeline (multi-agent, button-triggered)
+	var tradingPipeline *trading.TradingPipeline
+	if st != nil {
+		ollamaHost := os.Getenv("OLLAMA_HOST")
+		analystModel := os.Getenv("OLLAMA_NER_MODEL") // gemma3 — same lightweight model
+		if analystModel == "" {
+			analystModel = "gemma3"
+		}
+		tradingPipeline = trading.NewTradingPipeline(trading.TradingPipelineConfig{
+			OllamaHost:  ollamaHost,
+			OllamaModel: analystModel,
+		}, newsClient, st, logger)
+
+		// Publish trading pipeline status via hub
+		tradingPipeline.SetStatusCallback(func(result trading.PipelineResult) {
+			data, _ := json.Marshal(map[string]interface{}{
+				"type":   "trading_status",
+				"topic":  "trading:" + result.Symbol,
+				"result": result,
+			})
+			h.Publish("trading:"+result.Symbol, data)
+		})
+
+		slog.Info("trading pipeline ready", "model", analystModel)
+	}
+
+	srv, err := server.New(server.Config{Port: 8080, Host: "localhost"}, h, debug, poll, newsClient, pipeline, tradingPipeline, st, logger)
 	if err != nil {
 		slog.Error("failed to create server", "error", err)
 		os.Exit(1)
