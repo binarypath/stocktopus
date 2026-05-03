@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"stocktopus/internal/agent"
+	"stocktopus/internal/agent/trading"
 	"stocktopus/internal/hub"
 	"stocktopus/internal/news"
 	"stocktopus/internal/store"
@@ -56,10 +57,11 @@ type Server struct {
 	symbols    SymbolLister
 	news       *news.Client
 	pipeline   *agent.Pipeline
+	trading    *trading.TradingPipeline
 	store      *store.Store
 }
 
-func New(cfg Config, h *hub.Hub, debug *DebugBroadcaster, symbols SymbolLister, newsClient *news.Client, pipeline *agent.Pipeline, st *store.Store, logger *slog.Logger) (*Server, error) {
+func New(cfg Config, h *hub.Hub, debug *DebugBroadcaster, symbols SymbolLister, newsClient *news.Client, pipeline *agent.Pipeline, tp *trading.TradingPipeline, st *store.Store, logger *slog.Logger) (*Server, error) {
 	s := &Server{
 		config:   cfg,
 		logger:   logger,
@@ -67,6 +69,7 @@ func New(cfg Config, h *hub.Hub, debug *DebugBroadcaster, symbols SymbolLister, 
 		debug:    debug,
 		symbols:  symbols,
 		pipeline: pipeline,
+		trading:  tp,
 		store:    st,
 		news:     newsClient,
 	}
@@ -154,6 +157,11 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/watchlists/{id}/symbols/{symbol}", s.handleRemoveFromWatchlist)
 	mux.HandleFunc("GET /api/watchlists/quotes", s.handleWatchlistQuotes)
 	mux.HandleFunc("GET /api/security/{symbol}/competitors", s.handleCompetitors)
+
+	// Trading analysis pipeline (button-triggered only)
+	mux.HandleFunc("POST /api/security/{symbol}/trading/analyze", s.handleTradingAnalyze)
+	mux.HandleFunc("GET /api/security/{symbol}/trading/result", s.handleTradingResult)
+	mux.HandleFunc("GET /api/trading/cost", s.handleTradingCost)
 
 	// WebSocket
 	mux.HandleFunc("GET /ws", s.handleWebSocket)
@@ -899,4 +907,66 @@ func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, name string,
 		s.logger.Error("template render failed", "template", name, "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
+}
+
+// --- Trading analysis handlers ---
+
+func (s *Server) handleTradingAnalyze(w http.ResponseWriter, r *http.Request) {
+	symbol := r.PathValue("symbol")
+	w.Header().Set("Content-Type", "application/json")
+
+	if s.trading == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]string{"error": "trading pipeline not configured"})
+		return
+	}
+
+	if s.trading.IsRunning(symbol) {
+		json.NewEncoder(w).Encode(map[string]string{"status": "already_running", "symbol": symbol})
+		return
+	}
+
+	s.trading.Analyze(r.Context(), symbol)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":       "started",
+		"symbol":       symbol,
+		"estimatedCost": s.trading.EstimatedCost(),
+	})
+}
+
+func (s *Server) handleTradingResult(w http.ResponseWriter, r *http.Request) {
+	symbol := r.PathValue("symbol")
+	w.Header().Set("Content-Type", "application/json")
+
+	if s.trading == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]string{"error": "trading pipeline not configured"})
+		return
+	}
+
+	result := s.trading.GetResult(symbol)
+	if result == nil {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "no analysis found", "symbol": symbol})
+		return
+	}
+
+	json.NewEncoder(w).Encode(result)
+}
+
+func (s *Server) handleTradingCost(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if s.trading == nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"available":     false,
+			"estimatedCost": 0,
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"available":     true,
+		"estimatedCost": s.trading.EstimatedCost(),
+	})
 }
