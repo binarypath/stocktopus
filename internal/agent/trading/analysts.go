@@ -353,16 +353,11 @@ func (ar *AnalystRunner) callOllamaForReport(ctx context.Context, analyst, symbo
 		return AnalystReport{}, fmt.Errorf("ollama parse: %w", err)
 	}
 
-	// Parse the structured JSON from the LLM
-	var parsed struct {
-		Outlook   string   `json:"outlook"`
-		Summary   string   `json:"summary"`
-		KeyPoints []string `json:"keyPoints"`
-		Score     float64  `json:"score"`
-	}
-
 	text := strings.TrimSpace(ollamaResp.Response)
-	if err := json.Unmarshal([]byte(text), &parsed); err != nil {
+
+	// Parse into a generic map first — LLMs use inconsistent key names
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(text), &raw); err != nil {
 		ar.logger.Warn("failed to parse analyst JSON, using raw", "analyst", analyst, "error", err)
 		return AnalystReport{
 			Analyst: analyst,
@@ -372,13 +367,58 @@ func (ar *AnalystRunner) callOllamaForReport(ctx context.Context, analyst, symbo
 		}, nil
 	}
 
+	getString := func(keys ...string) string {
+		for _, k := range keys {
+			if v, ok := raw[k]; ok {
+				var s string
+				if json.Unmarshal(v, &s) == nil {
+					return s
+				}
+			}
+		}
+		return ""
+	}
+
+	getFloat := func(keys ...string) float64 {
+		for _, k := range keys {
+			if v, ok := raw[k]; ok {
+				var f float64
+				if json.Unmarshal(v, &f) == nil {
+					return f
+				}
+			}
+		}
+		return 0
+	}
+
+	getStrings := func(keys ...string) []string {
+		for _, k := range keys {
+			if v, ok := raw[k]; ok {
+				var arr []string
+				if json.Unmarshal(v, &arr) == nil {
+					return arr
+				}
+			}
+		}
+		return nil
+	}
+
+	outlook := getString("outlook", "Outlook", "signal", "direction")
+	summary := getString("summary", "Summary", "analysis", "Analysis")
+	keyPoints := getStrings("keyPoints", "key_points", "KeyPoints", "points", "key_findings")
+	score := getFloat("score", "Score", "sentiment_score", "sentiment")
+
+	if outlook == "" {
+		outlook = "neutral"
+	}
+
 	return AnalystReport{
 		Analyst:   analyst,
 		Symbol:    symbol,
-		Outlook:   parsed.Outlook,
-		Summary:   parsed.Summary,
-		KeyPoints: parsed.KeyPoints,
-		Score:     parsed.Score,
+		Outlook:   strings.ToLower(outlook),
+		Summary:   summary,
+		KeyPoints: keyPoints,
+		Score:     score,
 	}, nil
 }
 
