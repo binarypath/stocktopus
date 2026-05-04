@@ -64,7 +64,8 @@
 
 # --- Language-specific build artifacts ---
 *.class  # Java
-*.pyc    # Python
+*.pyc         # Python
+__pycache__/  # Python cache directories
 *.jar
 main
 stocktopus  # Project binary
@@ -77,6 +78,8 @@ bin/        # Build output directory
 .venv/      # Python virtual environment
 .models/    # Downloaded GGUF model files
 *.db        # SQLite databases
+*.db-shm    # SQLite shared memory
+*.db-wal    # SQLite write-ahead log
 
 # --- Secrets & Environment Variables ---
 .env*       # Environment files (contains API keys!)

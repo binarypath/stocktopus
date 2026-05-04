@@ -643,33 +643,282 @@
     function loadAI() {
         container.innerHTML = '<p class="empty-state">Loading AI analysis...</p>';
 
-        fetch('/api/security/' + symbol + '/intelligence')
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                // Status response (pipeline running/pending) vs full analysis
-                if (data.status && !data.summary) {
-                    if (data.status === 'running' || data.status === 'pending') {
-                        container.innerHTML = renderAIProgress(data);
-                        pollAIStatus();
-                        return;
-                    }
-                    if (data.status === 'failed') {
-                        container.innerHTML = '<p class="empty-state">AI analysis failed: ' + esc(data.error || 'unknown') + '</p>';
-                        return;
-                    }
-                }
-                if (data.error && !data.summary) {
-                    container.innerHTML = '<p class="empty-state">AI analysis unavailable: ' + esc(data.error) + '</p>';
+        // Fetch both existing intelligence and trading cost estimate in parallel
+        Promise.all([
+            fetch('/api/security/' + symbol + '/intelligence').then(function (r) { return r.json(); }),
+            fetch('/api/trading/cost').then(function (r) { return r.json(); }).catch(function () { return { available: false }; }),
+            fetch('/api/security/' + symbol + '/trading/result').then(function (r) { return r.json(); }).then(function (d) { return d && d.status !== 'none' ? d : null; }).catch(function () { return null; }),
+        ]).then(function (results) {
+            var data = results[0];
+            var costInfo = results[1];
+            var tradingResult = results[2];
+
+            var html = '';
+
+            // Deep Analysis heading with inline button + cost
+            html += '<div class="trading-header">';
+            html += '<span class="ai-section-title" style="margin:0">Deep Analysis — Multi-Agent Pipeline</span>';
+            html += renderTradingButton(costInfo, tradingResult);
+            html += '</div>';
+
+            // Trading pipeline results (if available)
+            if (tradingResult && tradingResult.analystReports && tradingResult.analystReports.length > 0) {
+                html += renderTradingResult(tradingResult);
+            }
+
+            // Existing AI analysis
+            if (data.status && !data.summary) {
+                if (data.status === 'running' || data.status === 'pending') {
+                    html += renderAIProgress(data);
+                    container.innerHTML = html;
+                    pollAIStatus();
                     return;
                 }
-                container.innerHTML = renderAIAnalysis(data);
-                wireCompetitorLinks();
-                loadCompetitorScores();
-            })
-            .catch(function () {
-                container.innerHTML = '<p class="empty-state">Failed to load AI analysis</p>';
-            });
+                if (data.status === 'failed') {
+                    html += '<p class="empty-state">AI analysis failed: ' + esc(data.error || 'unknown') + '</p>';
+                    container.innerHTML = html;
+                    return;
+                }
+            }
+            if (!data.error || data.summary) {
+                html += renderAIAnalysis(data);
+            }
+
+            container.innerHTML = html;
+            wireCompetitorLinks();
+            loadCompetitorScores();
+            wireTradingButton();
+
+            // Poll if trading analysis is running
+            if (tradingResult && !isFinished(tradingResult)) {
+                pollTradingStatus();
+            }
+        }).catch(function () {
+            container.innerHTML = '<p class="empty-state">Failed to load AI analysis</p>';
+        });
     }
+
+    // ── Trading Pipeline UI ──
+
+    function isFinished(result) {
+        return result && result.finishedAt && !result.finishedAt.startsWith('0001');
+    }
+
+    function renderTradingButton(costInfo, tradingResult) {
+        var isRunning = tradingResult && !isFinished(tradingResult) && tradingResult.startedAt;
+        var costStr = costInfo && costInfo.available
+            ? 'Est. $' + costInfo.estimatedCost.toFixed(3)
+            : '';
+
+        var html = '';
+        if (isRunning) {
+            html += '<button class="trading-btn trading-btn-running" disabled>'
+                + '<span class="spinner" style="width:12px;height:12px;display:inline-block"></span> Running...</button>';
+        } else {
+            html += '<button class="trading-btn" id="trading-analyze-btn">'
+                + '&#129302; Run Deep Analysis</button>';
+        }
+        if (costStr) html += '<span class="trading-cost">' + esc(costStr) + '</span>';
+
+        // Show actual cost if we have a completed result
+        if (isFinished(tradingResult) && tradingResult.totalCostUsd !== undefined) {
+            html += '<span class="trading-actual-cost">Actual: $' + tradingResult.totalCostUsd.toFixed(4) + '</span>';
+        }
+
+        return html;
+    }
+
+    function wireTradingButton() {
+        var btn = document.getElementById('trading-analyze-btn');
+        if (!btn) return;
+        btn.onclick = function () {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner" style="width:12px;height:12px;display:inline-block"></span> Starting...';
+            fetch('/api/security/' + symbol + '/trading/analyze', { method: 'POST' })
+                .then(function (r) { return r.json(); })
+                .then(function (resp) {
+                    if (resp.status === 'started' || resp.status === 'already_running') {
+                        pollTradingStatus();
+                    }
+                })
+                .catch(function () {
+                    btn.disabled = false;
+                    btn.textContent = '&#129302; Run Deep Analysis';
+                });
+        };
+    }
+
+    var tradingPollInterval = null;
+
+    function stopTradingPolling() {
+        if (tradingPollInterval) {
+            clearInterval(tradingPollInterval);
+            tradingPollInterval = null;
+        }
+    }
+
+    function pollTradingStatus() {
+        stopTradingPolling();
+        tradingPollInterval = setInterval(function () {
+            if (currentTab !== 'ai') { stopTradingPolling(); return; }
+            fetch('/api/security/' + symbol + '/trading/result')
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (result) {
+                    if (!result) return;
+                    if (currentTab !== 'ai') { stopTradingPolling(); return; }
+
+                    // Update progress stages
+                    var stagesEl = document.getElementById('trading-stages');
+                    if (stagesEl && result.stages) {
+                        stagesEl.innerHTML = result.stages.map(function (s) {
+                            var icon = s.status === 'complete' ? '&#10003;' :
+                                       s.status === 'running' ? '&#9679;' :
+                                       s.status === 'failed' ? '&#10007;' :
+                                       s.status === 'skipped' ? '&#8212;' : '&#9675;';
+                            var cls = 'trading-stage trading-stage-' + s.status;
+                            var dur = s.duration ? ' (' + s.duration.toFixed(1) + 's)' : '';
+                            return '<div class="' + cls + '">' + icon + ' ' + esc(s.name) + dur + '</div>';
+                        }).join('');
+                    }
+
+                    // If complete, reload the full AI tab
+                    if (isFinished(result)) {
+                        stopTradingPolling();
+                        loadAI();
+                    }
+                });
+        }, 1500);
+    }
+
+    function renderTradingResult(result) {
+        var finished = isFinished(result);
+        var html = '<div class="trading-result">';
+
+        // Pipeline stages — only show while running or if there are non-complete stages
+        var hasIncomplete = result.stages && result.stages.some(function (s) {
+            return s.status !== 'complete' && s.status !== 'skipped';
+        });
+        if (!finished || hasIncomplete) {
+            html += '<div class="trading-stages" id="trading-stages">';
+            if (result.stages) {
+                result.stages.forEach(function (s) {
+                    var icon = s.status === 'complete' ? '&#10003;' :
+                               s.status === 'running' ? '&#9679;' :
+                               s.status === 'failed' ? '&#10007;' :
+                               s.status === 'skipped' ? '&#8212;' : '&#9675;';
+                    var cls = 'trading-stage trading-stage-' + s.status;
+                    var dur = s.duration ? ' (' + s.duration.toFixed(1) + 's)' : '';
+                    html += '<div class="' + cls + '">' + icon + ' ' + esc(s.name) + dur + '</div>';
+                });
+            }
+            html += '</div>';
+        }
+
+        // Analyst reports — 2-column grid
+        if (result.analystReports && result.analystReports.length > 0) {
+            html += '<div class="trading-analysts" id="trading-analysts">';
+            result.analystReports.forEach(function (report, idx) {
+                var outlookClass = report.outlook === 'bullish' ? 'price-up' :
+                                   report.outlook === 'bearish' ? 'price-down' : '';
+                var scoreBar = report.score ? Math.round((report.score + 1) / 2 * 100) : 50;
+
+                html += '<div class="trading-analyst-card" data-analyst-idx="' + idx + '">';
+                html += '<div class="trading-analyst-header" tabindex="0">';
+                html += '<span class="trading-analyst-name">' + esc(report.analyst) + '</span>';
+                html += '<span class="trading-analyst-outlook ' + outlookClass + '">' + esc(report.outlook || 'neutral') + '</span>';
+                html += '<div class="trading-score-bar"><div class="trading-score-fill" style="width:' + scoreBar + '%"></div></div>';
+                html += '</div>';
+
+                html += '<div class="trading-analyst-body">';
+                if (report.summary) {
+                    html += '<p class="ai-text">' + esc(report.summary) + '</p>';
+                }
+                if (report.reasoning) {
+                    html += '<div class="trading-reasoning">' + esc(report.reasoning) + '</div>';
+                }
+                if (report.keyPoints && report.keyPoints.length > 0) {
+                    html += '<ul class="ai-list">';
+                    report.keyPoints.forEach(function (p) { html += '<li>' + esc(p) + '</li>'; });
+                    html += '</ul>';
+                }
+                if (report.sources && report.sources.length > 0) {
+                    html += '<div class="trading-sources">';
+                    report.sources.forEach(function (s) { html += '<span class="trading-source">' + esc(s) + '</span>'; });
+                    if (report.duration) html += '<span class="trading-source">' + report.duration.toFixed(1) + 's</span>';
+                    html += '</div>';
+                }
+                html += '</div></div>';
+            });
+            html += '</div>';
+        }
+
+        // Timing — compact footer
+        if (finished) {
+            var dur = (new Date(result.finishedAt) - new Date(result.startedAt)) / 1000;
+            html += '<div class="trading-meta">';
+            html += '<span>' + dur.toFixed(1) + 's</span>';
+            html += '<span>$' + (result.totalCostUsd || 0).toFixed(4) + '</span>';
+            html += '<span>' + new Date(result.finishedAt).toLocaleString() + '</span>';
+            html += '</div>';
+        }
+
+        html += '</div>';
+        return html;
+    }
+
+    // ── Trading Panel Vim Navigation ──
+
+    var tradingPanelIdx = -1;
+
+    function getTradingPanels() {
+        return Array.from(document.querySelectorAll('.trading-analyst-card'));
+    }
+
+    function selectTradingPanel(idx) {
+        var panels = getTradingPanels();
+        if (panels.length === 0) return;
+        idx = Math.max(0, Math.min(idx, panels.length - 1));
+        tradingPanelIdx = idx;
+        panels.forEach(function (p, i) {
+            p.classList.toggle('trading-panel-selected', i === idx);
+        });
+        panels[idx].scrollIntoView({ block: 'nearest' });
+    }
+
+    function toggleTradingPanel(idx) {
+        var panels = getTradingPanels();
+        if (idx < 0 || idx >= panels.length) return;
+        panels[idx].classList.toggle('trading-panel-open');
+    }
+
+    function deselectTradingPanels() {
+        getTradingPanels().forEach(function (p) {
+            p.classList.remove('trading-panel-selected');
+        });
+        tradingPanelIdx = -1;
+    }
+
+    window._tradingVimHandler = function (key) {
+        var panels = getTradingPanels();
+        if (panels.length === 0) return false;
+
+        if (key === 'j') {
+            if (tradingPanelIdx >= panels.length - 1) return false; // let parent handle
+            selectTradingPanel(tradingPanelIdx + 1);
+            return true;
+        } else if (key === 'k') {
+            if (tradingPanelIdx <= 0) {
+                deselectTradingPanels();
+                return false; // let parent move focus back to tabs
+            }
+            selectTradingPanel(tradingPanelIdx - 1);
+            return true;
+        } else if (key === 'Enter') {
+            toggleTradingPanel(tradingPanelIdx);
+            return true;
+        }
+        return false;
+    };
 
     var aiPollInterval = null;
 
@@ -911,6 +1160,7 @@
         }
         if (currentTab === 'ai' && tab !== 'ai') {
             stopAIPolling();
+            stopTradingPolling();
         }
         currentTab = tab;
         history.replaceState(null, '', location.pathname + '#' + tab);

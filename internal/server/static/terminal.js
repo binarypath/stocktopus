@@ -34,6 +34,7 @@ window.onerror = function (msg, src, line, col, err) {
         ei:         { path: '/indices',          needsSecurity: false, usage: 'ei',                  desc: 'equity indices — global market overview' },
         screener:   { path: '/screener',        needsSecurity: false, usage: 'screener',            desc: 'filter and scan stocks by criteria' },
         debug:      { path: '/debug',           needsSecurity: false, usage: 'debug',               desc: 'live server log console' },
+        analyze:    { path: '/security/{symbol}#ai', needsSecurity: true, usage: 'analyze <SECURITY>',  desc: 'run deep multi-agent trading analysis', aliases: ['az'] },
     };
 
     function parseCommand(input) {
@@ -53,6 +54,22 @@ window.onerror = function (msg, src, line, col, err) {
         let resolved = security || selectedSecurity;
         if (cmd.needsSecurity && !resolved) {
             flashError(command + ' requires a security (e.g. ' + command + ' AAPL)');
+            return;
+        }
+
+        // Special handling: analyze → navigate to info#ai and trigger trading analysis
+        if (command === 'analyze') {
+            resolved = resolved.toUpperCase();
+            setSecurity(resolved);
+            // Navigate to info page with AI tab
+            await navigate('info', resolved);
+            // Click the AI tab
+            var aiTab = document.querySelector('#info-tabs .info-tab[data-tab="ai"]');
+            if (aiTab) aiTab.click();
+            // Trigger the analysis after a short delay for the AI tab to render
+            setTimeout(function () {
+                fetch('/api/security/' + resolved + '/trading/analyze', { method: 'POST' });
+            }, 500);
             return;
         }
 
@@ -982,8 +999,20 @@ window.onerror = function (msg, src, line, col, err) {
                 input.value = '';
 
                 const parsed = parseCommand(raw);
+                // Resolve aliases
+                var resolvedCmd = parsed.command;
+                if (!COMMANDS[resolvedCmd]) {
+                    // Check aliases
+                    for (var cmdName in COMMANDS) {
+                        var cmd = COMMANDS[cmdName];
+                        if (cmd.aliases && cmd.aliases.indexOf(resolvedCmd) >= 0) {
+                            resolvedCmd = cmdName;
+                            break;
+                        }
+                    }
+                }
                 // If command not recognized, treat input as a security and go to info
-                if (!COMMANDS[parsed.command]) {
+                if (!COMMANDS[resolvedCmd]) {
                     var sec = raw.toUpperCase();
                     setSecurity(sec);
                     onViewLeave(currentView);
@@ -992,7 +1021,7 @@ window.onerror = function (msg, src, line, col, err) {
                 }
                 const security = parsed.args[0] || '';
                 onViewLeave(currentView);
-                navigate(parsed.command, security);
+                navigate(resolvedCmd, security);
             } else if (e.key === 'Escape') {
                 if (!dropdown.classList.contains('hidden')) {
                     hideCmdDropdown();
@@ -1090,7 +1119,12 @@ window.onerror = function (msg, src, line, col, err) {
         }
 
         var matches = Object.keys(COMMANDS).filter(function (name) {
-            return !cmdPart || name.startsWith(cmdPart);
+            if (!cmdPart || name.startsWith(cmdPart)) return true;
+            var cmd2 = COMMANDS[name];
+            if (cmd2.aliases) {
+                return cmd2.aliases.some(function (a) { return a.startsWith(cmdPart); });
+            }
+            return false;
         });
 
         // If no commands match, fall back to security search
@@ -1298,6 +1332,7 @@ window.onerror = function (msg, src, line, col, err) {
             },
             isNewsTab: function () { return this.getActiveTab() === 'news'; },
             isSectorTab: function () { return this.getActiveTab() === 'sector'; },
+            isAITab: function () { return this.getActiveTab() === 'ai'; },
             getNewsCards: function () { return document.querySelectorAll('#info-content .news-card'); },
             getSectorItems: function () {
                 // Peer rows + news items as one navigable list
@@ -1309,6 +1344,14 @@ window.onerror = function (msg, src, line, col, err) {
                 var hasSub = this.hasSubTabs();
 
                 if (dir === 'k') {
+                    // AI tab: trading panel navigation
+                    if (this._focus === 'content' && this.isAITab()) {
+                        if (window._tradingVimHandler && window._tradingVimHandler(dir)) return;
+                        clearVimSelection();
+                        this._focus = 'main';
+                        this._highlightFocus();
+                        return;
+                    }
                     // If on news tab in content mode, navigate cards up
                     if (this._focus === 'content' && this.isNewsTab()) {
                         if (vimSelectedIndex > 0) {
@@ -1360,6 +1403,10 @@ window.onerror = function (msg, src, line, col, err) {
                     // Go straight to content (skip focus-only transition)
                     this._focus = 'content';
                     this._highlightFocus();
+                    if (this.isAITab()) {
+                        if (window._tradingVimHandler) window._tradingVimHandler(dir);
+                        return;
+                    }
                     if (this.isNewsTab()) {
                         var cards = this.getNewsCards();
                         if (cards.length > 0) {
@@ -1422,6 +1469,10 @@ window.onerror = function (msg, src, line, col, err) {
                 if (window._infoRefresh) window._infoRefresh();
             },
             activate: function () {
+                if (this.isAITab()) {
+                    if (window._tradingVimHandler) window._tradingVimHandler('Enter');
+                    return;
+                }
                 if (this.isNewsTab()) {
                     var cards = this.getNewsCards();
                     if (vimSelectedIndex >= 0 && vimSelectedIndex < cards.length) {
