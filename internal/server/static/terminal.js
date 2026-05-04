@@ -1332,6 +1332,7 @@ window.onerror = function (msg, src, line, col, err) {
             },
             isNewsTab: function () { return this.getActiveTab() === 'news'; },
             isSectorTab: function () { return this.getActiveTab() === 'sector'; },
+            isAITab: function () { return this.getActiveTab() === 'ai'; },
             getNewsCards: function () { return document.querySelectorAll('#info-content .news-card'); },
             getSectorItems: function () {
                 // Peer rows + news items as one navigable list
@@ -1343,6 +1344,14 @@ window.onerror = function (msg, src, line, col, err) {
                 var hasSub = this.hasSubTabs();
 
                 if (dir === 'k') {
+                    // AI tab: trading panel navigation
+                    if (this._focus === 'content' && this.isAITab()) {
+                        if (window._tradingVimHandler && window._tradingVimHandler(dir)) return;
+                        clearVimSelection();
+                        this._focus = 'main';
+                        this._highlightFocus();
+                        return;
+                    }
                     // If on news tab in content mode, navigate cards up
                     if (this._focus === 'content' && this.isNewsTab()) {
                         if (vimSelectedIndex > 0) {
@@ -1394,6 +1403,10 @@ window.onerror = function (msg, src, line, col, err) {
                     // Go straight to content (skip focus-only transition)
                     this._focus = 'content';
                     this._highlightFocus();
+                    if (this.isAITab()) {
+                        if (window._tradingVimHandler) window._tradingVimHandler(dir);
+                        return;
+                    }
                     if (this.isNewsTab()) {
                         var cards = this.getNewsCards();
                         if (cards.length > 0) {
@@ -1413,6 +1426,10 @@ window.onerror = function (msg, src, line, col, err) {
                     return;
                 }
                 if (dir === 'h' || dir === 'l') {
+                    if (this._focus === 'content' && this.isAITab()) {
+                        if (window._tradingVimHandler) window._tradingVimHandler(dir);
+                        return;
+                    }
                     if (this._focus === 'sub' && hasSub) {
                         var subTabs = window._infoFinSubTabs();
                         var activeIdx = subTabs.findIndex(function (t) { return t.classList.contains('active'); });
@@ -1456,6 +1473,10 @@ window.onerror = function (msg, src, line, col, err) {
                 if (window._infoRefresh) window._infoRefresh();
             },
             activate: function () {
+                if (this.isAITab()) {
+                    if (window._tradingVimHandler) window._tradingVimHandler('Enter');
+                    return;
+                }
                 if (this.isNewsTab()) {
                     var cards = this.getNewsCards();
                     if (vimSelectedIndex >= 0 && vimSelectedIndex < cards.length) {

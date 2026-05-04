@@ -1991,12 +1991,12 @@ body {
 
 /* ── Trading Pipeline ── */
 
-.trading-trigger {
+.trading-header {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 10px 0;
-    margin-bottom: 12px;
+    padding: 8px 0;
+    margin-bottom: 8px;
     border-bottom: 1px solid var(--border);
 }
 
@@ -2004,9 +2004,9 @@ body {
     background: var(--bg-tertiary);
     color: var(--orange);
     border: 1px solid var(--orange);
-    padding: 6px 16px;
+    padding: 4px 12px;
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: 11px;
     cursor: pointer;
     border-radius: 2px;
     white-space: nowrap;
@@ -2037,16 +2037,14 @@ body {
 }
 
 .trading-result {
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
 }
 
 .trading-stages {
     display: flex;
     flex-wrap: wrap;
     gap: 4px 12px;
-    margin: 8px 0;
+    margin: 6px 0;
 }
 
 .trading-stage {
@@ -2061,53 +2059,48 @@ body {
 .trading-stage-skipped { color: var(--text-muted); opacity: 0.5; }
 
 .trading-analysts {
-    margin: 10px 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin: 8px 0;
 }
 
 .trading-analyst-card {
-    margin-bottom: 4px;
     border: 1px solid var(--border);
     border-radius: 2px;
+    overflow: hidden;
 }
 
 .trading-analyst-header {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     padding: 6px 10px;
     cursor: pointer;
     font-size: 12px;
     color: var(--text-primary);
-    list-style: none;
+    outline: none;
 }
-
-.trading-analyst-header::-webkit-details-marker { display: none; }
-.trading-analyst-header::marker { content: ''; }
 
 .trading-analyst-name {
     font-weight: bold;
     text-transform: capitalize;
-    min-width: 100px;
 }
 
 .trading-analyst-outlook {
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-}
-
-.trading-analyst-duration {
-    font-size: 10px;
-    color: var(--text-muted);
     margin-left: auto;
 }
 
 .trading-score-bar {
-    width: 60px;
+    width: 50px;
     height: 4px;
     background: var(--bg-tertiary);
     border-radius: 2px;
     overflow: hidden;
+    flex-shrink: 0;
 }
 
 .trading-score-fill {
@@ -2116,21 +2109,39 @@ body {
     border-radius: 2px;
 }
 
+/* Body hidden by default, shown when panel is open */
 .trading-analyst-body {
+    display: none;
     padding: 8px 10px;
     border-top: 1px solid var(--border);
     font-size: 12px;
     color: var(--text-secondary);
 }
 
-.trading-analyst-card[open] {
+.trading-panel-open .trading-analyst-body {
+    display: block;
+}
+
+.trading-panel-open {
     border-color: var(--orange);
+}
+
+.trading-analyst-duration {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+/* Vim selection highlight */
+.trading-panel-selected {
+    border-color: var(--orange);
+    box-shadow: 0 0 0 1px var(--orange);
 }
 
 .trading-meta {
     display: flex;
     gap: 16px;
-    margin-top: 8px;
+    margin-top: 6px;
     font-size: 10px;
     color: var(--text-muted);
 }
