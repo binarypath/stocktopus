@@ -883,22 +883,26 @@
         panels[idx].classList.toggle('trading-panel-open');
     }
 
+    function deselectTradingPanels() {
+        getTradingPanels().forEach(function (p) {
+            p.classList.remove('trading-panel-selected');
+        });
+        tradingPanelIdx = -1;
+    }
+
     window._tradingVimHandler = function (key) {
         var panels = getTradingPanels();
         if (panels.length === 0) return false;
 
-        // 2-column layout: cols=2
-        var cols = 2;
         if (key === 'j') {
-            selectTradingPanel(tradingPanelIdx + cols);
-            return true;
-        } else if (key === 'k') {
-            selectTradingPanel(tradingPanelIdx - cols);
-            return true;
-        } else if (key === 'l') {
+            if (tradingPanelIdx >= panels.length - 1) return false; // let parent handle
             selectTradingPanel(tradingPanelIdx + 1);
             return true;
-        } else if (key === 'h') {
+        } else if (key === 'k') {
+            if (tradingPanelIdx <= 0) {
+                deselectTradingPanels();
+                return false; // let parent move focus back to tabs
+            }
             selectTradingPanel(tradingPanelIdx - 1);
             return true;
         } else if (key === 'Enter') {

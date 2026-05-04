@@ -1426,10 +1426,6 @@ window.onerror = function (msg, src, line, col, err) {
                     return;
                 }
                 if (dir === 'h' || dir === 'l') {
-                    if (this._focus === 'content' && this.isAITab()) {
-                        if (window._tradingVimHandler) window._tradingVimHandler(dir);
-                        return;
-                    }
                     if (this._focus === 'sub' && hasSub) {
                         var subTabs = window._infoFinSubTabs();
                         var activeIdx = subTabs.findIndex(function (t) { return t.classList.contains('active'); });

@@ -2059,9 +2059,9 @@ body {
 .trading-stage-skipped { color: var(--text-muted); opacity: 0.5; }
 
 .trading-analysts {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
     margin: 8px 0;
 }
 
