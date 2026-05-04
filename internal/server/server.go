@@ -936,7 +936,8 @@ func (s *Server) handleSECFilings(w http.ResponseWriter, r *http.Request) {
 	// Cache-through: fetch from FMP if stale
 	if !s.store.IsSECFresh(symbol, 24*time.Hour) {
 		from := time.Now().UTC().AddDate(-2, 0, 0).Format("2006-01-02")
-		data, err := s.news.GetSECFilings(r.Context(), symbol, from, "")
+		to := time.Now().UTC().Format("2006-01-02")
+		data, err := s.news.GetSECFilings(r.Context(), symbol, from, to)
 		if err == nil {
 			var filings []store.SECFiling
 			if json.Unmarshal(data, &filings) == nil && len(filings) > 0 {

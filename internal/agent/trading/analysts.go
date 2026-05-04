@@ -226,8 +226,9 @@ func (ar *AnalystRunner) runFundamentals(ctx context.Context, symbol string) (An
 		{"estimates", func() (json.RawMessage, error) { return ar.fmp.GetAnalystEstimates(ctx, symbol, 3) }},
 		{"peers", func() (json.RawMessage, error) { return ar.fmp.GetPeers(ctx, symbol) }},
 		{"sec_filings", func() (json.RawMessage, error) {
-			from := time.Now().UTC().AddDate(-1, 0, 0).Format("2006-01-02")
-			return ar.fmp.GetSECFilings(ctx, symbol, from, "")
+			secFrom := time.Now().UTC().AddDate(-1, 0, 0).Format("2006-01-02")
+			secTo := time.Now().UTC().Format("2006-01-02")
+			return ar.fmp.GetSECFilings(ctx, symbol, secFrom, secTo)
 		}},
 	}
 
@@ -330,7 +331,8 @@ func (ar *AnalystRunner) runNews(ctx context.Context, symbol string) (AnalystRep
 	go func() {
 		defer wg.Done()
 		secFrom := time.Now().UTC().AddDate(0, -3, 0).Format("2006-01-02")
-		secData, _ = ar.fmp.GetSECFilings(ctx, symbol, secFrom, "")
+		secTo := time.Now().UTC().Format("2006-01-02")
+		secData, _ = ar.fmp.GetSECFilings(ctx, symbol, secFrom, secTo)
 	}()
 	wg.Wait()
 
