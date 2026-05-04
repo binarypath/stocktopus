@@ -42,8 +42,10 @@ type AnalystReport struct {
 	Symbol    string          `json:"symbol"`
 	Outlook   string          `json:"outlook"`   // bullish, bearish, neutral
 	Summary   string          `json:"summary"`
+	Reasoning string          `json:"reasoning"` // LLM's chain of thought / evidence
 	KeyPoints []string        `json:"keyPoints"`
 	Score     float64         `json:"score"`     // -1.0 to 1.0
+	Sources   []string        `json:"sources,omitempty"` // data sources used
 	RawData   json.RawMessage `json:"rawData,omitempty"`
 	Duration  float64         `json:"duration"`  // seconds
 }

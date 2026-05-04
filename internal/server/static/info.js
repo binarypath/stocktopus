@@ -830,14 +830,22 @@
                 html += '</div>';
 
                 html += '<div class="trading-analyst-body">';
-                if (report.duration) html += '<div class="trading-analyst-duration">' + report.duration.toFixed(1) + 's</div>';
                 if (report.summary) {
                     html += '<p class="ai-text">' + esc(report.summary) + '</p>';
+                }
+                if (report.reasoning) {
+                    html += '<div class="trading-reasoning">' + esc(report.reasoning) + '</div>';
                 }
                 if (report.keyPoints && report.keyPoints.length > 0) {
                     html += '<ul class="ai-list">';
                     report.keyPoints.forEach(function (p) { html += '<li>' + esc(p) + '</li>'; });
                     html += '</ul>';
+                }
+                if (report.sources && report.sources.length > 0) {
+                    html += '<div class="trading-sources">';
+                    report.sources.forEach(function (s) { html += '<span class="trading-source">' + esc(s) + '</span>'; });
+                    if (report.duration) html += '<span class="trading-source">' + report.duration.toFixed(1) + 's</span>';
+                    html += '</div>';
                 }
                 html += '</div></div>';
             });

@@ -121,8 +121,7 @@ func (ar *AnalystRunner) runTechnical(ctx context.Context, symbol string) (Analy
 	indicators := calcIndicators(bars)
 
 	prompt := fmt.Sprintf(`You are a technical analyst. Analyze the following price data and indicators for %s.
-Return ONLY valid JSON with this structure:
-{"outlook":"bullish|bearish|neutral","summary":"2-3 sentence technical outlook","keyPoints":["point1","point2","point3"],"score":<-1.0 to 1.0>}
+Return JSON with: outlook (bullish/bearish/neutral), summary (2-3 sentences), reasoning (cite specific indicators and values that support your conclusion), keyPoints (3-5 key observations), score (-1.0 to 1.0).
 
 Recent prices (last 10 trading days):
 %s
@@ -135,13 +134,10 @@ Technical indicators:
 		return AnalystReport{}, err
 	}
 	report.Duration = time.Since(start).Seconds()
-
-	// Attach raw price data
-	rawData, _ := json.Marshal(map[string]interface{}{
-		"bars":       len(bars),
-		"indicators": indicators,
-	})
-	report.RawData = rawData
+	report.Sources = []string{
+		fmt.Sprintf("FMP EOD prices (%d bars, %s to %s)", len(bars), from, to),
+		"Calculated: SMA(20,50), RSI(14), MACD(12,26,9), Bollinger(20,2)",
+	}
 
 	return report, nil
 }
@@ -196,8 +192,7 @@ func (ar *AnalystRunner) runFundamentals(ctx context.Context, symbol string) (An
 	}
 
 	prompt := fmt.Sprintf(`You are a fundamentals analyst. Analyze the financial data for %s.
-Return ONLY valid JSON with this structure:
-{"outlook":"bullish|bearish|neutral","summary":"2-3 sentence fundamental outlook","keyPoints":["point1","point2","point3"],"score":<-1.0 to 1.0>}
+Return JSON with: outlook (bullish/bearish/neutral), summary (2-3 sentences), reasoning (cite specific financial metrics, ratios, and trends that support your conclusion), keyPoints (3-5 key observations), score (-1.0 to 1.0).
 
 Financial data:
 %s`, symbol, strings.Join(dataParts, "\n\n"))
@@ -207,6 +202,15 @@ Financial data:
 		return AnalystReport{}, err
 	}
 	report.Duration = time.Since(start).Seconds()
+
+	var sourceNames []string
+	for _, r := range results {
+		if r.err == nil {
+			sourceNames = append(sourceNames, "FMP "+r.name)
+		}
+	}
+	report.Sources = sourceNames
+
 	return report, nil
 }
 
@@ -250,8 +254,7 @@ func (ar *AnalystRunner) runNews(ctx context.Context, symbol string) (AnalystRep
 	}
 
 	prompt := fmt.Sprintf(`You are a news analyst. Analyze the following recent news about %s for market impact.
-Return ONLY valid JSON with this structure:
-{"outlook":"bullish|bearish|neutral","summary":"2-3 sentence news impact analysis","keyPoints":["point1","point2","point3"],"score":<-1.0 to 1.0>}
+Return JSON with: outlook (bullish/bearish/neutral), summary (2-3 sentences), reasoning (cite specific news items and explain their likely market impact), keyPoints (3-5 key observations), score (-1.0 to 1.0).
 
 Recent news:
 %s`, symbol, newsSummary.String())
@@ -261,6 +264,8 @@ Recent news:
 		return AnalystReport{}, err
 	}
 	report.Duration = time.Since(start).Seconds()
+	report.Sources = []string{fmt.Sprintf("FMP stock news (%d items, %s to %s)", len(items), from, to)}
+
 	return report, nil
 }
 
@@ -299,8 +304,7 @@ func (ar *AnalystRunner) runSentiment(ctx context.Context, symbol string) (Analy
 	}
 
 	prompt := fmt.Sprintf(`You are a sentiment analyst. Analyze the following headlines and press releases about %s to gauge market sentiment.
-Return ONLY valid JSON with this structure:
-{"outlook":"bullish|bearish|neutral","summary":"2-3 sentence sentiment analysis","keyPoints":["point1","point2","point3"],"score":<-1.0 to 1.0>}
+Return JSON with: outlook (bullish/bearish/neutral), summary (2-3 sentences), reasoning (cite specific headlines and explain the sentiment signal they convey), keyPoints (3-5 key observations), score (-1.0 to 1.0).
 
 %s`, symbol, sentimentData.String())
 
@@ -309,6 +313,11 @@ Return ONLY valid JSON with this structure:
 		return AnalystReport{}, err
 	}
 	report.Duration = time.Since(start).Seconds()
+	report.Sources = []string{
+		fmt.Sprintf("FMP stock news (%d items)", len(stockNews)),
+		fmt.Sprintf("FMP press releases (%d items)", len(pressItems)),
+	}
+
 	return report, nil
 }
 
@@ -323,10 +332,11 @@ func (ar *AnalystRunner) callOllamaForReport(ctx context.Context, analyst, symbo
 			"properties": map[string]interface{}{
 				"outlook":   map[string]interface{}{"type": "string", "enum": []string{"bullish", "bearish", "neutral"}},
 				"summary":   map[string]string{"type": "string"},
+				"reasoning": map[string]string{"type": "string"},
 				"keyPoints": map[string]interface{}{"type": "array", "items": map[string]string{"type": "string"}},
 				"score":     map[string]string{"type": "number"},
 			},
-			"required": []string{"outlook", "summary", "keyPoints", "score"},
+			"required": []string{"outlook", "summary", "reasoning", "keyPoints", "score"},
 		},
 		"options": map[string]interface{}{
 			"temperature": 0.3,
@@ -367,6 +377,7 @@ func (ar *AnalystRunner) callOllamaForReport(ctx context.Context, analyst, symbo
 	var parsed struct {
 		Outlook   string   `json:"outlook"`
 		Summary   string   `json:"summary"`
+		Reasoning string   `json:"reasoning"`
 		KeyPoints []string `json:"keyPoints"`
 		Score     float64  `json:"score"`
 	}
@@ -386,6 +397,7 @@ func (ar *AnalystRunner) callOllamaForReport(ctx context.Context, analyst, symbo
 		Symbol:    symbol,
 		Outlook:   strings.ToLower(parsed.Outlook),
 		Summary:   parsed.Summary,
+		Reasoning: parsed.Reasoning,
 		KeyPoints: parsed.KeyPoints,
 		Score:     parsed.Score,
 	}, nil

@@ -2126,10 +2126,31 @@ body {
     border-color: var(--orange);
 }
 
-.trading-analyst-duration {
+.trading-reasoning {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin: 6px 0;
+    padding: 6px 8px;
+    background: var(--bg-secondary);
+    border-left: 2px solid var(--orange);
+    line-height: 1.5;
+}
+
+.trading-sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+}
+
+.trading-source {
     font-size: 10px;
     color: var(--text-muted);
-    margin-bottom: 4px;
+    background: var(--bg-tertiary);
+    padding: 1px 6px;
+    border-radius: 2px;
 }
 
 /* Vim selection highlight */
