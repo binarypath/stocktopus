@@ -647,7 +647,7 @@
         Promise.all([
             fetch('/api/security/' + symbol + '/intelligence').then(function (r) { return r.json(); }),
             fetch('/api/trading/cost').then(function (r) { return r.json(); }).catch(function () { return { available: false }; }),
-            fetch('/api/security/' + symbol + '/trading/result').then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
+            fetch('/api/security/' + symbol + '/trading/result').then(function (r) { return r.json(); }).then(function (d) { return d && d.status !== 'none' ? d : null; }).catch(function () { return null; }),
         ]).then(function (results) {
             var data = results[0];
             var costInfo = results[1];

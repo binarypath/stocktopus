@@ -946,8 +946,7 @@ func (s *Server) handleTradingResult(w http.ResponseWriter, r *http.Request) {
 
 	result := s.trading.GetResult(symbol)
 	if result == nil {
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "no analysis found", "symbol": symbol})
+		json.NewEncoder(w).Encode(map[string]string{"status": "none", "symbol": symbol})
 		return
 	}
 
