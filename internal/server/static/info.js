@@ -327,17 +327,17 @@
                         ['Revenue', 'revenue'],
                         ['Cost of Revenue', 'costOfRevenue'],
                         ['Gross Profit', 'grossProfit'],
-                        ['Gross Margin', 'grossProfitRatio', 'pct'],
+                        ['Gross Margin', '', 'calc', 'grossProfit', 'revenue'],
                         ['R&D Expenses', 'researchAndDevelopmentExpenses'],
                         ['SG&A', 'sellingGeneralAndAdministrativeExpenses'],
                         ['Operating Income', 'operatingIncome'],
-                        ['Operating Margin', 'operatingIncomeRatio', 'pct'],
+                        ['Operating Margin', '', 'calc', 'operatingIncome', 'revenue'],
                         ['Interest Expense', 'interestExpense'],
                         ['Income Before Tax', 'incomeBeforeTax'],
                         ['Income Tax', 'incomeTaxExpense'],
                         ['EBITDA', 'ebitda'],
                         ['Net Income', 'netIncome'],
-                        ['Net Margin', 'netIncomeRatio', 'pct'],
+                        ['Net Margin', '', 'calc', 'netIncome', 'revenue'],
                         ['EPS', 'eps'],
                     ];
                 } else if (type === 'balance') {
@@ -385,11 +385,18 @@
                 rows.forEach(function (row) {
                     var field = row[0].toLowerCase().replace(/[^a-z0-9]/g, '-');
                     var tip = HELP[field] ? '<span class="help-tip hidden">' + esc(HELP[field]) + '</span>' : '';
-                    var isPct = row[2] === 'pct';
+                    var format = row[2] || '';
                     html += '<tr><td class="fin-label">' + row[0] + tip + '</td>';
                     data.forEach(function (d) {
-                        var val = d[row[1]];
-                        html += '<td>' + (isPct ? pct(val) : fmt(val)) + '</td>';
+                        var val;
+                        if (format === 'calc') {
+                            // Calculated margin: row[3] is numerator field, row[4] is denominator field
+                            var num = d[row[3]], den = d[row[4]];
+                            val = (num != null && den != null && den !== 0) ? ((num / den) * 100).toFixed(1) + '%' : '—';
+                        } else {
+                            val = fmt(d[row[1]]);
+                        }
+                        html += '<td>' + val + '</td>';
                     });
                     html += '</tr>';
                 });
