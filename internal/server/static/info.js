@@ -744,10 +744,10 @@
             var html = '<div class="sec-view">';
 
             // Filter badges
-            html += '<div class="sec-filters" id="sec-filters">';
+            html += '<div class="info-sub-tabs" id="sec-filters">';
             categories.forEach(function (cat) {
                 var active = secFilter === cat.key ? ' active' : '';
-                html += '<button class="sec-filter-btn' + active + '" data-cat="' + cat.key + '">' + cat.label + '</button>';
+                html += '<button class="info-sub-tab' + active + '" data-cat="' + cat.key + '">' + cat.label + '</button>';
             });
             html += '</div>';
 
@@ -784,7 +784,7 @@
             container.innerHTML = html;
 
             // Wire filter buttons
-            container.querySelectorAll('.sec-filter-btn').forEach(function (btn) {
+            container.querySelectorAll('#sec-filters .info-sub-tab').forEach(function (btn) {
                 btn.onclick = function () {
                     secFilter = btn.dataset.cat;
                     secSelectedRow = -1;
