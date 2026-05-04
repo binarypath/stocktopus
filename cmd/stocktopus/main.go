@@ -205,6 +205,7 @@ func main() {
 		tradingPipeline = trading.NewTradingPipeline(trading.TradingPipelineConfig{
 			OllamaHost:  ollamaHost,
 			OllamaModel: analystModel,
+			AgentsDir:   "agents",
 		}, newsClient, st, logger)
 
 		// Publish trading pipeline status via hub

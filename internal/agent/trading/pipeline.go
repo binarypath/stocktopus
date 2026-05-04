@@ -29,14 +29,15 @@ type TradingPipeline struct {
 
 // TradingPipelineConfig holds configuration for the trading pipeline.
 type TradingPipelineConfig struct {
-	OllamaHost  string
-	OllamaModel string // model for analyst agents (default: gemma3)
-	DebateRounds int
+	OllamaHost       string
+	OllamaModel      string // model for analyst agents (default: gemma3)
+	AgentsDir        string // path to Python agents directory
+	DebateRounds     int
 	RiskDebateRounds int
 }
 
 func NewTradingPipeline(cfg TradingPipelineConfig, fmp *news.Client, st *store.Store, logger *slog.Logger) *TradingPipeline {
-	analysts := NewAnalystRunner(fmp, cfg.OllamaHost, cfg.OllamaModel, logger)
+	analysts := NewAnalystRunner(fmp, cfg.OllamaHost, cfg.OllamaModel, cfg.AgentsDir, logger)
 
 	return &TradingPipeline{
 		analysts: analysts,
