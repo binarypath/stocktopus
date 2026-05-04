@@ -1333,6 +1333,7 @@ window.onerror = function (msg, src, line, col, err) {
             isNewsTab: function () { return this.getActiveTab() === 'news'; },
             isSectorTab: function () { return this.getActiveTab() === 'sector'; },
             isAITab: function () { return this.getActiveTab() === 'ai'; },
+            isSECTab: function () { return this.getActiveTab() === 'sec'; },
             getNewsCards: function () { return document.querySelectorAll('#info-content .news-card'); },
             getSectorItems: function () {
                 // Peer rows + news items as one navigable list
@@ -1344,6 +1345,18 @@ window.onerror = function (msg, src, line, col, err) {
                 var hasSub = this.hasSubTabs();
 
                 if (dir === 'k') {
+                    // SEC tab: filing row navigation
+                    if (this._focus === 'content' && this.isSECTab()) {
+                        var secRows = window._secGetRows ? window._secGetRows() : [];
+                        if (secRows.length > 0 && secSelectedRow > 0) {
+                            window._secSelectRow(secSelectedRow - 1);
+                            return;
+                        }
+                        clearVimSelection();
+                        this._focus = 'main';
+                        this._highlightFocus();
+                        return;
+                    }
                     // AI tab: trading panel navigation
                     if (this._focus === 'content' && this.isAITab()) {
                         if (window._tradingVimHandler && window._tradingVimHandler(dir)) return;
@@ -1403,6 +1416,14 @@ window.onerror = function (msg, src, line, col, err) {
                     // Go straight to content (skip focus-only transition)
                     this._focus = 'content';
                     this._highlightFocus();
+                    if (this.isSECTab()) {
+                        var secRows = window._secGetRows ? window._secGetRows() : [];
+                        if (secRows.length > 0) {
+                            var nextIdx = typeof secSelectedRow === 'number' ? secSelectedRow + 1 : 0;
+                            window._secSelectRow(nextIdx);
+                        }
+                        return;
+                    }
                     if (this.isAITab()) {
                         if (window._tradingVimHandler) window._tradingVimHandler(dir);
                         return;
@@ -1469,6 +1490,10 @@ window.onerror = function (msg, src, line, col, err) {
                 if (window._infoRefresh) window._infoRefresh();
             },
             activate: function () {
+                if (this.isSECTab()) {
+                    if (window._secActivate) window._secActivate();
+                    return;
+                }
                 if (this.isAITab()) {
                     if (window._tradingVimHandler) window._tradingVimHandler('Enter');
                     return;
@@ -1656,7 +1681,13 @@ window.onerror = function (msg, src, line, col, err) {
             case 'c':
                 if (handler && handler.jumpToSubTab) { e.preventDefault(); handler.jumpToSubTab(2); }
                 return;
-            case '1': case '2': case '3': case '4': case '5': case '6':
+            case 'f':
+                if (handler && handler.isSECTab && handler.isSECTab()) {
+                    e.preventDefault();
+                    if (window._secCycleFilter) window._secCycleFilter();
+                }
+                return;
+            case '1': case '2': case '3': case '4': case '5': case '6': case '7':
                 if (handler && handler.jumpToTab) {
                     e.preventDefault();
                     handler.jumpToTab(parseInt(e.key) - 1);

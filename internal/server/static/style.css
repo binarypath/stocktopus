@@ -2166,3 +2166,65 @@ body {
     font-size: 10px;
     color: var(--text-muted);
 }
+
+/* ── SEC Filings ── */
+
+.sec-view { padding: 4px 0; }
+
+.sec-filters {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.sec-filter-btn {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    padding: 3px 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    cursor: pointer;
+    border-radius: 2px;
+}
+
+.sec-filter-btn:hover { border-color: var(--orange); color: var(--text-primary); }
+.sec-filter-btn.active { background: var(--orange); color: var(--bg-primary); border-color: var(--orange); }
+
+.sec-count {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.sec-table { font-size: 12px; }
+
+.sec-row { cursor: pointer; }
+.sec-row:hover { background: var(--bg-tertiary); }
+
+.sec-date { color: var(--text-muted); white-space: nowrap; }
+.sec-desc { color: var(--text-secondary); }
+
+.sec-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 2px;
+    font-size: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.sec-cat-periodic { background: #1a3a2a; color: var(--green); }
+.sec-cat-event { background: #3a2a1a; color: var(--orange); }
+.sec-cat-ownership { background: #1a2a3a; color: var(--blue); }
+.sec-cat-proxy { background: #2a1a3a; color: #bb88ff; }
+.sec-cat-registration { background: #3a3a1a; color: var(--yellow); }
+.sec-cat-other { background: var(--bg-tertiary); color: var(--text-muted); }
+
+.sec-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 14px;
+}
+.sec-link:hover { color: var(--orange); }

@@ -158,6 +158,11 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/watchlists/quotes", s.handleWatchlistQuotes)
 	mux.HandleFunc("GET /api/security/{symbol}/competitors", s.handleCompetitors)
 
+	// SEC filings
+	mux.HandleFunc("GET /api/security/{symbol}/sec-filings", s.handleSECFilings)
+	mux.HandleFunc("GET /api/security/{symbol}/key-people", s.handleKeyPeople)
+	mux.HandleFunc("GET /api/sec-form-types", s.handleSECFormTypes)
+
 	// Trading analysis pipeline (button-triggered only)
 	mux.HandleFunc("POST /api/security/{symbol}/trading/analyze", s.handleTradingAnalyze)
 	mux.HandleFunc("GET /api/security/{symbol}/trading/result", s.handleTradingResult)
@@ -295,7 +300,7 @@ func (s *Server) handleSecurityMetrics(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSecurityFinancials(w http.ResponseWriter, r *http.Request) {
 	symbol := r.PathValue("symbol")
 	typ := r.URL.Query().Get("type")
-	limit := 4
+	limit := 5
 
 	var data json.RawMessage
 	var err error
@@ -907,6 +912,78 @@ func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, name string,
 		s.logger.Error("template render failed", "template", name, "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
+}
+
+// --- SEC filing handlers ---
+
+func (s *Server) handleSECFilings(w http.ResponseWriter, r *http.Request) {
+	symbol := r.PathValue("symbol")
+	w.Header().Set("Content-Type", "application/json")
+
+	if s.store == nil {
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+
+	formType := r.URL.Query().Get("form")
+	limit := 50
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if n, err := strconv.Atoi(l); err == nil && n > 0 {
+			limit = n
+		}
+	}
+
+	// Cache-through: fetch from FMP if stale
+	if !s.store.IsSECFresh(symbol, 24*time.Hour) {
+		from := time.Now().UTC().AddDate(-2, 0, 0).Format("2006-01-02")
+		data, err := s.news.GetSECFilings(r.Context(), symbol, from, "")
+		if err == nil {
+			var filings []store.SECFiling
+			if json.Unmarshal(data, &filings) == nil && len(filings) > 0 {
+				s.store.PutSECFilings(filings)
+			}
+		}
+	}
+
+	filings, err := s.store.GetSECFilings(symbol, formType, limit)
+	if err != nil {
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+	json.NewEncoder(w).Encode(filings)
+}
+
+func (s *Server) handleKeyPeople(w http.ResponseWriter, r *http.Request) {
+	symbol := r.PathValue("symbol")
+	w.Header().Set("Content-Type", "application/json")
+
+	if s.store == nil {
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+
+	people, err := s.store.GetKeyPeople(symbol)
+	if err != nil {
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+	json.NewEncoder(w).Encode(people)
+}
+
+func (s *Server) handleSECFormTypes(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if s.store == nil {
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+
+	types, err := s.store.GetSECFormTypes()
+	if err != nil {
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+	json.NewEncoder(w).Encode(types)
 }
 
 // --- Trading analysis handlers ---

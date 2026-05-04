@@ -133,7 +133,7 @@
         securityType = type;
         var hideTabs = [];
         if (type === 'crypto' || type === 'forex' || type === 'index') {
-            hideTabs = ['financials', 'estimates'];
+            hideTabs = ['financials', 'estimates', 'sec'];
         }
         document.querySelectorAll('#info-tabs .info-tab').forEach(function (tab) {
             if (hideTabs.indexOf(tab.dataset.tab) >= 0) {
@@ -175,6 +175,7 @@
                 case 'news': loadNews(); break;
                 case 'ai': loadAI(); break;
                 case 'sector': loadSector(); break;
+                case 'sec': loadSEC(); break;
             }
         } catch (e) {
             console.error('Tab load error:', tab, e);
@@ -306,10 +307,17 @@
                         ['Revenue', 'revenue'],
                         ['Cost of Revenue', 'costOfRevenue'],
                         ['Gross Profit', 'grossProfit'],
+                        ['Gross Margin', 'grossProfitRatio', 'pct'],
                         ['R&D Expenses', 'researchAndDevelopmentExpenses'],
+                        ['SG&A', 'sellingGeneralAndAdministrativeExpenses'],
                         ['Operating Income', 'operatingIncome'],
+                        ['Operating Margin', 'operatingIncomeRatio', 'pct'],
+                        ['Interest Expense', 'interestExpense'],
+                        ['Income Before Tax', 'incomeBeforeTax'],
+                        ['Income Tax', 'incomeTaxExpense'],
                         ['EBITDA', 'ebitda'],
                         ['Net Income', 'netIncome'],
+                        ['Net Margin', 'netIncomeRatio', 'pct'],
                         ['EPS', 'eps'],
                     ];
                 } else if (type === 'balance') {
@@ -317,19 +325,32 @@
                         ['Total Assets', 'totalAssets'],
                         ['Current Assets', 'totalCurrentAssets'],
                         ['Cash & Equivalents', 'cashAndCashEquivalents'],
+                        ['Short-Term Investments', 'shortTermInvestments'],
+                        ['Net Receivables', 'netReceivables'],
+                        ['Inventory', 'inventory'],
+                        ['Goodwill', 'goodwill'],
+                        ['Intangible Assets', 'intangibleAssets'],
                         ['Total Liabilities', 'totalLiabilities'],
                         ['Current Liabilities', 'totalCurrentLiabilities'],
+                        ['Short-Term Debt', 'shortTermDebt'],
                         ['Long-Term Debt', 'longTermDebt'],
+                        ['Total Debt', 'totalDebt'],
                         ['Total Equity', 'totalStockholdersEquity'],
                         ['Retained Earnings', 'retainedEarnings'],
                     ];
                 } else {
                     rows = [
                         ['Operating CF', 'operatingCashFlow'],
+                        ['D&A', 'depreciationAndAmortization'],
+                        ['Stock-Based Comp', 'stockBasedCompensation'],
+                        ['Accounts Receivable', 'accountsReceivables'],
+                        ['Accounts Payable', 'accountsPayables'],
                         ['Investing CF', 'netCashUsedForInvestingActivities'],
                         ['Financing CF', 'netCashUsedProvidedByFinancingActivities'],
+                        ['Debt Repayment', 'debtRepayment'],
                         ['CapEx', 'capitalExpenditure'],
                         ['Free Cash Flow', 'freeCashFlow'],
+                        ['Net Change in Cash', 'netChangeInCash'],
                         ['Dividends Paid', 'dividendsPaid'],
                         ['Share Buyback', 'commonStockRepurchased'],
                     ];
@@ -344,9 +365,11 @@
                 rows.forEach(function (row) {
                     var field = row[0].toLowerCase().replace(/[^a-z0-9]/g, '-');
                     var tip = HELP[field] ? '<span class="help-tip hidden">' + esc(HELP[field]) + '</span>' : '';
+                    var isPct = row[2] === 'pct';
                     html += '<tr><td class="fin-label">' + row[0] + tip + '</td>';
                     data.forEach(function (d) {
-                        html += '<td>' + fmt(d[row[1]]) + '</td>';
+                        var val = d[row[1]];
+                        html += '<td>' + (isPct ? pct(val) : fmt(val)) + '</td>';
                     });
                     html += '</tr>';
                 });
@@ -637,6 +660,121 @@
             })
             .catch(function () { newsEl.innerHTML = '<p class="empty-state">Failed to load</p>'; });
     }
+
+    // ── SEC Filings ──
+
+    var secFormTypes = null; // cached form type reference data
+    var secFilter = ''; // current form type filter
+    var secSelectedRow = -1;
+
+    function loadSEC() {
+        container.innerHTML = '<p class="empty-state">Loading SEC filings...</p>';
+
+        // Fetch form types (once) and filings in parallel
+        var formTypesP = secFormTypes
+            ? Promise.resolve(secFormTypes)
+            : fetch('/api/sec-form-types').then(function (r) { return r.json(); }).then(function (types) { secFormTypes = types; return types; });
+
+        Promise.all([
+            formTypesP,
+            fetch('/api/security/' + symbol + '/sec-filings').then(function (r) { return r.json(); }),
+        ]).then(function (results) {
+            var types = results[0] || [];
+            var filings = results[1] || [];
+
+            // Build type lookup
+            var typeMap = {};
+            types.forEach(function (t) { typeMap[t.formType] = t; });
+
+            // Category filters
+            var categories = [
+                { key: '', label: 'All' },
+                { key: 'periodic', label: 'Periodic' },
+                { key: 'event', label: 'Events' },
+                { key: 'ownership', label: 'Ownership' },
+                { key: 'proxy', label: 'Proxy' },
+                { key: 'registration', label: 'Registration' },
+            ];
+
+            var html = '<div class="sec-view">';
+
+            // Filter badges
+            html += '<div class="sec-filters" id="sec-filters">';
+            categories.forEach(function (cat) {
+                var active = secFilter === cat.key ? ' active' : '';
+                html += '<button class="sec-filter-btn' + active + '" data-cat="' + cat.key + '">' + cat.label + '</button>';
+            });
+            html += '</div>';
+
+            // Filing count
+            var filteredFilings = secFilter ? filings.filter(function (f) {
+                var t = typeMap[f.formType];
+                return t && t.category === secFilter;
+            }) : filings;
+
+            html += '<div class="sec-count">' + filteredFilings.length + ' filings</div>';
+
+            // Filings table
+            if (filteredFilings.length > 0) {
+                html += '<table class="fin-table sec-table" id="sec-table"><thead><tr>';
+                html += '<th>Date</th><th>Form</th><th>Description</th><th>Link</th>';
+                html += '</tr></thead><tbody>';
+                filteredFilings.forEach(function (f, idx) {
+                    var t = typeMap[f.formType] || {};
+                    var catClass = 'sec-cat-' + (t.category || 'other');
+                    var date = (f.filingDate || '').substring(0, 10);
+                    html += '<tr class="sec-row" data-idx="' + idx + '" data-link="' + esc(f.link || f.finalLink || '') + '">';
+                    html += '<td class="sec-date">' + date + '</td>';
+                    html += '<td><span class="sec-badge ' + catClass + '">' + esc(f.formType) + '</span></td>';
+                    html += '<td class="sec-desc">' + esc(t.title || f.formType) + '</td>';
+                    html += '<td><a href="' + esc(f.link || f.finalLink || '') + '" target="_blank" rel="noopener" class="sec-link">&#8599;</a></td>';
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+            } else {
+                html += '<p class="empty-state">No filings found' + (secFilter ? ' for this category' : '') + '</p>';
+            }
+
+            html += '</div>';
+            container.innerHTML = html;
+
+            // Wire filter buttons
+            container.querySelectorAll('.sec-filter-btn').forEach(function (btn) {
+                btn.onclick = function () {
+                    secFilter = btn.dataset.cat;
+                    secSelectedRow = -1;
+                    loadSEC();
+                };
+            });
+        }).catch(function () {
+            container.innerHTML = '<p class="empty-state">Failed to load SEC filings</p>';
+        });
+    }
+
+    // Expose for vim
+    window._secGetRows = function () { return Array.from(document.querySelectorAll('.sec-row')); };
+    window._secSelectRow = function (idx) {
+        var rows = window._secGetRows();
+        if (rows.length === 0) return;
+        idx = Math.max(0, Math.min(idx, rows.length - 1));
+        secSelectedRow = idx;
+        rows.forEach(function (r, i) { r.classList.toggle('vim-selected', i === idx); });
+        rows[idx].scrollIntoView({ block: 'nearest' });
+    };
+    window._secActivate = function () {
+        var rows = window._secGetRows();
+        if (secSelectedRow >= 0 && secSelectedRow < rows.length) {
+            var link = rows[secSelectedRow].dataset.link;
+            if (link) window.open(link, '_blank');
+        }
+    };
+    window._secCycleFilter = function () {
+        var cats = ['', 'periodic', 'event', 'ownership', 'proxy', 'registration'];
+        var idx = cats.indexOf(secFilter);
+        secFilter = cats[(idx + 1) % cats.length];
+        secSelectedRow = -1;
+        loadSEC();
+    };
 
     // ── AI Analysis ──
 
@@ -1221,7 +1359,7 @@
     if (hash) {
         var parts = hash.split('-');
         var mainTab = parts[0];
-        if (['overview', 'financials', 'estimates', 'news', 'ai', 'sector'].indexOf(mainTab) >= 0) {
+        if (['overview', 'financials', 'estimates', 'news', 'ai', 'sector', 'sec'].indexOf(mainTab) >= 0) {
             initTab = mainTab;
             if (parts.length > 1) initSubTab = parts.slice(1).join('-');
         }

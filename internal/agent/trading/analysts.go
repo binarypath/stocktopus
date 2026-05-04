@@ -225,6 +225,10 @@ func (ar *AnalystRunner) runFundamentals(ctx context.Context, symbol string) (An
 		{"ratios", func() (json.RawMessage, error) { return ar.fmp.GetRatiosTTM(ctx, symbol) }},
 		{"estimates", func() (json.RawMessage, error) { return ar.fmp.GetAnalystEstimates(ctx, symbol, 3) }},
 		{"peers", func() (json.RawMessage, error) { return ar.fmp.GetPeers(ctx, symbol) }},
+		{"sec_filings", func() (json.RawMessage, error) {
+			from := time.Now().UTC().AddDate(-1, 0, 0).Format("2006-01-02")
+			return ar.fmp.GetSECFilings(ctx, symbol, from, "")
+		}},
 	}
 
 	results := make([]fetchResult, len(fetches))
@@ -264,6 +268,7 @@ Your analysis should focus on:
 - **Valuation**: P/E, EV/EBITDA, P/B, PEG relative to sector peers. Is the stock cheap or expensive relative to its fundamentals?
 - **Growth Trajectory**: Compare analyst estimates to historical performance. Are expectations realistic? What's priced in?
 - **Red Flags**: Look for declining margins, rising debt, negative FCF, revenue deceleration, or earnings quality issues.
+- **SEC Filings**: Recent 8-K filings reveal material events — M&A, exec changes, material agreements. 10-K/10-Q filing dates show reporting cadence. Reference any significant filings.
 - **Competitive Position**: How does this company compare to its sector peers in financial health?
 
 Cite specific numbers — revenue figures, margin percentages, ratios. Do not be vague.
@@ -298,13 +303,14 @@ func (ar *AnalystRunner) runNews(ctx context.Context, symbol string) (AnalystRep
 	to := time.Now().UTC().Format("2006-01-02")
 	from := time.Now().UTC().AddDate(0, 0, -14).Format("2006-01-02")
 
-	// Fetch company news, press releases, AND macro news in parallel
+	// Fetch company news, press releases, macro news, AND SEC filings in parallel
 	var stockItems, pressItems, macroItems []model.NewsItem
+	var secData json.RawMessage
 	var stockErr error
 	var wg sync.WaitGroup
 	var profile string
 
-	wg.Add(4)
+	wg.Add(5)
 	go func() {
 		defer wg.Done()
 		stockItems, stockErr = ar.fmp.GetNewsWithDates(ctx, news.Stock, symbol, 0, 20, from, to)
@@ -320,6 +326,11 @@ func (ar *AnalystRunner) runNews(ctx context.Context, symbol string) (AnalystRep
 	go func() {
 		defer wg.Done()
 		profile = ar.fetchProfile(ctx, symbol)
+	}()
+	go func() {
+		defer wg.Done()
+		secFrom := time.Now().UTC().AddDate(0, -3, 0).Format("2006-01-02")
+		secData, _ = ar.fmp.GetSECFilings(ctx, symbol, secFrom, "")
 	}()
 	wg.Wait()
 
@@ -372,6 +383,28 @@ func (ar *AnalystRunner) runNews(ctx context.Context, symbol string) (AnalystRep
 		}
 	}
 
+	// SEC filings (material events)
+	if secData != nil {
+		var filings []struct {
+			FormType   string `json:"formType"`
+			FilingDate string `json:"filingDate"`
+			Link       string `json:"link"`
+		}
+		if json.Unmarshal(secData, &filings) == nil && len(filings) > 0 {
+			sb.WriteString("\n=== SEC FILINGS (recent) ===\n")
+			for i, f := range filings {
+				if i >= 10 {
+					break
+				}
+				date := f.FilingDate
+				if len(date) > 10 {
+					date = date[:10]
+				}
+				sb.WriteString(fmt.Sprintf("- [%s] %s filing\n", date, f.FormType))
+			}
+		}
+	}
+
 	if sb.Len() < 50 {
 		return AnalystReport{
 			Analyst:  "news",
@@ -392,8 +425,9 @@ Your analysis should focus on:
 - **Press Releases**: Company-issued releases often signal management priorities. What is the company emphasizing?
 - **Macro Environment**: How do broader economic trends (interest rates, inflation, sector rotation, geopolitical events) affect this specific company?
 - **Sentiment Shift**: Is the news flow becoming more positive or negative compared to the prior period? Are there emerging narratives?
+- **SEC Filings**: 8-K filings are the authoritative source for material events. 10-K/10-Q filings indicate reporting cadence. Reference any recent filings.
 - **Market Reaction Risk**: Which upcoming events or unresolved news items could cause significant price movement?
-- **Source Quality**: Weight institutional sources and press releases higher than opinion pieces.
+- **Source Quality**: Weight SEC filings and press releases highest, then institutional sources, then opinion pieces.
 
 Cite specific headlines and dates. Distinguish between company-specific and macro factors.
 
@@ -409,6 +443,7 @@ News data:
 		fmt.Sprintf("FMP stock news (%d items, %s to %s)", len(stockItems), from, to),
 		fmt.Sprintf("FMP press releases (%d items)", len(pressItems)),
 		fmt.Sprintf("FMP macro news (%d items)", len(macroItems)),
+		"FMP SEC filings (3 months)",
 	}
 
 	return report, nil
