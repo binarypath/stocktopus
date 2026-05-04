@@ -2169,6 +2169,17 @@ body {
 
 /* ── SEC Filings ── */
 
+.fin-explainer {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    background: var(--bg-secondary);
+    border-left: 2px solid var(--orange);
+    border-radius: 2px;
+}
+
 .sec-view { padding: 4px 0; }
 
 .sec-filters {

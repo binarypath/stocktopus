@@ -306,6 +306,12 @@
         if (n >= 0 && n < tabs.length) tabs[n].click();
     };
 
+    var FIN_EXPLAINERS = {
+        income: 'The income statement shows how much money the company earned (revenue), what it cost to earn it (expenses), and what was left over (profit). Read top to bottom: revenue minus costs gives gross profit, minus operating expenses gives operating income, minus interest and taxes gives net income. Margins show these as percentages of revenue — higher is better, and the trend matters more than the absolute number.',
+        balance: 'The balance sheet is a snapshot of what the company owns (assets), what it owes (liabilities), and what belongs to shareholders (equity) at a single point in time. Assets = Liabilities + Equity, always. Key things to watch: cash vs debt levels, whether goodwill is a large portion of assets (acquisition risk), and whether equity is growing or shrinking over time.',
+        cashflow: 'The cash flow statement tracks actual cash moving in and out of the business, split into three activities. Operating: cash from the core business (the most important). Investing: cash spent on assets, acquisitions, or received from sales. Financing: cash from borrowing/repaying debt, issuing stock, or paying dividends. Free cash flow (operating minus CapEx) is what the company can actually return to shareholders.',
+    };
+
     function loadFinancialTable(type) {
         var tc = document.getElementById('fin-table-container');
         if (!tc) return;
@@ -317,6 +323,12 @@
                 if (!data || data.length === 0) {
                     tc.innerHTML = '<p class="empty-state">No data available</p>';
                     return;
+                }
+
+                var html = '';
+                if (FIN_EXPLAINERS[type]) {
+                    var hiddenClass = helpVisible ? '' : ' hidden';
+                    html += '<p class="fin-explainer help-tip' + hiddenClass + '">' + FIN_EXPLAINERS[type] + '</p>';
                 }
 
                 var rows;
@@ -374,7 +386,7 @@
                     ];
                 }
 
-                var html = '<table class="fin-table"><thead><tr><th></th>';
+                html += '<table class="fin-table"><thead><tr><th></th>';
                 data.forEach(function (d) {
                     html += '<th>' + (d.fiscalYear || d.date || '').substring(0, 4) + '</th>';
                 });
