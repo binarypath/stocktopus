@@ -2159,6 +2159,72 @@ body {
     box-shadow: 0 0 0 1px var(--orange);
 }
 
+/* Trading plan (debate result) */
+
+.trading-plan {
+    margin: 10px 0;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+}
+
+.trading-plan-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.trading-plan-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.trading-rating {
+    font-size: 14px;
+    font-weight: bold;
+    padding: 2px 10px;
+    border-radius: 2px;
+}
+
+.rating-buy { background: #1a3a2a; color: var(--green); border: 1px solid var(--green); }
+.rating-overweight { background: #1a3a2a; color: #66dd99; border: 1px solid #66dd99; }
+.rating-hold { background: #2a2a1a; color: var(--yellow); border: 1px solid var(--yellow); }
+.rating-underweight { background: #3a2a1a; color: var(--orange); border: 1px solid var(--orange); }
+.rating-sell { background: #3a1a1a; color: var(--red); border: 1px solid var(--red); }
+
+.trading-plan-rounds {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.trading-arguments {
+    display: flex;
+    gap: 16px;
+    margin: 8px 0;
+}
+
+.trading-arg-col {
+    flex: 1;
+}
+
+.trading-arg-label {
+    font-size: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+    display: block;
+}
+
+.trading-actions {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
 .trading-meta {
     display: flex;
     gap: 16px;

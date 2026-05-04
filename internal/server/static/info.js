@@ -1036,6 +1036,37 @@
             html += '</div>';
         }
 
+        // Investment plan (from research debate)
+        if (result.investmentPlan && result.investmentPlan.rating) {
+            var plan = result.investmentPlan;
+            var ratingClass = 'rating-' + plan.rating.toLowerCase();
+            html += '<div class="trading-plan">';
+            html += '<div class="trading-plan-header">';
+            html += '<span class="trading-plan-label">Research Verdict</span>';
+            html += '<span class="trading-rating ' + ratingClass + '">' + esc(plan.rating) + '</span>';
+            if (plan.debateRounds) html += '<span class="trading-plan-rounds">' + plan.debateRounds + ' rounds</span>';
+            html += '</div>';
+            if (plan.rationale) {
+                html += '<p class="ai-text">' + esc(plan.rationale) + '</p>';
+            }
+            if (plan.bullArguments && plan.bullArguments.length > 0) {
+                html += '<div class="trading-arguments"><div class="trading-arg-col"><span class="trading-arg-label price-up">Bull Case</span><ul class="ai-list">';
+                plan.bullArguments.forEach(function (a) { html += '<li>' + esc(a) + '</li>'; });
+                html += '</ul></div>';
+            }
+            if (plan.bearArguments && plan.bearArguments.length > 0) {
+                html += '<div class="trading-arg-col"><span class="trading-arg-label price-down">Bear Case</span><ul class="ai-list">';
+                plan.bearArguments.forEach(function (a) { html += '<li>' + esc(a) + '</li>'; });
+                html += '</ul></div></div>';
+            }
+            if (plan.keyActions && plan.keyActions.length > 0) {
+                html += '<div class="trading-actions"><span class="trading-arg-label">Key Actions</span><ul class="ai-list">';
+                plan.keyActions.forEach(function (a) { html += '<li>' + esc(a) + '</li>'; });
+                html += '</ul></div>';
+            }
+            html += '</div>';
+        }
+
         // Timing — compact footer
         if (finished) {
             var dur = (new Date(result.finishedAt) - new Date(result.startedAt)) / 1000;
