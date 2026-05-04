@@ -53,14 +53,26 @@ func (tp *TradingPipeline) SetStatusCallback(cb StatusCallback) {
 }
 
 // GetResult returns the current/last result for a symbol.
+// Checks in-memory first, falls back to SQLite for persisted results.
 func (tp *TradingPipeline) GetResult(symbol string) *PipelineResult {
 	tp.mu.RLock()
-	defer tp.mu.RUnlock()
 	if r, ok := tp.active[symbol]; ok {
 		cp := *r
+		tp.mu.RUnlock()
 		return &cp
 	}
-	return nil
+	tp.mu.RUnlock()
+
+	// Fall back to stored result
+	ci, err := tp.store.Get(symbol)
+	if err != nil || ci == nil || ci.ModelVersion != "trading-pipeline-v1" {
+		return nil
+	}
+	var result PipelineResult
+	if json.Unmarshal(ci.Analysis, &result) != nil {
+		return nil
+	}
+	return &result
 }
 
 // IsRunning checks if an analysis is currently in progress for a symbol.

@@ -126,8 +126,46 @@ func (s *Store) migrate() error {
 			generated_at DATETIME,
 			model_version TEXT DEFAULT ''
 		);
+
+		CREATE TABLE IF NOT EXISTS sec_filings (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			symbol TEXT NOT NULL,
+			cik TEXT NOT NULL DEFAULT '',
+			form_type TEXT NOT NULL,
+			filing_date TEXT NOT NULL,
+			accepted_date TEXT DEFAULT '',
+			link TEXT DEFAULT '',
+			final_link TEXT DEFAULT '',
+			fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(symbol, form_type, filing_date, link)
+		);
+		CREATE INDEX IF NOT EXISTS idx_sec_symbol ON sec_filings(symbol);
+		CREATE INDEX IF NOT EXISTS idx_sec_form ON sec_filings(form_type);
+
+		CREATE TABLE IF NOT EXISTS sec_form_types (
+			form_type TEXT PRIMARY KEY,
+			title TEXT NOT NULL DEFAULT '',
+			purpose TEXT NOT NULL DEFAULT '',
+			timing TEXT NOT NULL DEFAULT '',
+			category TEXT NOT NULL DEFAULT ''
+		);
+
+		CREATE TABLE IF NOT EXISTS key_people (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			symbol TEXT NOT NULL,
+			name TEXT NOT NULL,
+			title TEXT DEFAULT '',
+			event_type TEXT DEFAULT '',
+			event_date TEXT DEFAULT '',
+			source TEXT DEFAULT '',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE INDEX IF NOT EXISTS idx_people_symbol ON key_people(symbol);
 	`)
-	return err
+	if err != nil {
+		return err
+	}
+	return s.seedSECFormTypes()
 }
 
 // Get returns the cached intelligence for a symbol, or nil if not found.
@@ -485,4 +523,179 @@ func (s *Store) GetAllWatchedSymbols() ([]string, error) {
 		symbols = append(symbols, sym)
 	}
 	return symbols, nil
+}
+
+// ── SEC Filings ──
+
+// SECFiling represents a cached SEC filing.
+type SECFiling struct {
+	Symbol       string `json:"symbol"`
+	CIK          string `json:"cik"`
+	FormType     string `json:"formType"`
+	FilingDate   string `json:"filingDate"`
+	AcceptedDate string `json:"acceptedDate"`
+	Link         string `json:"link"`
+	FinalLink    string `json:"finalLink"`
+}
+
+// SECFormType describes a tracked SEC form type.
+type SECFormType struct {
+	FormType string `json:"formType"`
+	Title    string `json:"title"`
+	Purpose  string `json:"purpose"`
+	Timing   string `json:"timing"`
+	Category string `json:"category"`
+}
+
+// KeyPerson represents an executive or board member change.
+type KeyPerson struct {
+	Symbol    string `json:"symbol"`
+	Name      string `json:"name"`
+	Title     string `json:"title"`
+	EventType string `json:"eventType"`
+	EventDate string `json:"eventDate"`
+	Source    string `json:"source"`
+}
+
+func (s *Store) seedSECFormTypes() error {
+	forms := []SECFormType{
+		{"S-1", "Registration Statement", "Register securities for IPO or primary offering", "As needed", "registration"},
+		{"S-3", "Registration Statement", "Simplified registration for follow-on offerings after IPO", "As needed", "registration"},
+		{"S-8", "Registration Statement", "Register securities for employee benefit plans", "As needed", "registration"},
+		{"3", "Initial Statement of Beneficial Ownership", "Initial insider ownership declaration", "Within 10 days of becoming insider", "ownership"},
+		{"4", "Statement of Changes in Beneficial Ownership", "Insider stock transactions", "Within 2 business days", "ownership"},
+		{"5", "Annual Statement of Beneficial Ownership", "Annual summary of insider transactions", "Within 45 days of fiscal year end", "ownership"},
+		{"6-K", "Foreign Private Issuer Report", "Material events for foreign issuers", "As needed", "event"},
+		{"8-K", "Current Report", "Material events — M&A, exec changes, operational developments", "As needed", "event"},
+		{"10-K", "Annual Report", "Comprehensive annual business and financial report", "Annually", "periodic"},
+		{"10-Q", "Quarterly Report", "Quarterly financial performance snapshot", "Quarterly", "periodic"},
+		{"11-K", "Employee Plan Annual Report", "Employee stock purchase and savings plan reports", "Annually", "periodic"},
+		{"20-F", "Foreign Annual Report", "Annual report for non-US/Canadian companies trading in US", "Annually", "periodic"},
+		{"SC 13D", "Beneficial Ownership Report", "Filed when acquiring >5%% of shares — identity, purpose", "Within 10 days", "ownership"},
+		{"SC 13G", "Passive Beneficial Ownership", "Passive >5%% ownership report with exemptions", "Annually", "ownership"},
+		{"DEF 14A", "Proxy Statement", "Shareholder meeting info — director elections, exec compensation", "Before annual meeting", "proxy"},
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare(`INSERT OR IGNORE INTO sec_form_types (form_type, title, purpose, timing, category) VALUES (?, ?, ?, ?, ?)`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, f := range forms {
+		stmt.Exec(f.FormType, f.Title, f.Purpose, f.Timing, f.Category)
+	}
+	return tx.Commit()
+}
+
+// PutSECFilings bulk inserts SEC filings (ignoring duplicates).
+func (s *Store) PutSECFilings(filings []SECFiling) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare(`INSERT OR IGNORE INTO sec_filings (symbol, cik, form_type, filing_date, accepted_date, link, final_link) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, f := range filings {
+		stmt.Exec(f.Symbol, f.CIK, f.FormType, f.FilingDate, f.AcceptedDate, f.Link, f.FinalLink)
+	}
+	return tx.Commit()
+}
+
+// GetSECFilings returns cached filings for a symbol, optionally filtered by form type.
+func (s *Store) GetSECFilings(symbol, formType string, limit int) ([]SECFiling, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	query := `SELECT symbol, cik, form_type, filing_date, accepted_date, link, final_link FROM sec_filings WHERE symbol = ?`
+	args := []interface{}{symbol}
+	if formType != "" {
+		query += ` AND form_type = ?`
+		args = append(args, formType)
+	}
+	query += ` ORDER BY filing_date DESC LIMIT ?`
+	args = append(args, limit)
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var filings []SECFiling
+	for rows.Next() {
+		var f SECFiling
+		if err := rows.Scan(&f.Symbol, &f.CIK, &f.FormType, &f.FilingDate, &f.AcceptedDate, &f.Link, &f.FinalLink); err != nil {
+			continue
+		}
+		filings = append(filings, f)
+	}
+	return filings, nil
+}
+
+// IsSECFresh checks if we have filings cached recently enough.
+func (s *Store) IsSECFresh(symbol string, maxAge time.Duration) bool {
+	var fetchedAt time.Time
+	err := s.db.QueryRow(`SELECT MAX(fetched_at) FROM sec_filings WHERE symbol = ?`, symbol).Scan(&fetchedAt)
+	if err != nil {
+		return false
+	}
+	return time.Since(fetchedAt) < maxAge
+}
+
+// GetSECFormTypes returns all tracked SEC form type definitions.
+func (s *Store) GetSECFormTypes() ([]SECFormType, error) {
+	rows, err := s.db.Query(`SELECT form_type, title, purpose, timing, category FROM sec_form_types ORDER BY form_type`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var types []SECFormType
+	for rows.Next() {
+		var t SECFormType
+		if err := rows.Scan(&t.FormType, &t.Title, &t.Purpose, &t.Timing, &t.Category); err != nil {
+			continue
+		}
+		types = append(types, t)
+	}
+	return types, nil
+}
+
+// PutKeyPerson inserts a key person record.
+func (s *Store) PutKeyPerson(kp KeyPerson) error {
+	_, err := s.db.Exec(`INSERT INTO key_people (symbol, name, title, event_type, event_date, source) VALUES (?, ?, ?, ?, ?, ?)`,
+		kp.Symbol, kp.Name, kp.Title, kp.EventType, kp.EventDate, kp.Source)
+	return err
+}
+
+// GetKeyPeople returns key people events for a symbol.
+func (s *Store) GetKeyPeople(symbol string) ([]KeyPerson, error) {
+	rows, err := s.db.Query(`SELECT symbol, name, title, event_type, event_date, source FROM key_people WHERE symbol = ? ORDER BY event_date DESC`, symbol)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var people []KeyPerson
+	for rows.Next() {
+		var p KeyPerson
+		if err := rows.Scan(&p.Symbol, &p.Name, &p.Title, &p.EventType, &p.EventDate, &p.Source); err != nil {
+			continue
+		}
+		people = append(people, p)
+	}
+	return people, nil
 }

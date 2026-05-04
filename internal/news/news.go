@@ -309,6 +309,18 @@ func (c *Client) GetAnalystEstimates(ctx context.Context, symbol string, limit i
 	return c.fetchJSON(ctx, "/stable/analyst-estimates", params)
 }
 
+// GetSECFilings searches SEC filings for a symbol within a date range.
+func (c *Client) GetSECFilings(ctx context.Context, symbol, from, to string) (json.RawMessage, error) {
+	params := url.Values{"symbol": {symbol}}
+	if from != "" {
+		params.Set("from", from)
+	}
+	if to != "" {
+		params.Set("to", to)
+	}
+	return c.fetchJSON(ctx, "/stable/sec-filings-search/symbol", params)
+}
+
 // GetIntradayChart fetches intraday OHLCV data for a symbol.
 // interval: "1min", "5min", "15min", "30min", "1hour", "4hour"
 func (c *Client) GetIntradayChart(ctx context.Context, symbol, interval, from, to string) ([]model.OHLCV, error) {

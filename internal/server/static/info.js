@@ -25,8 +25,8 @@
         'current-ratio':  'Current assets / current liabilities — ability to pay short-term obligations (>1 = healthy)',
         'debt-equity':    'Total debt / shareholder equity — financial leverage',
         'roe':            'Return on Equity — net income / equity — profitability of shareholder investment',
-        'gross-margin':   'Gross profit / revenue — percentage retained after cost of goods',
-        'net-margin':     'Net income / revenue — percentage retained after all expenses',
+        'gross-margin':   'Calculated: grossProfit ÷ revenue × 100 — percentage retained after cost of goods sold',
+        'net-margin':     'Calculated: netIncome ÷ revenue × 100 — percentage retained after all expenses',
         'p-b':            'Price-to-Book — market price / book value per share',
         'revenue':        'Total income from business operations before any deductions',
         'cost-of-revenue':'Direct costs of producing goods/services sold',
@@ -51,6 +51,24 @@
         'free-cash-flow': 'Operating cash flow minus CapEx — cash available for dividends, buybacks, debt reduction',
         'dividends-paid': 'Total cash distributed to shareholders as dividends',
         'share-buyback':  'Cash spent repurchasing the company\'s own shares',
+        'sg-a':           'Selling, General & Administrative — operating costs not tied to production (sales, marketing, rent, management)',
+        'operating-margin':'Calculated: operatingIncome ÷ revenue × 100 — profitability from core operations before interest and taxes',
+        'interest-expense':'Cost of borrowing — interest paid on debt, bonds, credit facilities',
+        'income-before-tax':'Profit before income tax is deducted — shows pre-tax earning power',
+        'income-tax':     'Corporate income tax paid to government — reveals effective tax rate',
+        'short-term-investments':'Securities or deposits maturing within one year — near-cash holdings',
+        'net-receivables': 'Money owed by customers for goods/services delivered — adjusted for expected defaults',
+        'inventory':      'Goods held for sale or in production — raw materials, work-in-progress, finished goods',
+        'goodwill':       'Premium paid above fair value in acquisitions — reflects brand value, customer relationships, synergies',
+        'intangible-assets':'Non-physical assets with value — patents, trademarks, copyrights, software, licenses',
+        'short-term-debt':'Debt obligations due within one year — credit lines, commercial paper, current portion of long-term debt',
+        'total-debt':     'All interest-bearing obligations — short-term + long-term debt combined',
+        'd-a':            'Depreciation & Amortization — non-cash expense spreading cost of physical and intangible assets over useful life',
+        'stock-based-comp':'Non-cash compensation — stock options, RSUs granted to employees, dilutes existing shareholders',
+        'accounts-receivable':'Change in money owed by customers — increase means cash tied up, decrease means cash collected',
+        'accounts-payable':'Change in money owed to suppliers — increase means delaying payments (preserving cash)',
+        'debt-repayment': 'Principal payments on loans and bonds — cash used to reduce outstanding debt',
+        'net-change-in-cash':'Total change in cash position — sum of operating + investing + financing cash flows',
         'revenue-est':    'Analyst consensus forecast for total revenue — average with low–high range',
         'eps-est':        'Analyst consensus forecast for Earnings Per Share — average with low–high range',
         'ebitda-est':     'Analyst consensus forecast for EBITDA (operating earnings before depreciation)',
@@ -59,15 +77,23 @@
 
     var helpVisible = false;
 
-    function toggleHelp() {
-        helpVisible = !helpVisible;
+    function applyHelpState() {
         document.querySelectorAll('.help-tip').forEach(function (el) {
             el.classList.toggle('hidden', !helpVisible);
         });
-        // Update help indicator
         var indicator = document.getElementById('help-indicator');
         if (indicator) indicator.classList.toggle('hidden', !helpVisible);
     }
+
+    function toggleHelp() {
+        helpVisible = !helpVisible;
+        applyHelpState();
+    }
+
+    // Re-apply help state whenever container content changes (new tab loaded)
+    new MutationObserver(function () {
+        if (helpVisible) applyHelpState();
+    }).observe(container, { childList: true, subtree: true });
 
     // Expose for vim
     window._infoToggleHelp = toggleHelp;
@@ -133,7 +159,7 @@
         securityType = type;
         var hideTabs = [];
         if (type === 'crypto' || type === 'forex' || type === 'index') {
-            hideTabs = ['financials', 'estimates'];
+            hideTabs = ['financials', 'estimates', 'sec'];
         }
         document.querySelectorAll('#info-tabs .info-tab').forEach(function (tab) {
             if (hideTabs.indexOf(tab.dataset.tab) >= 0) {
@@ -175,6 +201,7 @@
                 case 'news': loadNews(); break;
                 case 'ai': loadAI(); break;
                 case 'sector': loadSector(); break;
+                case 'sec': loadSEC(); break;
             }
         } catch (e) {
             console.error('Tab load error:', tab, e);
@@ -287,6 +314,12 @@
         if (n >= 0 && n < tabs.length) tabs[n].click();
     };
 
+    var FIN_EXPLAINERS = {
+        income: 'The income statement shows how much money the company earned (revenue), what it cost to earn it (expenses), and what was left over (profit). Read top to bottom: revenue minus costs gives gross profit, minus operating expenses gives operating income, minus interest and taxes gives net income. Margins show these as percentages of revenue — higher is better, and the trend matters more than the absolute number.',
+        balance: 'The balance sheet is a snapshot of what the company owns (assets), what it owes (liabilities), and what belongs to shareholders (equity) at a single point in time. Assets = Liabilities + Equity, always. Key things to watch: cash vs debt levels, whether goodwill is a large portion of assets (acquisition risk), and whether equity is growing or shrinking over time.',
+        cashflow: 'The cash flow statement tracks actual cash moving in and out of the business, split into three activities. Operating: cash from the core business (the most important). Investing: cash spent on assets, acquisitions, or received from sales. Financing: cash from borrowing/repaying debt, issuing stock, or paying dividends. Free cash flow (operating minus CapEx) is what the company can actually return to shareholders.',
+    };
+
     function loadFinancialTable(type) {
         var tc = document.getElementById('fin-table-container');
         if (!tc) return;
@@ -300,16 +333,29 @@
                     return;
                 }
 
+                var html = '';
+                if (FIN_EXPLAINERS[type]) {
+                    var hiddenClass = helpVisible ? '' : ' hidden';
+                    html += '<p class="fin-explainer help-tip' + hiddenClass + '">' + FIN_EXPLAINERS[type] + '</p>';
+                }
+
                 var rows;
                 if (type === 'income') {
                     rows = [
                         ['Revenue', 'revenue'],
                         ['Cost of Revenue', 'costOfRevenue'],
                         ['Gross Profit', 'grossProfit'],
+                        ['Gross Margin', '', 'calc', 'grossProfit', 'revenue'],
                         ['R&D Expenses', 'researchAndDevelopmentExpenses'],
+                        ['SG&A', 'sellingGeneralAndAdministrativeExpenses'],
                         ['Operating Income', 'operatingIncome'],
+                        ['Operating Margin', '', 'calc', 'operatingIncome', 'revenue'],
+                        ['Interest Expense', 'interestExpense'],
+                        ['Income Before Tax', 'incomeBeforeTax'],
+                        ['Income Tax', 'incomeTaxExpense'],
                         ['EBITDA', 'ebitda'],
                         ['Net Income', 'netIncome'],
+                        ['Net Margin', '', 'calc', 'netIncome', 'revenue'],
                         ['EPS', 'eps'],
                     ];
                 } else if (type === 'balance') {
@@ -317,25 +363,38 @@
                         ['Total Assets', 'totalAssets'],
                         ['Current Assets', 'totalCurrentAssets'],
                         ['Cash & Equivalents', 'cashAndCashEquivalents'],
+                        ['Short-Term Investments', 'shortTermInvestments'],
+                        ['Net Receivables', 'netReceivables'],
+                        ['Inventory', 'inventory'],
+                        ['Goodwill', 'goodwill'],
+                        ['Intangible Assets', 'intangibleAssets'],
                         ['Total Liabilities', 'totalLiabilities'],
                         ['Current Liabilities', 'totalCurrentLiabilities'],
+                        ['Short-Term Debt', 'shortTermDebt'],
                         ['Long-Term Debt', 'longTermDebt'],
+                        ['Total Debt', 'totalDebt'],
                         ['Total Equity', 'totalStockholdersEquity'],
                         ['Retained Earnings', 'retainedEarnings'],
                     ];
                 } else {
                     rows = [
                         ['Operating CF', 'operatingCashFlow'],
+                        ['D&A', 'depreciationAndAmortization'],
+                        ['Stock-Based Comp', 'stockBasedCompensation'],
+                        ['Accounts Receivable', 'accountsReceivables'],
+                        ['Accounts Payable', 'accountsPayables'],
                         ['Investing CF', 'netCashUsedForInvestingActivities'],
                         ['Financing CF', 'netCashUsedProvidedByFinancingActivities'],
+                        ['Debt Repayment', 'debtRepayment'],
                         ['CapEx', 'capitalExpenditure'],
                         ['Free Cash Flow', 'freeCashFlow'],
+                        ['Net Change in Cash', 'netChangeInCash'],
                         ['Dividends Paid', 'dividendsPaid'],
                         ['Share Buyback', 'commonStockRepurchased'],
                     ];
                 }
 
-                var html = '<table class="fin-table"><thead><tr><th></th>';
+                html += '<table class="fin-table"><thead><tr><th></th>';
                 data.forEach(function (d) {
                     html += '<th>' + (d.fiscalYear || d.date || '').substring(0, 4) + '</th>';
                 });
@@ -344,9 +403,18 @@
                 rows.forEach(function (row) {
                     var field = row[0].toLowerCase().replace(/[^a-z0-9]/g, '-');
                     var tip = HELP[field] ? '<span class="help-tip hidden">' + esc(HELP[field]) + '</span>' : '';
+                    var format = row[2] || '';
                     html += '<tr><td class="fin-label">' + row[0] + tip + '</td>';
                     data.forEach(function (d) {
-                        html += '<td>' + fmt(d[row[1]]) + '</td>';
+                        var val;
+                        if (format === 'calc') {
+                            // Calculated margin: row[3] is numerator field, row[4] is denominator field
+                            var num = d[row[3]], den = d[row[4]];
+                            val = (num != null && den != null && den !== 0) ? ((num / den) * 100).toFixed(1) + '%' : '—';
+                        } else {
+                            val = fmt(d[row[1]]);
+                        }
+                        html += '<td>' + val + '</td>';
                     });
                     html += '</tr>';
                 });
@@ -637,6 +705,122 @@
             })
             .catch(function () { newsEl.innerHTML = '<p class="empty-state">Failed to load</p>'; });
     }
+
+    // ── SEC Filings ──
+
+    var secFormTypes = null; // cached form type reference data
+    var secFilter = ''; // current form type filter
+    var secSelectedRow = -1;
+
+    function loadSEC() {
+        container.innerHTML = '<p class="empty-state">Loading SEC filings...</p>';
+
+        // Fetch form types (once) and filings in parallel
+        var formTypesP = secFormTypes
+            ? Promise.resolve(secFormTypes)
+            : fetch('/api/sec-form-types').then(function (r) { return r.json(); }).then(function (types) { secFormTypes = types; return types; });
+
+        Promise.all([
+            formTypesP,
+            fetch('/api/security/' + symbol + '/sec-filings').then(function (r) { return r.json(); }),
+        ]).then(function (results) {
+            var types = results[0] || [];
+            var filings = results[1] || [];
+
+            // Build type lookup
+            var typeMap = {};
+            types.forEach(function (t) { typeMap[t.formType] = t; });
+
+            // Category filters
+            var categories = [
+                { key: '', label: 'All' },
+                { key: 'periodic', label: 'Periodic' },
+                { key: 'event', label: 'Events' },
+                { key: 'ownership', label: 'Ownership' },
+                { key: 'proxy', label: 'Proxy' },
+                { key: 'registration', label: 'Registration' },
+            ];
+
+            var html = '<div class="sec-view">';
+
+            // Filter badges
+            html += '<div class="info-sub-tabs" id="sec-filters">';
+            categories.forEach(function (cat) {
+                var active = secFilter === cat.key ? ' active' : '';
+                html += '<button class="info-sub-tab' + active + '" data-cat="' + cat.key + '">' + cat.label + '</button>';
+            });
+            html += '</div>';
+
+            // Filing count
+            var filteredFilings = secFilter ? filings.filter(function (f) {
+                var t = typeMap[f.formType];
+                return t && t.category === secFilter;
+            }) : filings;
+
+            html += '<div class="sec-count">' + filteredFilings.length + ' filings</div>';
+
+            // Filings table
+            if (filteredFilings.length > 0) {
+                html += '<table class="fin-table sec-table" id="sec-table"><thead><tr>';
+                html += '<th>Date</th><th>Form</th><th>Description</th><th>Link</th>';
+                html += '</tr></thead><tbody>';
+                filteredFilings.forEach(function (f, idx) {
+                    var t = typeMap[f.formType] || {};
+                    var catClass = 'sec-cat-' + (t.category || 'other');
+                    var date = (f.filingDate || '').substring(0, 10);
+                    html += '<tr class="sec-row" data-idx="' + idx + '" data-link="' + esc(f.link || f.finalLink || '') + '">';
+                    html += '<td class="sec-date">' + date + '</td>';
+                    html += '<td><span class="sec-badge ' + catClass + '">' + esc(f.formType) + '</span></td>';
+                    html += '<td class="sec-desc">' + esc(t.title || f.formType) + '</td>';
+                    html += '<td><a href="' + esc(f.link || f.finalLink || '') + '" target="_blank" rel="noopener" class="sec-link">&#8599;</a></td>';
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+            } else {
+                html += '<p class="empty-state">No filings found' + (secFilter ? ' for this category' : '') + '</p>';
+            }
+
+            html += '</div>';
+            container.innerHTML = html;
+
+            // Wire filter buttons
+            container.querySelectorAll('#sec-filters .info-sub-tab').forEach(function (btn) {
+                btn.onclick = function () {
+                    secFilter = btn.dataset.cat;
+                    secSelectedRow = -1;
+                    loadSEC();
+                };
+            });
+        }).catch(function () {
+            container.innerHTML = '<p class="empty-state">Failed to load SEC filings</p>';
+        });
+    }
+
+    // Expose for vim
+    window._secGetRows = function () { return Array.from(document.querySelectorAll('.sec-row')); };
+    window._secGetSelectedRow = function () { return secSelectedRow; };
+    window._secSelectRow = function (idx) {
+        var rows = window._secGetRows();
+        if (rows.length === 0) return;
+        idx = Math.max(0, Math.min(idx, rows.length - 1));
+        secSelectedRow = idx;
+        rows.forEach(function (r, i) { r.classList.toggle('vim-selected', i === idx); });
+        rows[idx].scrollIntoView({ block: 'nearest' });
+    };
+    window._secActivate = function () {
+        var rows = window._secGetRows();
+        if (secSelectedRow >= 0 && secSelectedRow < rows.length) {
+            var link = rows[secSelectedRow].dataset.link;
+            if (link) window.open(link, '_blank');
+        }
+    };
+    window._secCycleFilter = function () {
+        var cats = ['', 'periodic', 'event', 'ownership', 'proxy', 'registration'];
+        var idx = cats.indexOf(secFilter);
+        secFilter = cats[(idx + 1) % cats.length];
+        secSelectedRow = -1;
+        loadSEC();
+    };
 
     // ── AI Analysis ──
 
@@ -1221,7 +1405,7 @@
     if (hash) {
         var parts = hash.split('-');
         var mainTab = parts[0];
-        if (['overview', 'financials', 'estimates', 'news', 'ai', 'sector'].indexOf(mainTab) >= 0) {
+        if (['overview', 'financials', 'estimates', 'news', 'ai', 'sector', 'sec'].indexOf(mainTab) >= 0) {
             initTab = mainTab;
             if (parts.length > 1) initSubTab = parts.slice(1).join('-');
         }

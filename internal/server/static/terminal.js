@@ -810,6 +810,7 @@ window.onerror = function (msg, src, line, col, err) {
                     if (sec) selectSecurity(sec);
                 }
                 dropdown.classList.add('hidden');
+                enterNormalMode();
             } else if (e.key === 'Escape') {
                 dropdown.classList.add('hidden');
                 document.getElementById('cmd-input').focus();
@@ -823,10 +824,18 @@ window.onerror = function (msg, src, line, col, err) {
 
     function selectSecurity(sec) {
         setSecurity(sec);
+        // Ensure security dropdown is hidden
+        var dd = document.getElementById('security-dropdown');
+        if (dd) dd.classList.add('hidden');
         // If on a security-dependent view, refresh it
         const cmd = COMMANDS[currentView];
         if (cmd && cmd.needsSecurity) {
+            onViewLeave(currentView);
             navigate(currentView, sec);
+        } else {
+            // Default: navigate to info page for the security
+            onViewLeave(currentView);
+            navigate('info', sec);
         }
     }
 
@@ -1017,11 +1026,13 @@ window.onerror = function (msg, src, line, col, err) {
                     setSecurity(sec);
                     onViewLeave(currentView);
                     navigate('info', sec);
+                    enterNormalMode();
                     return;
                 }
                 const security = parsed.args[0] || '';
                 onViewLeave(currentView);
                 navigate(resolvedCmd, security);
+                enterNormalMode();
             } else if (e.key === 'Escape') {
                 if (!dropdown.classList.contains('hidden')) {
                     hideCmdDropdown();
@@ -1328,11 +1339,18 @@ window.onerror = function (msg, src, line, col, err) {
                 return el ? el.dataset.tab : '';
             },
             hasSubTabs: function () {
-                return this.getActiveTab() === 'financials' && window._infoFinSubTabs && window._infoFinSubTabs().length > 0;
+                var tab = this.getActiveTab();
+                if (tab === 'financials') return window._infoFinSubTabs && window._infoFinSubTabs().length > 0;
+                if (tab === 'sec') return this.getSECSubTabs().length > 0;
+                return false;
+            },
+            getSECSubTabs: function () {
+                return Array.from(document.querySelectorAll('#sec-filters .info-sub-tab'));
             },
             isNewsTab: function () { return this.getActiveTab() === 'news'; },
             isSectorTab: function () { return this.getActiveTab() === 'sector'; },
             isAITab: function () { return this.getActiveTab() === 'ai'; },
+            isSECTab: function () { return this.getActiveTab() === 'sec'; },
             getNewsCards: function () { return document.querySelectorAll('#info-content .news-card'); },
             getSectorItems: function () {
                 // Peer rows + news items as one navigable list
@@ -1344,6 +1362,19 @@ window.onerror = function (msg, src, line, col, err) {
                 var hasSub = this.hasSubTabs();
 
                 if (dir === 'k') {
+                    // SEC tab: filing row navigation
+                    if (this._focus === 'content' && this.isSECTab()) {
+                        var secRows = window._secGetRows ? window._secGetRows() : [];
+                        var secIdx = window._secGetSelectedRow ? window._secGetSelectedRow() : -1;
+                        if (secRows.length > 0 && secIdx > 0) {
+                            window._secSelectRow(secIdx - 1);
+                            return;
+                        }
+                        clearVimSelection();
+                        this._focus = hasSub ? 'sub' : 'main';
+                        this._highlightFocus();
+                        return;
+                    }
                     // AI tab: trading panel navigation
                     if (this._focus === 'content' && this.isAITab()) {
                         if (window._tradingVimHandler && window._tradingVimHandler(dir)) return;
@@ -1403,6 +1434,14 @@ window.onerror = function (msg, src, line, col, err) {
                     // Go straight to content (skip focus-only transition)
                     this._focus = 'content';
                     this._highlightFocus();
+                    if (this.isSECTab()) {
+                        var secRows = window._secGetRows ? window._secGetRows() : [];
+                        if (secRows.length > 0) {
+                            var secIdx = window._secGetSelectedRow ? window._secGetSelectedRow() : -1;
+                            window._secSelectRow(secIdx + 1);
+                        }
+                        return;
+                    }
                     if (this.isAITab()) {
                         if (window._tradingVimHandler) window._tradingVimHandler(dir);
                         return;
@@ -1427,7 +1466,7 @@ window.onerror = function (msg, src, line, col, err) {
                 }
                 if (dir === 'h' || dir === 'l') {
                     if (this._focus === 'sub' && hasSub) {
-                        var subTabs = window._infoFinSubTabs();
+                        var subTabs = this.isSECTab() ? this.getSECSubTabs() : (window._infoFinSubTabs ? window._infoFinSubTabs() : []);
                         var activeIdx = subTabs.findIndex(function (t) { return t.classList.contains('active'); });
                         if (dir === 'l') activeIdx = Math.min(activeIdx + 1, subTabs.length - 1);
                         else activeIdx = Math.max(activeIdx - 1, 0);
@@ -1469,6 +1508,10 @@ window.onerror = function (msg, src, line, col, err) {
                 if (window._infoRefresh) window._infoRefresh();
             },
             activate: function () {
+                if (this.isSECTab()) {
+                    if (window._secActivate) window._secActivate();
+                    return;
+                }
                 if (this.isAITab()) {
                     if (window._tradingVimHandler) window._tradingVimHandler('Enter');
                     return;
@@ -1656,7 +1699,13 @@ window.onerror = function (msg, src, line, col, err) {
             case 'c':
                 if (handler && handler.jumpToSubTab) { e.preventDefault(); handler.jumpToSubTab(2); }
                 return;
-            case '1': case '2': case '3': case '4': case '5': case '6':
+            case 'f':
+                if (handler && handler.isSECTab && handler.isSECTab()) {
+                    e.preventDefault();
+                    if (window._secCycleFilter) window._secCycleFilter();
+                }
+                return;
+            case '1': case '2': case '3': case '4': case '5': case '6': case '7':
                 if (handler && handler.jumpToTab) {
                     e.preventDefault();
                     handler.jumpToTab(parseInt(e.key) - 1);
