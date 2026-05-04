@@ -1040,12 +1040,13 @@
         if (result.investmentPlan && result.investmentPlan.rating) {
             var plan = result.investmentPlan;
             var ratingClass = 'rating-' + plan.rating.toLowerCase();
-            html += '<div class="trading-plan">';
-            html += '<div class="trading-plan-header">';
-            html += '<span class="trading-plan-label">Research Verdict</span>';
+            html += '<div class="trading-analyst-card trading-plan-card" data-analyst-idx="plan">';
+            html += '<div class="trading-analyst-header" tabindex="0">';
+            html += '<span class="trading-analyst-name">Research Verdict</span>';
             html += '<span class="trading-rating ' + ratingClass + '">' + esc(plan.rating) + '</span>';
             if (plan.debateRounds) html += '<span class="trading-plan-rounds">' + plan.debateRounds + ' rounds</span>';
             html += '</div>';
+            html += '<div class="trading-analyst-body">';
 
             // Bull vs Bear side by side
             var hasBull = plan.bullArguments && plan.bullArguments.length > 0;
@@ -1076,14 +1077,14 @@
                 html += '</ul></div>';
             }
 
-            // Rationale — collapsible full text
-            if (plan.rationale) {
+            // Rationale — collapsible, skip if it looks like raw JSON
+            if (plan.rationale && plan.rationale.charAt(0) !== '{' && plan.rationale.charAt(0) !== '[') {
                 html += '<details class="trading-rationale"><summary>Rationale</summary>';
                 html += '<p class="ai-text">' + esc(plan.rationale) + '</p>';
                 html += '</details>';
             }
 
-            html += '</div>';
+            html += '</div></div>'; // close trading-analyst-body + trading-analyst-card
         }
 
         // Timing — compact footer
