@@ -1357,12 +1357,13 @@ window.onerror = function (msg, src, line, col, err) {
                     // SEC tab: filing row navigation
                     if (this._focus === 'content' && this.isSECTab()) {
                         var secRows = window._secGetRows ? window._secGetRows() : [];
-                        if (secRows.length > 0 && secSelectedRow > 0) {
-                            window._secSelectRow(secSelectedRow - 1);
+                        var secIdx = window._secGetSelectedRow ? window._secGetSelectedRow() : -1;
+                        if (secRows.length > 0 && secIdx > 0) {
+                            window._secSelectRow(secIdx - 1);
                             return;
                         }
                         clearVimSelection();
-                        this._focus = 'main';
+                        this._focus = hasSub ? 'sub' : 'main';
                         this._highlightFocus();
                         return;
                     }
@@ -1428,8 +1429,8 @@ window.onerror = function (msg, src, line, col, err) {
                     if (this.isSECTab()) {
                         var secRows = window._secGetRows ? window._secGetRows() : [];
                         if (secRows.length > 0) {
-                            var nextIdx = typeof secSelectedRow === 'number' ? secSelectedRow + 1 : 0;
-                            window._secSelectRow(nextIdx);
+                            var secIdx = window._secGetSelectedRow ? window._secGetSelectedRow() : -1;
+                            window._secSelectRow(secIdx + 1);
                         }
                         return;
                     }

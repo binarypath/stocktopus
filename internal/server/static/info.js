@@ -798,6 +798,7 @@
 
     // Expose for vim
     window._secGetRows = function () { return Array.from(document.querySelectorAll('.sec-row')); };
+    window._secGetSelectedRow = function () { return secSelectedRow; };
     window._secSelectRow = function (idx) {
         var rows = window._secGetRows();
         if (rows.length === 0) return;
