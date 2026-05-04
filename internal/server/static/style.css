@@ -2201,14 +2201,21 @@ body {
 }
 
 .trading-arguments {
-    display: flex;
-    gap: 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
     margin: 8px 0;
 }
 
 .trading-arg-col {
-    flex: 1;
+    padding: 8px;
+    background: var(--bg-secondary);
+    border-radius: 2px;
+    border-left: 2px solid var(--text-muted);
 }
+
+.trading-arg-col:first-child { border-left-color: var(--green); }
+.trading-arg-col:last-child { border-left-color: var(--red); }
 
 .trading-arg-label {
     font-size: 10px;
@@ -2223,6 +2230,28 @@ body {
     margin-top: 8px;
     padding-top: 8px;
     border-top: 1px solid var(--border);
+}
+
+.trading-rationale {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.trading-rationale summary {
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.trading-rationale .ai-text {
+    margin-top: 6px;
+    padding: 8px;
+    background: var(--bg-secondary);
+    border-left: 2px solid var(--border);
+    line-height: 1.5;
 }
 
 .trading-meta {
