@@ -687,7 +687,7 @@
             wireTradingButton();
 
             // Poll if trading analysis is running
-            if (tradingResult && !tradingResult.finishedAt) {
+            if (tradingResult && !isFinished(tradingResult)) {
                 pollTradingStatus();
             }
         }).catch(function () {
@@ -697,8 +697,12 @@
 
     // ── Trading Pipeline UI ──
 
+    function isFinished(result) {
+        return result && result.finishedAt && !result.finishedAt.startsWith('0001');
+    }
+
     function renderTradingButton(costInfo, tradingResult) {
-        var isRunning = tradingResult && !tradingResult.finishedAt && tradingResult.startedAt;
+        var isRunning = tradingResult && !isFinished(tradingResult) && tradingResult.startedAt;
         var costStr = costInfo && costInfo.available
             ? '$' + costInfo.estimatedCost.toFixed(3) + ' (4 Ollama + Gemini Flash calls)'
             : 'cost estimate unavailable';
@@ -714,7 +718,7 @@
         html += '<span class="trading-cost">Est. ' + esc(costStr) + '</span>';
 
         // Show actual cost if we have a completed result
-        if (tradingResult && tradingResult.finishedAt && tradingResult.totalCostUsd !== undefined) {
+        if (isFinished(tradingResult) && tradingResult.totalCostUsd !== undefined) {
             html += '<span class="trading-actual-cost">Actual: $' + tradingResult.totalCostUsd.toFixed(4) + '</span>';
         }
 
@@ -776,7 +780,7 @@
                     }
 
                     // If complete, reload the full AI tab
-                    if (result.finishedAt) {
+                    if (isFinished(result)) {
                         stopTradingPolling();
                         loadAI();
                     }
@@ -834,7 +838,7 @@
         }
 
         // Timing
-        if (result.finishedAt) {
+        if (isFinished(result)) {
             var dur = (new Date(result.finishedAt) - new Date(result.startedAt)) / 1000;
             html += '<div class="trading-meta">';
             html += '<span>Total: ' + dur.toFixed(1) + 's</span>';
