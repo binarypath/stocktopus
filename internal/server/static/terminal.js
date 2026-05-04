@@ -810,6 +810,7 @@ window.onerror = function (msg, src, line, col, err) {
                     if (sec) selectSecurity(sec);
                 }
                 dropdown.classList.add('hidden');
+                enterNormalMode();
             } else if (e.key === 'Escape') {
                 dropdown.classList.add('hidden');
                 document.getElementById('cmd-input').focus();
@@ -1017,11 +1018,13 @@ window.onerror = function (msg, src, line, col, err) {
                     setSecurity(sec);
                     onViewLeave(currentView);
                     navigate('info', sec);
+                    enterNormalMode();
                     return;
                 }
                 const security = parsed.args[0] || '';
                 onViewLeave(currentView);
                 navigate(resolvedCmd, security);
+                enterNormalMode();
             } else if (e.key === 'Escape') {
                 if (!dropdown.classList.contains('hidden')) {
                     hideCmdDropdown();
