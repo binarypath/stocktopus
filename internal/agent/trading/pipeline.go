@@ -17,6 +17,8 @@ type StatusCallback func(result PipelineResult)
 // TradingPipeline orchestrates the full multi-agent trading analysis.
 type TradingPipeline struct {
 	analysts *AnalystRunner
+	debater  *Debater
+	People   *PeopleExtractor
 	store    *store.Store
 	logger   *slog.Logger
 
@@ -38,9 +40,13 @@ type TradingPipelineConfig struct {
 
 func NewTradingPipeline(cfg TradingPipelineConfig, fmp *news.Client, st *store.Store, logger *slog.Logger) *TradingPipeline {
 	analysts := NewAnalystRunner(fmp, cfg.OllamaHost, cfg.OllamaModel, cfg.AgentsDir, logger)
+	debater := NewDebater(cfg.OllamaHost, cfg.OllamaModel, cfg.DebateRounds, logger)
+	people := NewPeopleExtractor(cfg.OllamaHost, cfg.OllamaModel, cfg.AgentsDir, st, logger)
 
 	return &TradingPipeline{
 		analysts: analysts,
+		debater:  debater,
+		People:   people,
 		store:    st,
 		logger:   logger.With("component", "trading-pipeline"),
 		active:   make(map[string]*PipelineResult),
@@ -156,13 +162,24 @@ func (tp *TradingPipeline) runPipeline(ctx context.Context, symbol string, resul
 	tp.logger.Info("analysts complete", "symbol", symbol,
 		"count", len(reports), "duration", time.Since(analystStart))
 
-	// Phase 2: Research debate (Python/LangGraph — future)
-	tp.updateStage(result, "research_debate", StageSkipped)
+	// Phase 2: Bull/bear research debate (Ollama)
+	tp.updateStage(result, "research_debate", StageRunning)
+	tp.emit(result)
+
+	plan, debateErr := tp.debater.RunResearchDebate(ctx, symbol, reports)
+	if debateErr != nil {
+		tp.logger.Warn("research debate failed", "symbol", symbol, "error", debateErr)
+		tp.updateStage(result, "research_debate", StageFailed)
+	} else {
+		result.InvestmentPlan = plan
+		tp.updateStage(result, "research_debate", StageComplete)
+	}
+	tp.emit(result)
 
 	// Phase 3: Trader agent (Ollama — future)
 	tp.updateStage(result, "trader", StageSkipped)
 
-	// Phase 4: Risk debate (Python/LangGraph — future)
+	// Phase 4: Risk debate (Ollama — future)
 	tp.updateStage(result, "risk_debate", StageSkipped)
 
 	// Complete

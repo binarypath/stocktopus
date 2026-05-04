@@ -942,6 +942,10 @@ func (s *Server) handleSECFilings(w http.ResponseWriter, r *http.Request) {
 			var filings []store.SECFiling
 			if json.Unmarshal(data, &filings) == nil && len(filings) > 0 {
 				s.store.PutSECFilings(filings)
+				// Extract key people from 8-K filings in the background
+				if s.trading != nil && s.trading.People != nil {
+					go s.trading.People.ExtractFromFilings(context.Background(), symbol)
+				}
 			}
 		}
 	}

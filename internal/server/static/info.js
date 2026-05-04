@@ -1036,6 +1036,57 @@
             html += '</div>';
         }
 
+        // Investment plan (from research debate)
+        if (result.investmentPlan && result.investmentPlan.rating) {
+            var plan = result.investmentPlan;
+            var ratingClass = 'rating-' + plan.rating.toLowerCase();
+            html += '<div class="trading-analyst-card trading-plan-card" data-analyst-idx="plan">';
+            html += '<div class="trading-analyst-header" tabindex="0">';
+            html += '<span class="trading-analyst-name">Research Verdict</span>';
+            html += '<span class="trading-rating ' + ratingClass + '">' + esc(plan.rating) + '</span>';
+            if (plan.debateRounds) html += '<span class="trading-plan-rounds">' + plan.debateRounds + ' rounds</span>';
+            html += '</div>';
+            html += '<div class="trading-analyst-body">';
+
+            // Bull vs Bear side by side
+            var hasBull = plan.bullArguments && plan.bullArguments.length > 0;
+            var hasBear = plan.bearArguments && plan.bearArguments.length > 0;
+            if (hasBull || hasBear) {
+                html += '<div class="trading-arguments">';
+                if (hasBull) {
+                    html += '<div class="trading-arg-col">';
+                    html += '<span class="trading-arg-label price-up">Bull Case</span>';
+                    html += '<ul class="ai-list">';
+                    plan.bullArguments.forEach(function (a) { html += '<li>' + esc(a) + '</li>'; });
+                    html += '</ul></div>';
+                }
+                if (hasBear) {
+                    html += '<div class="trading-arg-col">';
+                    html += '<span class="trading-arg-label price-down">Bear Case</span>';
+                    html += '<ul class="ai-list">';
+                    plan.bearArguments.forEach(function (a) { html += '<li>' + esc(a) + '</li>'; });
+                    html += '</ul></div>';
+                }
+                html += '</div>';
+            }
+
+            if (plan.keyActions && plan.keyActions.length > 0) {
+                html += '<div class="trading-actions"><span class="trading-arg-label">Key Actions</span>';
+                html += '<ul class="ai-list">';
+                plan.keyActions.forEach(function (a) { html += '<li>' + esc(a) + '</li>'; });
+                html += '</ul></div>';
+            }
+
+            // Rationale — collapsible, skip if it looks like raw JSON
+            if (plan.rationale && plan.rationale.charAt(0) !== '{' && plan.rationale.charAt(0) !== '[') {
+                html += '<details class="trading-rationale"><summary>Rationale</summary>';
+                html += '<p class="ai-text">' + esc(plan.rationale) + '</p>';
+                html += '</details>';
+            }
+
+            html += '</div></div>'; // close trading-analyst-body + trading-analyst-card
+        }
+
         // Timing — compact footer
         if (finished) {
             var dur = (new Date(result.finishedAt) - new Date(result.startedAt)) / 1000;
