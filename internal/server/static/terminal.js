@@ -824,10 +824,18 @@ window.onerror = function (msg, src, line, col, err) {
 
     function selectSecurity(sec) {
         setSecurity(sec);
+        // Ensure security dropdown is hidden
+        var dd = document.getElementById('security-dropdown');
+        if (dd) dd.classList.add('hidden');
         // If on a security-dependent view, refresh it
         const cmd = COMMANDS[currentView];
         if (cmd && cmd.needsSecurity) {
+            onViewLeave(currentView);
             navigate(currentView, sec);
+        } else {
+            // Default: navigate to info page for the security
+            onViewLeave(currentView);
+            navigate('info', sec);
         }
     }
 
