@@ -1331,7 +1331,13 @@ window.onerror = function (msg, src, line, col, err) {
                 return el ? el.dataset.tab : '';
             },
             hasSubTabs: function () {
-                return this.getActiveTab() === 'financials' && window._infoFinSubTabs && window._infoFinSubTabs().length > 0;
+                var tab = this.getActiveTab();
+                if (tab === 'financials') return window._infoFinSubTabs && window._infoFinSubTabs().length > 0;
+                if (tab === 'sec') return this.getSECSubTabs().length > 0;
+                return false;
+            },
+            getSECSubTabs: function () {
+                return Array.from(document.querySelectorAll('#sec-filters .info-sub-tab'));
             },
             isNewsTab: function () { return this.getActiveTab() === 'news'; },
             isSectorTab: function () { return this.getActiveTab() === 'sector'; },
@@ -1451,7 +1457,7 @@ window.onerror = function (msg, src, line, col, err) {
                 }
                 if (dir === 'h' || dir === 'l') {
                     if (this._focus === 'sub' && hasSub) {
-                        var subTabs = window._infoFinSubTabs();
+                        var subTabs = this.isSECTab() ? this.getSECSubTabs() : (window._infoFinSubTabs ? window._infoFinSubTabs() : []);
                         var activeIdx = subTabs.findIndex(function (t) { return t.classList.contains('active'); });
                         if (dir === 'l') activeIdx = Math.min(activeIdx + 1, subTabs.length - 1);
                         else activeIdx = Math.max(activeIdx - 1, 0);
