@@ -77,15 +77,23 @@
 
     var helpVisible = false;
 
-    function toggleHelp() {
-        helpVisible = !helpVisible;
+    function applyHelpState() {
         document.querySelectorAll('.help-tip').forEach(function (el) {
             el.classList.toggle('hidden', !helpVisible);
         });
-        // Update help indicator
         var indicator = document.getElementById('help-indicator');
         if (indicator) indicator.classList.toggle('hidden', !helpVisible);
     }
+
+    function toggleHelp() {
+        helpVisible = !helpVisible;
+        applyHelpState();
+    }
+
+    // Re-apply help state whenever container content changes (new tab loaded)
+    new MutationObserver(function () {
+        if (helpVisible) applyHelpState();
+    }).observe(container, { childList: true, subtree: true });
 
     // Expose for vim
     window._infoToggleHelp = toggleHelp;
