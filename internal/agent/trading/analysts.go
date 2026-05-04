@@ -318,7 +318,16 @@ func (ar *AnalystRunner) callOllamaForReport(ctx context.Context, analyst, symbo
 		"model":  ar.ollamaModel,
 		"prompt": prompt,
 		"stream": false,
-		"format": "json",
+		"format": map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"outlook":   map[string]interface{}{"type": "string", "enum": []string{"bullish", "bearish", "neutral"}},
+				"summary":   map[string]string{"type": "string"},
+				"keyPoints": map[string]interface{}{"type": "array", "items": map[string]string{"type": "string"}},
+				"score":     map[string]string{"type": "number"},
+			},
+			"required": []string{"outlook", "summary", "keyPoints", "score"},
+		},
 		"options": map[string]interface{}{
 			"temperature": 0.3,
 			"num_predict": 512,
@@ -355,10 +364,15 @@ func (ar *AnalystRunner) callOllamaForReport(ctx context.Context, analyst, symbo
 
 	text := strings.TrimSpace(ollamaResp.Response)
 
-	// Parse into a generic map first — LLMs use inconsistent key names
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(text), &raw); err != nil {
-		ar.logger.Warn("failed to parse analyst JSON, using raw", "analyst", analyst, "error", err)
+	var parsed struct {
+		Outlook   string   `json:"outlook"`
+		Summary   string   `json:"summary"`
+		KeyPoints []string `json:"keyPoints"`
+		Score     float64  `json:"score"`
+	}
+
+	if err := json.Unmarshal([]byte(text), &parsed); err != nil {
+		ar.logger.Warn("failed to parse analyst JSON", "analyst", analyst, "error", err, "raw", text)
 		return AnalystReport{
 			Analyst: analyst,
 			Symbol:  symbol,
@@ -367,58 +381,13 @@ func (ar *AnalystRunner) callOllamaForReport(ctx context.Context, analyst, symbo
 		}, nil
 	}
 
-	getString := func(keys ...string) string {
-		for _, k := range keys {
-			if v, ok := raw[k]; ok {
-				var s string
-				if json.Unmarshal(v, &s) == nil {
-					return s
-				}
-			}
-		}
-		return ""
-	}
-
-	getFloat := func(keys ...string) float64 {
-		for _, k := range keys {
-			if v, ok := raw[k]; ok {
-				var f float64
-				if json.Unmarshal(v, &f) == nil {
-					return f
-				}
-			}
-		}
-		return 0
-	}
-
-	getStrings := func(keys ...string) []string {
-		for _, k := range keys {
-			if v, ok := raw[k]; ok {
-				var arr []string
-				if json.Unmarshal(v, &arr) == nil {
-					return arr
-				}
-			}
-		}
-		return nil
-	}
-
-	outlook := getString("outlook", "Outlook", "signal", "direction")
-	summary := getString("summary", "Summary", "analysis", "Analysis")
-	keyPoints := getStrings("keyPoints", "key_points", "KeyPoints", "points", "key_findings")
-	score := getFloat("score", "Score", "sentiment_score", "sentiment")
-
-	if outlook == "" {
-		outlook = "neutral"
-	}
-
 	return AnalystReport{
 		Analyst:   analyst,
 		Symbol:    symbol,
-		Outlook:   strings.ToLower(outlook),
-		Summary:   summary,
-		KeyPoints: keyPoints,
-		Score:     score,
+		Outlook:   strings.ToLower(parsed.Outlook),
+		Summary:   parsed.Summary,
+		KeyPoints: parsed.KeyPoints,
+		Score:     parsed.Score,
 	}, nil
 }
 
