@@ -923,21 +923,32 @@ window.onerror = function (msg, src, line, col, err) {
                 }
             } else if (e.key === 'Tab' && !dropdown.classList.contains('hidden')) {
                 e.preventDefault();
-                if (cmdDropdownIndex >= 0 && items[cmdDropdownIndex]) {
-                    var item = items[cmdDropdownIndex];
-                    if (item.dataset.symbol) {
+                var pickIdx = cmdDropdownIndex >= 0 ? cmdDropdownIndex : (items.length === 1 ? 0 : -1);
+                if (pickIdx >= 0 && items[pickIdx]) {
+                    var item = items[pickIdx];
+                    if (item.dataset.watchlistName) {
+                        input.value = ':watch ' + item.dataset.watchlistName;
+                        hideCmdDropdown();
+                    } else if (item.dataset.symbol) {
                         input.value = item.dataset.cmd + ' ' + item.dataset.symbol;
                     } else {
                         acceptCmdCompletion(item.dataset.cmd);
                     }
-                } else if (items.length === 1) {
-                    acceptCmdCompletion(items[0].dataset.cmd);
                 }
             } else if (e.key === 'Enter') {
                 e.preventDefault();
-                // If dropdown is visible and a security result is highlighted, execute it
+                // If dropdown is visible and a watchlist option is highlighted, execute the watch.
                 if (!dropdown.classList.contains('hidden') && cmdDropdownIndex >= 0 && items[cmdDropdownIndex]) {
                     var item = items[cmdDropdownIndex];
+                    if (item.dataset.watchlistName) {
+                        hideCmdDropdown();
+                        executeWatchCommand(parseInt(item.dataset.watchlistId, 10), item.dataset.watchlistName);
+                        commandHistory.push(':watch ' + item.dataset.watchlistName);
+                        historyIndex = commandHistory.length;
+                        input.value = '';
+                        enterNormalMode();
+                        return;
+                    }
                     if (item.dataset.symbol) {
                         hideCmdDropdown();
                         commandHistory.push(item.dataset.cmd + ' ' + item.dataset.symbol);
@@ -982,16 +993,29 @@ window.onerror = function (msg, src, line, col, err) {
                         return;
                     }
 
-                    // :watch or :watch SYMBOL — add to watchlist
+                    // :watch — add picker selection to active watchlist
+                    // :watch <WatchlistName> — add picker selection to that named watchlist
+                    // :watch <SYMBOL> (legacy) — add SYMBOL to active watchlist when no name match
                     if (colonLower === 'watch' || colonLower.startsWith('watch ')) {
-                        var watchArg = colonCmd.substring(5).trim().toUpperCase();
-                        var watchSym = watchArg || selectedSecurity;
-                        if (watchSym) {
-                            addToWatchlist(getActiveWatchlistId(), watchSym);
-                            subscribeSecurity(watchSym);
-                            flashError('Added ' + watchSym + ' to watchlist');
+                        var watchArg = colonCmd.substring(5).trim();
+                        if (!watchArg) {
+                            // No arg — add picker selection to active watchlist
+                            if (selectedSecurity) {
+                                addToWatchlist(getActiveWatchlistId(), selectedSecurity);
+                                subscribeSecurity(selectedSecurity);
+                                flashError('Added ' + selectedSecurity + ' to watchlist');
+                            } else {
+                                flashError('Select a security first (s key)');
+                            }
                         } else {
-                            flashError('Select a security first (s key)');
+                            var target = resolveWatchTarget(watchArg);
+                            if (target.type === 'watchlist') {
+                                executeWatchCommand(target.id, target.name);
+                            } else {
+                                addToWatchlist(getActiveWatchlistId(), target.symbol);
+                                subscribeSecurity(target.symbol);
+                                flashError('Added ' + target.symbol + ' to watchlist');
+                            }
                         }
                         input.value = '';
                         enterNormalMode();
@@ -1123,6 +1147,20 @@ window.onerror = function (msg, src, line, col, err) {
         var parts = raw.split(/\s+/);
         var cmdPart = parts[0].toLowerCase();
 
+        // :watch <prefix> — autocomplete watchlist names (adds selectedSecurity to that list)
+        if (raw.charAt(0) === ':') {
+            var afterColon = raw.substring(1);
+            var afterColonLower = afterColon.toLowerCase();
+            if (afterColonLower === 'watch' || afterColonLower.startsWith('watch ')) {
+                // Cancel any in-flight security autocomplete so a late response
+                // for :wat / :watc doesn't override the watchlist dropdown.
+                clearTimeout(searchTimer);
+                var query = afterColonLower === 'watch' ? '' : afterColon.substring(6);
+                renderCmdWatchlistDropdown(query);
+                return;
+            }
+        }
+
         // If we have a recognized command that accepts a security and there's a space,
         // switch to security autocomplete in the command dropdown
         var cmd = COMMANDS[cmdPart];
@@ -1158,8 +1196,84 @@ window.onerror = function (msg, src, line, col, err) {
         renderCmdDropdown(matches);
     }
 
+    function renderCmdWatchlistDropdown(query) {
+        var dropdown = document.getElementById('cmd-dropdown');
+        var input = document.getElementById('cmd-input');
+        var q = (query || '').toLowerCase();
+        var matches = (watchlistData || []).filter(function (wl) {
+            return !q || wl.name.toLowerCase().indexOf(q) >= 0;
+        });
+        // Prefix-matches first, then substring-matches; preserve declared order otherwise
+        matches.sort(function (a, b) {
+            var ap = a.name.toLowerCase().indexOf(q) === 0 ? 0 : 1;
+            var bp = b.name.toLowerCase().indexOf(q) === 0 ? 0 : 1;
+            if (ap !== bp) return ap - bp;
+            return 0;
+        });
+
+        var sym = selectedSecurity || '';
+        var noSymLabel = 'no security selected — press s first';
+
+        if (matches.length === 0) {
+            dropdown.innerHTML = '<div class="cmd-option cmd-option-empty">No watchlist matches "' + escapeHtml(query) + '"</div>';
+            dropdown.classList.remove('hidden');
+            cmdDropdownIndex = -1;
+            return;
+        }
+
+        dropdown.innerHTML = matches.map(function (wl) {
+            var desc = sym ? 'add ' + sym + ' to ' + wl.name + ' watchlist' : noSymLabel;
+            return '<div class="cmd-option cmd-watchlist-option" data-watchlist-id="' + wl.id + '" data-watchlist-name="' + escapeHtml(wl.name) + '">'
+                + '<span class="cmd-option-usage" style="color:' + escapeHtml(wl.color || '#ff8800') + '">watch ' + escapeHtml(wl.name) + '</span>'
+                + '<span class="cmd-option-desc">' + escapeHtml(desc) + '</span>'
+                + '</div>';
+        }).join('');
+        dropdown.classList.remove('hidden');
+        cmdDropdownIndex = -1;
+
+        dropdown.querySelectorAll('.cmd-watchlist-option').forEach(function (el) {
+            el.onmousedown = function (e) {
+                e.preventDefault();
+                executeWatchCommand(parseInt(el.dataset.watchlistId, 10), el.dataset.watchlistName);
+                input.value = '';
+                hideCmdDropdown();
+                enterNormalMode();
+            };
+        });
+    }
+
+    // Add the picker's currently-selected security to the named watchlist.
+    function executeWatchCommand(watchlistId, watchlistName) {
+        if (!selectedSecurity) {
+            flashError('No security selected — press s first');
+            return false;
+        }
+        addToWatchlist(watchlistId, selectedSecurity);
+        subscribeSecurity(selectedSecurity);
+        flashError('Added ' + selectedSecurity + ' to ' + watchlistName);
+        return true;
+    }
+
+    // Resolve a `:watch <X>` argument: prefer matching a watchlist name (case-insensitive,
+    // exact then prefix), fall back to treating X as a symbol added to the active list.
+    function resolveWatchTarget(arg) {
+        if (!arg) return null;
+        var lower = arg.toLowerCase();
+        var exact = (watchlistData || []).find(function (wl) { return wl.name.toLowerCase() === lower; });
+        if (exact) return { type: 'watchlist', id: exact.id, name: exact.name };
+        var prefix = (watchlistData || []).find(function (wl) { return wl.name.toLowerCase().indexOf(lower) === 0; });
+        if (prefix) return { type: 'watchlist', id: prefix.id, name: prefix.name };
+        return { type: 'symbol', symbol: arg.toUpperCase() };
+    }
+
     function renderCmdSecurityDropdown(results, cmdName) {
         var dropdown = document.getElementById('cmd-dropdown');
+        // Guard against stale debounced fires that come back after the user has
+        // typed past the search prefix (e.g. now on :watch ...).
+        var currentInput = document.getElementById('cmd-input');
+        if (currentInput && currentInput.value.trim().toLowerCase().indexOf(':watch') === 0) {
+            return;
+        }
         if (!results || results.length === 0) {
             hideCmdDropdown();
             return;
