@@ -42,22 +42,46 @@ func NewSECFetcher(logger *slog.Logger) *SECFetcher {
 // returns the document's text content. formType (e.g. "8-K", "10-K", "DEF 14A") is
 // used to disambiguate when a filing has multiple primary candidates.
 func (sf *SECFetcher) FetchFilingText(ctx context.Context, indexURL, formType string) (string, error) {
-	baseURL, err := deriveBaseURL(indexURL)
+	body, err := sf.fetchPrimaryHTML(ctx, indexURL, formType)
 	if err != nil {
 		return "", err
+	}
+	return htmlToText(body), nil
+}
+
+// FetchLeadershipTables resolves the primary filing document, walks its HTML tables,
+// and returns the concatenated text of the ones that look like director/executive
+// summary or bio tables. Returns (text, true, nil) when leadership tables are found,
+// (fullText, false, nil) when none match — caller should narrow further. Much smaller
+// than the whole filing, which keeps Ollama inference time tractable on consumer GPUs.
+func (sf *SECFetcher) FetchLeadershipTables(ctx context.Context, indexURL, formType string) (text string, fromTables bool, err error) {
+	body, err := sf.fetchPrimaryHTML(ctx, indexURL, formType)
+	if err != nil {
+		return "", false, err
+	}
+	if tableText := extractLeadershipTables(body); tableText != "" {
+		return tableText, true, nil
+	}
+	return htmlToText(body), false, nil
+}
+
+// fetchPrimaryHTML is the common path for FetchFilingText and FetchLeadershipTables.
+func (sf *SECFetcher) fetchPrimaryHTML(ctx context.Context, indexURL, formType string) ([]byte, error) {
+	baseURL, err := deriveBaseURL(indexURL)
+	if err != nil {
+		return nil, err
 	}
 
 	primaryName, err := sf.findPrimaryDocument(ctx, baseURL, formType)
 	if err != nil {
-		return "", fmt.Errorf("locating primary doc: %w", err)
+		return nil, fmt.Errorf("locating primary doc: %w", err)
 	}
 
 	body, err := sf.httpGet(ctx, baseURL+primaryName)
 	if err != nil {
-		return "", fmt.Errorf("fetching %s: %w", primaryName, err)
+		return nil, fmt.Errorf("fetching %s: %w", primaryName, err)
 	}
-
-	return htmlToText(body), nil
+	return body, nil
 }
 
 // httpGet performs a GET with the SEC-compliant User-Agent.
@@ -213,4 +237,97 @@ func walkText(n *html.Node, b *strings.Builder) {
 
 func collapseWhitespace(s string) string {
 	return strings.TrimSpace(wsRegex.ReplaceAllString(s, " "))
+}
+
+// extractLeadershipTables finds tables in an SEC filing that summarise directors
+// or executive officers and returns their concatenated text. Detection heuristics:
+//   - Header row contains "Name" plus "Age" plus one of {"Since", "Position",
+//     "Occupation", "Title"} → director / officer summary table
+//   - Body contains "Director Since:" alongside "Age:" → individual bio cards
+//
+// Returns empty string when nothing matches so the caller can fall back to the
+// full document text.
+func extractLeadershipTables(body []byte) string {
+	doc, err := html.Parse(strings.NewReader(string(body)))
+	if err != nil {
+		return ""
+	}
+	var tables []*html.Node
+	collectElements(doc, "table", &tables)
+
+	var out strings.Builder
+	for _, t := range tables {
+		if !isLeadershipTable(t) {
+			continue
+		}
+		var b strings.Builder
+		walkText(t, &b)
+		out.WriteString(collapseWhitespace(b.String()))
+		out.WriteString("\n\n")
+	}
+	return strings.TrimSpace(out.String())
+}
+
+func isLeadershipTable(table *html.Node) bool {
+	// Read a small slice of text from the start of the table — enough for the
+	// header row plus a row or two of data.
+	var b strings.Builder
+	collectTextLimited(table, &b, 1500)
+	preview := strings.ToLower(collapseWhitespace(b.String()))
+	if preview == "" {
+		return false
+	}
+
+	// Bio-card pattern: "Director Since:" + age field
+	if strings.Contains(preview, "director since:") && strings.Contains(preview, "age") {
+		return true
+	}
+
+	// Summary-table pattern: name + age + (since / position / occupation / title)
+	hasName := strings.Contains(preview, "name")
+	hasAge := strings.Contains(preview, "age")
+	hasContext := strings.Contains(preview, "since") ||
+		strings.Contains(preview, "position") ||
+		strings.Contains(preview, "occupation") ||
+		strings.Contains(preview, "title")
+	if hasName && hasAge && hasContext {
+		// Reject obvious non-leadership tables that happen to share keywords
+		// (e.g. compensation tables that read "Name and Principal Position").
+		// A real summary table almost always names "director" or "officer" within
+		// the same preview window.
+		return strings.Contains(preview, "director") || strings.Contains(preview, "officer")
+	}
+	return false
+}
+
+func collectElements(n *html.Node, tag string, out *[]*html.Node) {
+	if n.Type == html.ElementNode && n.Data == tag {
+		*out = append(*out, n)
+	}
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		collectElements(c, tag, out)
+	}
+}
+
+// collectTextLimited writes node text into b until at least limit chars accumulate.
+func collectTextLimited(n *html.Node, b *strings.Builder, limit int) {
+	if b.Len() >= limit {
+		return
+	}
+	if n.Type == html.ElementNode {
+		switch n.Data {
+		case "script", "style", "head", "noscript":
+			return
+		}
+	}
+	if n.Type == html.TextNode {
+		b.WriteString(n.Data)
+		b.WriteByte(' ')
+	}
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if b.Len() >= limit {
+			return
+		}
+		collectTextLimited(c, b, limit)
+	}
 }
