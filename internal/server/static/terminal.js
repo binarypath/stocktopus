@@ -44,7 +44,8 @@ window.onerror = function (msg, src, line, col, err) {
 
     // ── View Router ──
 
-    async function navigate(command, security) {
+    async function navigate(command, security, opts) {
+        opts = opts || {};
         const cmd = COMMANDS[command];
         if (!cmd) {
             flashError('Unknown command: ' + command);
@@ -78,6 +79,13 @@ window.onerror = function (msg, src, line, col, err) {
             resolved = resolved.toUpperCase();
             path = path.replace('{symbol}', resolved);
             setSecurity(resolved);
+        }
+
+        // Preserve the current URL hash (sub-tab state) when going back via popstate;
+        // the browser already restored it before firing popstate, but our explicit
+        // pushPath would clobber it. For forward navigation we always start clean.
+        if (opts.fromHistory && location.hash) {
+            path = path + location.hash;
         }
 
         // Handle optional security (e.g. news MSFT)
@@ -117,7 +125,11 @@ window.onerror = function (msg, src, line, col, err) {
             document.getElementById('current-view').textContent = command;
             document.title = 'Stocktopus — ' + command.charAt(0).toUpperCase() + command.slice(1);
 
-            history.pushState({ view: command, security: resolved }, '', path);
+            // Skip pushState when called from popstate — the browser has already
+            // updated the URL; pushing again would corrupt the back history.
+            if (!opts.fromHistory) {
+                history.pushState({ view: command, security: resolved }, '', path);
+            }
 
             onViewEnter(command);
         } catch (err) {
@@ -1871,6 +1883,15 @@ window.onerror = function (msg, src, line, col, err) {
                     handler.jumpToTab(parseInt(e.key) - 1);
                 }
                 return;
+            case '-':
+                // Browser history back: only if there's actually somewhere to go to.
+                // Close any open reader/chart slide-in first to keep behaviour predictable.
+                e.preventDefault();
+                if (window._closeReader) window._closeReader();
+                if (history.state && history.length > 1) {
+                    history.back();
+                }
+                return;
         }
     }, true); // capture phase — intercepts before Vimium and other extensions
 
@@ -2106,11 +2127,37 @@ window.onerror = function (msg, src, line, col, err) {
     // ── Browser History ──
 
     window.addEventListener('popstate', function (e) {
-        if (e.state && e.state.view) {
+        var view = e.state && e.state.view;
+        var sec = e.state && e.state.security;
+        if (!view) {
+            // Fallback: infer view from URL pathname when state was wiped
+            // (e.g. by a replaceState that didn't carry state forward).
+            var inferred = inferViewFromPath(location.pathname);
+            if (inferred) {
+                view = inferred.view;
+                sec = inferred.security;
+            }
+        }
+        if (view) {
             onViewLeave(currentView);
-            navigate(e.state.view, e.state.security);
+            navigate(view, sec, { fromHistory: true });
         }
     });
+
+    function inferViewFromPath(pathname) {
+        for (var name in COMMANDS) {
+            var c = COMMANDS[name];
+            if (c.path === pathname) return { view: name, security: '' };
+            if (c.needsSecurity) {
+                var template = c.path; // e.g. /security/{symbol}
+                var prefix = template.substring(0, template.indexOf('{'));
+                if (prefix && pathname.indexOf(prefix) === 0) {
+                    return { view: name, security: pathname.substring(prefix.length) };
+                }
+            }
+        }
+        return null;
+    }
 
     // ── Clocks ──
 

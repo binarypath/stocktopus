@@ -297,7 +297,7 @@
             btn.onclick = function () {
                 container.querySelectorAll('.info-sub-tab').forEach(function (b) { b.classList.remove('active'); });
                 btn.classList.add('active');
-                history.replaceState(null, '', location.pathname + '#financials-' + btn.dataset.ftype);
+                history.replaceState(history.state, '', location.pathname + '#financials-' + btn.dataset.ftype);
                 loadFinancialTable(btn.dataset.ftype);
             };
         });
@@ -1749,7 +1749,7 @@
             stopTradingPolling();
         }
         currentTab = tab;
-        history.replaceState(null, '', location.pathname + '#' + tab);
+        history.replaceState(history.state, '', location.pathname + '#' + tab);
         _origLoadTab(tab);
     };
 
