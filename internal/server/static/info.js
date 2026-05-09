@@ -314,6 +314,24 @@
         if (n >= 0 && n < tabs.length) tabs[n].click();
     };
 
+    // Financial table row vim navigation
+    var finSelectedRow = -1;
+    window._finGetRows = function () { return Array.from(document.querySelectorAll('.fin-row')); };
+    window._finGetSelectedRow = function () { return finSelectedRow; };
+    window._finSelectRow = function (idx) {
+        var rows = window._finGetRows();
+        if (rows.length === 0) return;
+        idx = Math.max(0, Math.min(idx, rows.length - 1));
+        finSelectedRow = idx;
+        rows.forEach(function (r, i) { r.classList.toggle('vim-selected', i === idx); });
+        rows[idx].scrollIntoView({ block: 'nearest' });
+    };
+    window._finClearRow = function () {
+        var rows = window._finGetRows();
+        rows.forEach(function (r) { r.classList.remove('vim-selected'); });
+        finSelectedRow = -1;
+    };
+
     var FIN_EXPLAINERS = {
         income: 'The income statement shows how much money the company earned (revenue), what it cost to earn it (expenses), and what was left over (profit). Read top to bottom: revenue minus costs gives gross profit, minus operating expenses gives operating income, minus interest and taxes gives net income. Margins show these as percentages of revenue — higher is better, and the trend matters more than the absolute number.',
         balance: 'The balance sheet is a snapshot of what the company owns (assets), what it owes (liabilities), and what belongs to shareholders (equity) at a single point in time. Assets = Liabilities + Equity, always. Key things to watch: cash vs debt levels, whether goodwill is a large portion of assets (acquisition risk), and whether equity is growing or shrinking over time.',
@@ -400,11 +418,13 @@
                 });
                 html += '</tr></thead><tbody>';
 
-                rows.forEach(function (row) {
+                rows.forEach(function (row, rowIdx) {
                     var field = row[0].toLowerCase().replace(/[^a-z0-9]/g, '-');
                     var tip = HELP[field] ? '<span class="help-tip hidden">' + esc(HELP[field]) + '</span>' : '';
                     var format = row[2] || '';
-                    html += '<tr><td class="fin-label">' + row[0] + tip + '</td>';
+                    var finKey = format === 'calc' ? row[3] + '/' + row[4] : (row[1] || '');
+                    html += '<tr class="fin-row" data-fin-idx="' + rowIdx + '" data-fin-key="' + esc(finKey) + '" data-fin-label="' + esc(row[0]) + '" data-fin-format="' + format + '">';
+                    html += '<td class="fin-label">' + row[0] + tip + '</td>';
                     data.forEach(function (d) {
                         var val;
                         if (format === 'calc') {
@@ -421,6 +441,7 @@
 
                 html += '</tbody></table>';
                 tc.innerHTML = html;
+                finSelectedRow = -1;
             })
             .catch(function () {
                 tc.innerHTML = '<p class="empty-state">Failed to load financials</p>';
@@ -711,11 +732,16 @@
     var secFormTypes = null; // cached form type reference data
     var secFilter = ''; // current form type filter
     var secSelectedRow = -1;
+    var secView = 'filings'; // 'filings' | 'people'
 
     function loadSEC() {
+        // Preserve vim sub-tab focus highlight across re-renders
+        var prevSubTabs = document.getElementById('sec-filters');
+        var hadFocus = !!(prevSubTabs && prevSubTabs.classList.contains('tab-row-focused'));
+
         container.innerHTML = '<p class="empty-state">Loading SEC filings...</p>';
 
-        // Fetch form types (once) and filings in parallel
+        // Fetch form types (once), filings, and key people in parallel
         var formTypesP = secFormTypes
             ? Promise.resolve(secFormTypes)
             : fetch('/api/sec-form-types').then(function (r) { return r.json(); }).then(function (types) { secFormTypes = types; return types; });
@@ -723,15 +749,17 @@
         Promise.all([
             formTypesP,
             fetch('/api/security/' + symbol + '/sec-filings').then(function (r) { return r.json(); }),
+            fetch('/api/security/' + symbol + '/key-people').then(function (r) { return r.json(); }).catch(function () { return []; }),
         ]).then(function (results) {
             var types = results[0] || [];
             var filings = results[1] || [];
+            var people = results[2] || [];
 
             // Build type lookup
             var typeMap = {};
             types.forEach(function (t) { typeMap[t.formType] = t; });
 
-            // Category filters
+            // Category filters (only meaningful in filings view)
             var categories = [
                 { key: '', label: 'All' },
                 { key: 'periodic', label: 'Periodic' },
@@ -743,50 +771,69 @@
 
             var html = '<div class="sec-view">';
 
-            // Filter badges
+            // Sub-tab row: category filters + Key People view switcher
             html += '<div class="info-sub-tabs" id="sec-filters">';
             categories.forEach(function (cat) {
-                var active = secFilter === cat.key ? ' active' : '';
-                html += '<button class="info-sub-tab' + active + '" data-cat="' + cat.key + '">' + cat.label + '</button>';
+                var active = (secView === 'filings' && secFilter === cat.key) ? ' active' : '';
+                html += '<button class="info-sub-tab' + active + '" data-cat="' + cat.key + '" data-view="filings">' + cat.label + '</button>';
             });
+            // Visual separator + Key People view switcher
+            html += '<span class="sec-tab-sep" aria-hidden="true">|</span>';
+            var peopleActive = secView === 'people' ? ' active' : '';
+            html += '<button class="info-sub-tab' + peopleActive + '" data-view="people">Key People</button>';
             html += '</div>';
 
-            // Filing count
-            var filteredFilings = secFilter ? filings.filter(function (f) {
-                var t = typeMap[f.formType];
-                return t && t.category === secFilter;
-            }) : filings;
+            if (secView === 'filings') {
+                // Filing count
+                var filteredFilings = secFilter ? filings.filter(function (f) {
+                    var t = typeMap[f.formType];
+                    return t && t.category === secFilter;
+                }) : filings;
 
-            html += '<div class="sec-count">' + filteredFilings.length + ' filings</div>';
+                html += '<div class="sec-count">' + filteredFilings.length + ' filings</div>';
 
-            // Filings table
-            if (filteredFilings.length > 0) {
-                html += '<table class="fin-table sec-table" id="sec-table"><thead><tr>';
-                html += '<th>Date</th><th>Form</th><th>Description</th><th>Link</th>';
-                html += '</tr></thead><tbody>';
-                filteredFilings.forEach(function (f, idx) {
-                    var t = typeMap[f.formType] || {};
-                    var catClass = 'sec-cat-' + (t.category || 'other');
-                    var date = (f.filingDate || '').substring(0, 10);
-                    html += '<tr class="sec-row" data-idx="' + idx + '" data-link="' + esc(f.link || f.finalLink || '') + '">';
-                    html += '<td class="sec-date">' + date + '</td>';
-                    html += '<td><span class="sec-badge ' + catClass + '">' + esc(f.formType) + '</span></td>';
-                    html += '<td class="sec-desc">' + esc(t.title || f.formType) + '</td>';
-                    html += '<td><a href="' + esc(f.link || f.finalLink || '') + '" target="_blank" rel="noopener" class="sec-link">&#8599;</a></td>';
-                    html += '</tr>';
-                });
-                html += '</tbody></table>';
+                if (filteredFilings.length > 0) {
+                    html += '<table class="fin-table sec-table" id="sec-table"><thead><tr>';
+                    html += '<th>Date</th><th>Form</th><th>Description</th><th>Link</th>';
+                    html += '</tr></thead><tbody>';
+                    filteredFilings.forEach(function (f, idx) {
+                        var t = typeMap[f.formType] || {};
+                        var catClass = 'sec-cat-' + (t.category || 'other');
+                        var date = (f.filingDate || '').substring(0, 10);
+                        html += '<tr class="sec-row" data-idx="' + idx + '" data-link="' + esc(f.link || f.finalLink || '') + '">';
+                        html += '<td class="sec-date">' + date + '</td>';
+                        html += '<td><span class="sec-badge ' + catClass + '">' + esc(f.formType) + '</span></td>';
+                        html += '<td class="sec-desc">' + esc(t.title || f.formType) + '</td>';
+                        html += '<td><a href="' + esc(f.link || f.finalLink || '') + '" target="_blank" rel="noopener" class="sec-link">&#8599;</a></td>';
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table>';
+                } else {
+                    html += '<p class="empty-state">No filings found' + (secFilter ? ' for this category' : '') + '</p>';
+                }
             } else {
-                html += '<p class="empty-state">No filings found' + (secFilter ? ' for this category' : '') + '</p>';
+                // Key People timeline
+                html += renderKeyPeopleTimeline(people);
             }
 
             html += '</div>';
             container.innerHTML = html;
 
-            // Wire filter buttons
+            // Restore vim sub-tab focus highlight across re-renders
+            if (hadFocus) {
+                var newSubTabs = document.getElementById('sec-filters');
+                if (newSubTabs) newSubTabs.classList.add('tab-row-focused');
+            }
+
+            // Wire sub-tab buttons
             container.querySelectorAll('#sec-filters .info-sub-tab').forEach(function (btn) {
                 btn.onclick = function () {
-                    secFilter = btn.dataset.cat;
+                    if (btn.dataset.view === 'people') {
+                        secView = 'people';
+                    } else {
+                        secView = 'filings';
+                        secFilter = btn.dataset.cat;
+                    }
                     secSelectedRow = -1;
                     loadSEC();
                 };
@@ -796,8 +843,35 @@
         });
     }
 
-    // Expose for vim
-    window._secGetRows = function () { return Array.from(document.querySelectorAll('.sec-row')); };
+    function renderKeyPeopleTimeline(people) {
+        if (!people || people.length === 0) {
+            return '<p class="empty-state">No executive changes recorded yet. Key people are extracted from 8-K filings as they arrive.</p>';
+        }
+        // Sort newest first
+        people.sort(function (a, b) { return (b.eventDate || '').localeCompare(a.eventDate || ''); });
+
+        var html = '<div class="sec-count">' + people.length + ' executive change' + (people.length === 1 ? '' : 's') + '</div>';
+        html += '<ul class="kp-timeline">';
+        people.forEach(function (p, idx) {
+            var date = (p.eventDate || '').substring(0, 10) || '—';
+            var evt = (p.eventType || '').toLowerCase();
+            var evtClass = 'kp-event-' + (evt || 'other');
+            html += '<li class="kp-row" data-idx="' + idx + '" data-link="' + esc(p.source || '') + '">';
+            html += '<span class="kp-date">' + esc(date) + '</span>';
+            html += '<span class="kp-event ' + evtClass + '">' + esc(p.eventType || 'change') + '</span>';
+            html += '<span class="kp-name">' + esc(p.name || '—') + '</span>';
+            html += '<span class="kp-title">' + esc(p.title || '') + '</span>';
+            if (p.source) {
+                html += '<a class="kp-link" href="' + esc(p.source) + '" target="_blank" rel="noopener">&#8599;</a>';
+            }
+            html += '</li>';
+        });
+        html += '</ul>';
+        return html;
+    }
+
+    // Expose for vim — sec-row in filings view, kp-row in key-people view
+    window._secGetRows = function () { return Array.from(document.querySelectorAll('.sec-row, .kp-row')); };
     window._secGetSelectedRow = function () { return secSelectedRow; };
     window._secSelectRow = function (idx) {
         var rows = window._secGetRows();
@@ -818,6 +892,7 @@
         var cats = ['', 'periodic', 'event', 'ownership', 'proxy', 'registration'];
         var idx = cats.indexOf(secFilter);
         secFilter = cats[(idx + 1) % cats.length];
+        secView = 'filings';
         secSelectedRow = -1;
         loadSEC();
     };
@@ -840,7 +915,7 @@
             var html = '';
 
             // Deep Analysis heading with inline button + cost
-            html += '<div class="trading-header">';
+            html += '<div class="trading-header trading-vim-item" data-trading-vim="btn" tabindex="0">';
             html += '<span class="ai-section-title" style="margin:0">Deep Analysis — Multi-Agent Pipeline</span>';
             html += renderTradingButton(costInfo, tradingResult);
             html += '</div>';
@@ -960,8 +1035,7 @@
                                        s.status === 'failed' ? '&#10007;' :
                                        s.status === 'skipped' ? '&#8212;' : '&#9675;';
                             var cls = 'trading-stage trading-stage-' + s.status;
-                            var dur = s.duration ? ' (' + s.duration.toFixed(1) + 's)' : '';
-                            return '<div class="' + cls + '">' + icon + ' ' + esc(s.name) + dur + '</div>';
+                            return '<div class="' + cls + '">' + icon + ' ' + esc(s.name) + '</div>';
                         }).join('');
                     }
 
@@ -991,8 +1065,7 @@
                                s.status === 'failed' ? '&#10007;' :
                                s.status === 'skipped' ? '&#8212;' : '&#9675;';
                     var cls = 'trading-stage trading-stage-' + s.status;
-                    var dur = s.duration ? ' (' + s.duration.toFixed(1) + 's)' : '';
-                    html += '<div class="' + cls + '">' + icon + ' ' + esc(s.name) + dur + '</div>';
+                    html += '<div class="' + cls + '">' + icon + ' ' + esc(s.name) + '</div>';
                 });
             }
             html += '</div>';
@@ -1006,7 +1079,7 @@
                                    report.outlook === 'bearish' ? 'price-down' : '';
                 var scoreBar = report.score ? Math.round((report.score + 1) / 2 * 100) : 50;
 
-                html += '<div class="trading-analyst-card" data-analyst-idx="' + idx + '">';
+                html += '<div class="trading-analyst-card trading-vim-item" data-analyst-idx="' + idx + '">';
                 html += '<div class="trading-analyst-header" tabindex="0">';
                 html += '<span class="trading-analyst-name">' + esc(report.analyst) + '</span>';
                 html += '<span class="trading-analyst-outlook ' + outlookClass + '">' + esc(report.outlook || 'neutral') + '</span>';
@@ -1028,7 +1101,6 @@
                 if (report.sources && report.sources.length > 0) {
                     html += '<div class="trading-sources">';
                     report.sources.forEach(function (s) { html += '<span class="trading-source">' + esc(s) + '</span>'; });
-                    if (report.duration) html += '<span class="trading-source">' + report.duration.toFixed(1) + 's</span>';
                     html += '</div>';
                 }
                 html += '</div></div>';
@@ -1040,7 +1112,7 @@
         if (result.investmentPlan && result.investmentPlan.rating) {
             var plan = result.investmentPlan;
             var ratingClass = 'rating-' + plan.rating.toLowerCase();
-            html += '<div class="trading-analyst-card trading-plan-card" data-analyst-idx="plan">';
+            html += '<div class="trading-analyst-card trading-plan-card trading-vim-item" data-analyst-idx="plan">';
             html += '<div class="trading-analyst-header" tabindex="0">';
             html += '<span class="trading-analyst-name">Research Verdict</span>';
             html += '<span class="trading-rating ' + ratingClass + '">' + esc(plan.rating) + '</span>';
@@ -1087,11 +1159,9 @@
             html += '</div></div>'; // close trading-analyst-body + trading-analyst-card
         }
 
-        // Timing — compact footer
+        // Footer — cost + timestamp
         if (finished) {
-            var dur = (new Date(result.finishedAt) - new Date(result.startedAt)) / 1000;
             html += '<div class="trading-meta">';
-            html += '<span>' + dur.toFixed(1) + 's</span>';
             html += '<span>$' + (result.totalCostUsd || 0).toFixed(4) + '</span>';
             html += '<span>' + new Date(result.finishedAt).toLocaleString() + '</span>';
             html += '</div>';
@@ -1106,7 +1176,7 @@
     var tradingPanelIdx = -1;
 
     function getTradingPanels() {
-        return Array.from(document.querySelectorAll('.trading-analyst-card'));
+        return Array.from(document.querySelectorAll('.trading-vim-item'));
     }
 
     function selectTradingPanel(idx) {
@@ -1123,6 +1193,12 @@
     function toggleTradingPanel(idx) {
         var panels = getTradingPanels();
         if (idx < 0 || idx >= panels.length) return;
+        // Button card: trigger the analyze button click
+        if (panels[idx].dataset.tradingVim === 'btn') {
+            var btn = document.getElementById('trading-analyze-btn');
+            if (btn && !btn.disabled) btn.click();
+            return;
+        }
         panels[idx].classList.toggle('trading-panel-open');
     }
 

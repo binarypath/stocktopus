@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"stocktopus/internal/store"
@@ -24,6 +25,9 @@ type PeopleExtractor struct {
 	store       *store.Store
 	client      *http.Client
 	logger      *slog.Logger
+
+	mu       sync.Mutex
+	inFlight map[string]bool // symbol → currently being processed
 }
 
 func NewPeopleExtractor(ollamaHost, ollamaModel, agentsDir string, st *store.Store, logger *slog.Logger) *PeopleExtractor {
@@ -40,42 +44,50 @@ func NewPeopleExtractor(ollamaHost, ollamaModel, agentsDir string, st *store.Sto
 		store:       st,
 		client:      &http.Client{Timeout: 60 * time.Second},
 		logger:      logger.With("component", "people-extractor"),
+		inFlight:    make(map[string]bool),
 	}
 }
 
 // ExtractFromFilings processes recent 8-K filings for a symbol and extracts key people changes.
+// Per-symbol singleflight: a second concurrent call for the same symbol returns immediately.
+// Filings are marked processed_for_people=1 after each attempt so 8-Ks with no personnel changes
+// aren't re-LLM'd on every refresh.
 func (pe *PeopleExtractor) ExtractFromFilings(ctx context.Context, symbol string) {
-	filings, err := pe.store.GetSECFilings(symbol, "8-K", 10)
+	pe.mu.Lock()
+	if pe.inFlight[symbol] {
+		pe.mu.Unlock()
+		return
+	}
+	pe.inFlight[symbol] = true
+	pe.mu.Unlock()
+	defer func() {
+		pe.mu.Lock()
+		delete(pe.inFlight, symbol)
+		pe.mu.Unlock()
+	}()
+
+	filings, err := pe.store.GetUnprocessedSECFilings(symbol, "8-K", 10)
 	if err != nil || len(filings) == 0 {
 		return
 	}
 
-	// Check if we already have people for this symbol (avoid re-processing)
-	existing, _ := pe.store.GetKeyPeople(symbol)
-	existingSources := make(map[string]bool)
-	for _, p := range existing {
-		existingSources[p.Source] = true
-	}
-
 	for _, f := range filings {
-		if existingSources[f.Link] {
-			continue // Already processed this filing
-		}
-
 		pe.logger.Debug("extracting people from 8-K", "symbol", symbol, "date", f.FilingDate)
 
 		// Fetch filing text via fetch_article.py (--no-llm flag for text only)
 		text := pe.fetchFilingText(ctx, f.Link)
-		if text == "" {
-			continue
+		if text != "" {
+			people := pe.extractPeople(ctx, symbol, text, f.FilingDate, f.Link)
+			for _, p := range people {
+				if err := pe.store.PutKeyPerson(p); err != nil {
+					pe.logger.Debug("failed to store person", "error", err)
+				}
+			}
 		}
 
-		// Extract people via Ollama
-		people := pe.extractPeople(ctx, symbol, text, f.FilingDate, f.Link)
-		for _, p := range people {
-			if err := pe.store.PutKeyPerson(p); err != nil {
-				pe.logger.Debug("failed to store person", "error", err)
-			}
+		// Mark processed regardless of result so we don't re-run on filings with no personnel events.
+		if err := pe.store.MarkSECFilingProcessedForPeople(symbol, f.Link); err != nil {
+			pe.logger.Debug("failed to mark filing processed", "link", f.Link, "error", err)
 		}
 	}
 }
