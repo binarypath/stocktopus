@@ -763,7 +763,8 @@ body {
 }
 
 .cpanel-spark a[href*="tradingview"],
-.chart-container a[href*="tradingview"] {
+.chart-container a[href*="tradingview"],
+#fin-chart-host a[href*="tradingview"] {
     display: none !important;
 }
 
@@ -922,6 +923,34 @@ body {
     text-align: left !important;
     color: var(--text-secondary);
     font-weight: 500;
+}
+
+/* Financials chart slide-in — values list beneath the chart */
+.fin-chart-points {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 6px;
+    margin-top: 12px;
+    font-size: 11px;
+}
+
+.fin-chart-point {
+    display: flex;
+    flex-direction: column;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    background: var(--bg-tertiary);
+}
+
+.fin-chart-year {
+    color: var(--text-muted);
+    font-size: 10px;
+}
+
+.fin-chart-val {
+    color: var(--text-primary);
+    font-weight: 700;
 }
 
 .est-range {

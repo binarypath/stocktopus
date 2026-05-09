@@ -1663,6 +1663,8 @@ window.onerror = function (msg, src, line, col, err) {
                 // Normal mode: close reader first, then focus command bar
                 var reader = document.getElementById('article-reader');
                 if (reader && !reader.classList.contains('hidden')) {
+                    // Dispose the financials chart instance if we're closing that mode
+                    if (window._finCloseChart) window._finCloseChart();
                     reader.classList.add('hidden');
                     return;
                 }
@@ -1736,6 +1738,17 @@ window.onerror = function (msg, src, line, col, err) {
                 if (handler && handler.isSECTab && handler.isSECTab()) {
                     e.preventDefault();
                     if (window._secCycleFilter) window._secCycleFilter();
+                }
+                return;
+            case 'p':
+                // Financials chart slide-in: toggle on the selected row.
+                if (handler && handler.isFinTab && handler.isFinTab()) {
+                    e.preventDefault();
+                    if (window._finIsChartOpen && window._finIsChartOpen()) {
+                        window._finCloseChart();
+                    } else if (window._finOpenChart) {
+                        window._finOpenChart();
+                    }
                 }
                 return;
             case '1': case '2': case '3': case '4': case '5': case '6': case '7':
@@ -1971,7 +1984,9 @@ window.onerror = function (msg, src, line, col, err) {
 
     window._closeReader = function () {
         var reader = document.getElementById('article-reader');
-        if (reader) reader.classList.add('hidden');
+        if (!reader) return;
+        if (window._finCloseChart) window._finCloseChart();
+        reader.classList.add('hidden');
     };
 
     // ── Browser History ──
