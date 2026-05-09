@@ -139,6 +139,15 @@ body {
     font-size: 12px;
 }
 
+.cmd-option-empty {
+    color: var(--text-muted);
+    font-style: italic;
+    cursor: default !important;
+}
+.cmd-option-empty:hover {
+    background: transparent !important;
+}
+
 /* ── Security Selector ── */
 
 .security-selector {
