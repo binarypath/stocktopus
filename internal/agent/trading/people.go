@@ -86,14 +86,6 @@ func (pe *PeopleExtractor) processForm(ctx context.Context, symbol, formType str
 	for _, f := range filings {
 		pe.logger.Debug("extracting people", "symbol", symbol, "form", formType, "date", f.FilingDate)
 
-		text, err := pe.sec.FetchFilingText(ctx, f.Link, formType)
-		if err != nil {
-			pe.logger.Debug("sec fetch failed", "url", f.Link, "error", err)
-			// Mark processed anyway so we don't retry endlessly on a permanently broken link
-			_ = pe.store.MarkSECFilingProcessedForPeople(symbol, f.Link)
-			continue
-		}
-
 		filingDate := f.FilingDate
 		if len(filingDate) > 10 {
 			filingDate = filingDate[:10]
@@ -101,6 +93,12 @@ func (pe *PeopleExtractor) processForm(ctx context.Context, symbol, formType str
 
 		switch formType {
 		case "8-K":
+			text, err := pe.sec.FetchFilingText(ctx, f.Link, formType)
+			if err != nil {
+				pe.logger.Debug("sec fetch failed", "url", f.Link, "error", err)
+				_ = pe.store.MarkSECFilingProcessedForPeople(symbol, f.Link)
+				continue
+			}
 			people := pe.extractEvents(ctx, symbol, text, filingDate, f.Link)
 			for _, p := range people {
 				if err := pe.store.PutKeyPerson(p); err != nil {
@@ -108,7 +106,21 @@ func (pe *PeopleExtractor) processForm(ctx context.Context, symbol, formType str
 				}
 			}
 		case "10-K", "DEF 14A":
-			section := relevantSection(text, formType)
+			// Snapshots: prefer table-only text (often <5k chars vs 200k+ for the
+			// full filing — 5–10x faster Ollama inference). Falls back to the
+			// section-marker narrowing of the full text when no leadership tables
+			// are detected by the structural heuristics.
+			text, fromTables, err := pe.sec.FetchLeadershipTables(ctx, f.Link, formType)
+			if err != nil {
+				pe.logger.Debug("sec fetch failed", "url", f.Link, "error", err)
+				_ = pe.store.MarkSECFilingProcessedForPeople(symbol, f.Link)
+				continue
+			}
+			section := text
+			if !fromTables {
+				section = relevantSection(text, formType)
+			}
+			pe.logger.Debug("extracted leadership section", "form", formType, "chars", len(section), "fromTables", fromTables)
 			people := pe.extractSnapshot(ctx, symbol, section, filingDate, f.Link, formType)
 			if len(people) > 0 {
 				if err := pe.store.ReplaceCurrentKeyPeople(symbol, formType, people); err != nil {
