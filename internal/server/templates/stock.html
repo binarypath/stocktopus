@@ -23,7 +23,8 @@
         <button class="chart-toggle" id="toggle-news" data-indicator="news" title=":sn">News</button>
     </div>
 </div>
-<div id="chart-container" class="chart-container" data-symbol="{{.Symbol}}"></div>
-<div id="chart-tooltip" class="chart-tooltip hidden"></div>
-<script src="/static/chart.js"></script>
+<div id="chart-container" class="chart-container" data-symbol="{{.Symbol}}">
+    <div id="chart-tooltip" class="chart-tooltip hidden"></div>
+</div>
+<script src="/static/chart.js?v={{.AssetVersion}}"></script>
 {{end}}

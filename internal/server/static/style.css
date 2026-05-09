@@ -1536,10 +1536,22 @@ body {
 
 .chart-container {
     width: 100%;
-    height: calc(100vh - 140px);
+    height: calc(100vh - 200px);
     border-radius: 4px;
     overflow: hidden;
     position: relative;
+}
+
+/* Graph view: fill remaining viewport so the time-axis labels aren't clipped */
+.terminal-content[data-view="graph"] {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.terminal-content[data-view="graph"] .chart-container {
+    flex: 1;
+    height: auto;
+    min-height: 0;
 }
 
 .chart-tooltip {
@@ -1671,6 +1683,11 @@ body {
     color: var(--blue);
     font-weight: 700;
     margin-right: 6px;
+}
+
+.tt-date {
+    color: var(--text-muted);
+    margin-right: 8px;
 }
 
 /* ── Debug Panels ── */
@@ -2159,6 +2176,11 @@ body {
     box-shadow: 0 0 0 1px var(--orange);
 }
 
+.trading-header.trading-panel-selected {
+    box-shadow: 0 0 0 1px var(--orange);
+    border-bottom-color: var(--orange);
+}
+
 /* Trading plan (debate result) */
 
 .trading-plan {
@@ -2314,3 +2336,79 @@ body {
     font-size: 14px;
 }
 .sec-link:hover { color: var(--orange); }
+
+.sec-tab-sep {
+    color: var(--text-muted);
+    margin: 0 6px;
+    align-self: center;
+    user-select: none;
+}
+
+/* Key People timeline */
+
+.kp-timeline {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-left: 2px solid var(--border);
+    margin-left: 4px;
+}
+
+.kp-row {
+    display: grid;
+    grid-template-columns: 90px 90px 1fr 1.4fr 24px;
+    gap: 10px;
+    align-items: center;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    cursor: pointer;
+    position: relative;
+}
+
+.kp-row:hover { background: var(--bg-tertiary); }
+
+.kp-row::before {
+    content: '';
+    position: absolute;
+    left: -7px;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--bg-primary);
+    border: 2px solid var(--border);
+    transform: translateY(-50%);
+}
+
+.kp-date { color: var(--text-muted); white-space: nowrap; }
+
+.kp-event {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 2px;
+    font-size: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    text-align: center;
+}
+
+.kp-event-appointed,
+.kp-event-promoted { background: #1a3a2a; color: var(--green); }
+
+.kp-event-resigned,
+.kp-event-departed { background: #3a1a1a; color: var(--red); }
+
+.kp-event-other { background: var(--bg-tertiary); color: var(--text-muted); }
+
+.kp-name { color: var(--text-primary); font-weight: 500; }
+.kp-title { color: var(--text-secondary); }
+
+.kp-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 14px;
+    text-align: center;
+}
+.kp-link:hover { color: var(--orange); }

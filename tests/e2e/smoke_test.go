@@ -22,6 +22,7 @@ import (
 	"stocktopus/internal/poller"
 	"stocktopus/internal/provider/financialmodelingprep"
 	"stocktopus/internal/server"
+	"stocktopus/internal/store"
 )
 
 var (
@@ -71,8 +72,19 @@ func TestMain(m *testing.M) {
 	// Debug broadcaster
 	debug := server.NewDebugBroadcaster()
 
+	// In-memory store for tests
+	tmpDir, err := os.MkdirTemp("", "stocktopus-smoke-*")
+	if err != nil {
+		panic("failed to create temp dir: " + err.Error())
+	}
+	defer os.RemoveAll(tmpDir)
+	st, err := store.New(tmpDir + "/test.db")
+	if err != nil {
+		panic("failed to create store: " + err.Error())
+	}
+
 	// Server
-	srv, err := server.New(server.Config{Port: 0}, h, debug, poll, newsClient, nil, nil, logger)
+	srv, err := server.New(server.Config{Port: 0}, h, debug, poll, newsClient, nil, nil, st, logger)
 	if err != nil {
 		panic("failed to create server: " + err.Error())
 	}

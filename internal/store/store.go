@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -165,6 +166,13 @@ func (s *Store) migrate() error {
 	if err != nil {
 		return err
 	}
+
+	// Idempotent column adds — ignore "duplicate column" errors on existing DBs.
+	if _, err := s.db.Exec(`ALTER TABLE sec_filings ADD COLUMN processed_for_people INTEGER NOT NULL DEFAULT 0`); err != nil &&
+		!strings.Contains(err.Error(), "duplicate column") {
+		return err
+	}
+
 	return s.seedSECFormTypes()
 }
 
@@ -653,6 +661,45 @@ func (s *Store) IsSECFresh(symbol string, maxAge time.Duration) bool {
 		return false
 	}
 	return time.Since(fetchedAt) < maxAge
+}
+
+// GetUnprocessedSECFilings returns filings that have not yet had key-people extraction attempted.
+// Use this so we don't repeatedly LLM-process 8-Ks that contained no personnel changes.
+func (s *Store) GetUnprocessedSECFilings(symbol, formType string, limit int) ([]SECFiling, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	query := `SELECT symbol, cik, form_type, filing_date, accepted_date, link, final_link FROM sec_filings WHERE symbol = ? AND processed_for_people = 0`
+	args := []interface{}{symbol}
+	if formType != "" {
+		query += ` AND form_type = ?`
+		args = append(args, formType)
+	}
+	query += ` ORDER BY filing_date DESC LIMIT ?`
+	args = append(args, limit)
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var filings []SECFiling
+	for rows.Next() {
+		var f SECFiling
+		if err := rows.Scan(&f.Symbol, &f.CIK, &f.FormType, &f.FilingDate, &f.AcceptedDate, &f.Link, &f.FinalLink); err != nil {
+			continue
+		}
+		filings = append(filings, f)
+	}
+	return filings, nil
+}
+
+// MarkSECFilingProcessedForPeople flags a filing as having been considered for key-people
+// extraction (regardless of whether any people were actually found in it).
+func (s *Store) MarkSECFilingProcessedForPeople(symbol, link string) error {
+	_, err := s.db.Exec(`UPDATE sec_filings SET processed_for_people = 1 WHERE symbol = ? AND link = ?`, symbol, link)
+	return err
 }
 
 // GetSECFormTypes returns all tracked SEC form type definitions.

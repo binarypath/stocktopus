@@ -40,12 +40,34 @@
     var allCandles = [], allVolumes = [];
 
     // ── Chart ──
+    var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    function tickFormatter(time, tickType) {
+        // time may be a BusinessDay object {year, month, day}, "YYYY-MM-DD" string, or unix seconds
+        var d;
+        if (time && typeof time === 'object' && time.year != null) {
+            d = new Date(Date.UTC(time.year, time.month - 1, time.day));
+        } else if (typeof time === 'number') {
+            d = new Date(time * 1000);
+        } else if (typeof time === 'string') {
+            d = new Date(time + 'T00:00:00Z');
+        } else {
+            return '';
+        }
+        if (isNaN(d.getTime())) return '';
+        var T = LightweightCharts.TickMarkType || {};
+        if (tickType === T.Year) return String(d.getUTCFullYear());
+        if (tickType === T.Month) return MONTHS[d.getUTCMonth()] + ' ' + String(d.getUTCFullYear()).slice(2);
+        if (tickType === T.DayOfMonth) return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate();
+        if (tickType === T.Time) return ('0' + d.getUTCHours()).slice(-2) + ':' + ('0' + d.getUTCMinutes()).slice(-2);
+        if (tickType === T.TimeWithSeconds) return ('0' + d.getUTCHours()).slice(-2) + ':' + ('0' + d.getUTCMinutes()).slice(-2) + ':' + ('0' + d.getUTCSeconds()).slice(-2);
+        return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate();
+    }
     var chart = LightweightCharts.createChart(container, {
         layout: { background: { color: '#0a0a0a' }, textColor: '#888888', fontFamily: "'SF Mono','Consolas',monospace", fontSize: 11 },
         grid: { vertLines: { color: '#1a1a1a' }, horzLines: { color: '#1a1a1a' } },
         crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { color: '#555', style: 2 }, horzLine: { color: '#555', style: 2 } },
         rightPriceScale: { borderColor: '#2a2a2a', scaleMargins: { top: 0.05, bottom: 0.25 } },
-        timeScale: { borderColor: '#2a2a2a', timeVisible: true, secondsVisible: false, rightOffset: 5 },
+        timeScale: { borderColor: '#2a2a2a', timeVisible: true, secondsVisible: false, rightOffset: 5, tickMarkFormatter: tickFormatter },
         handleScroll: true, handleScale: true,
     });
     window._stocktopusChart = chart;
@@ -386,7 +408,18 @@
         if (!candle) { tooltipEl.classList.add('hidden'); return; }
 
         var chgClass = candle.close >= candle.open ? 'price-up' : 'price-down';
+        var dateStr = '';
+        if (param.time) {
+            if (typeof param.time === 'object' && param.time.year != null) {
+                dateStr = MONTHS[param.time.month - 1] + ' ' + param.time.day + ' ' + param.time.year;
+            } else if (typeof param.time === 'number') {
+                var d = new Date(param.time * 1000);
+                dateStr = MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ' ' +
+                    ('0' + d.getUTCHours()).slice(-2) + ':' + ('0' + d.getUTCMinutes()).slice(-2);
+            }
+        }
         tooltipEl.innerHTML = '<span class="tt-sym">' + symbol + '</span>'
+            + (dateStr ? ' <span class="tt-date">' + dateStr + '</span>' : '')
             + ' O:<span class="' + chgClass + '">' + candle.open.toFixed(2) + '</span>'
             + ' H:<span class="' + chgClass + '">' + candle.high.toFixed(2) + '</span>'
             + ' L:<span class="' + chgClass + '">' + candle.low.toFixed(2) + '</span>'

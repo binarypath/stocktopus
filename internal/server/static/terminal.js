@@ -803,6 +803,7 @@ window.onerror = function (msg, src, line, col, err) {
                 highlightDropdown(items, dropdownIndex);
             } else if (e.key === 'Enter') {
                 e.preventDefault();
+                clearTimeout(searchTimer);
                 if (dropdownIndex >= 0 && items[dropdownIndex]) {
                     selectSecurity(items[dropdownIndex].dataset.symbol);
                 } else {
@@ -812,8 +813,10 @@ window.onerror = function (msg, src, line, col, err) {
                 dropdown.classList.add('hidden');
                 enterNormalMode();
             } else if (e.key === 'Escape') {
+                e.preventDefault();
+                clearTimeout(searchTimer);
                 dropdown.classList.add('hidden');
-                document.getElementById('cmd-input').focus();
+                enterNormalMode();
             }
         });
 
@@ -852,6 +855,12 @@ window.onerror = function (msg, src, line, col, err) {
     }
 
     function renderSecurityDropdown(results, dropdown) {
+        // Don't show dropdown if user has already moved on (e.g. hit Enter before a debounced search returned)
+        var input = document.getElementById('security-input');
+        if (!input || document.activeElement !== input) {
+            dropdown.classList.add('hidden');
+            return;
+        }
         if (!results || results.length === 0) {
             dropdown.classList.add('hidden');
             return;
@@ -1351,6 +1360,7 @@ window.onerror = function (msg, src, line, col, err) {
             isSectorTab: function () { return this.getActiveTab() === 'sector'; },
             isAITab: function () { return this.getActiveTab() === 'ai'; },
             isSECTab: function () { return this.getActiveTab() === 'sec'; },
+            isFinTab: function () { return this.getActiveTab() === 'financials'; },
             getNewsCards: function () { return document.querySelectorAll('#info-content .news-card'); },
             getSectorItems: function () {
                 // Peer rows + news items as one navigable list
@@ -1371,6 +1381,19 @@ window.onerror = function (msg, src, line, col, err) {
                             return;
                         }
                         clearVimSelection();
+                        this._focus = hasSub ? 'sub' : 'main';
+                        this._highlightFocus();
+                        return;
+                    }
+                    // Financials tab: row navigation
+                    if (this._focus === 'content' && this.isFinTab()) {
+                        var finRows = window._finGetRows ? window._finGetRows() : [];
+                        var finIdx = window._finGetSelectedRow ? window._finGetSelectedRow() : -1;
+                        if (finRows.length > 0 && finIdx > 0) {
+                            window._finSelectRow(finIdx - 1);
+                            return;
+                        }
+                        if (window._finClearRow) window._finClearRow();
                         this._focus = hasSub ? 'sub' : 'main';
                         this._highlightFocus();
                         return;
@@ -1442,6 +1465,14 @@ window.onerror = function (msg, src, line, col, err) {
                         }
                         return;
                     }
+                    if (this.isFinTab()) {
+                        var finRows = window._finGetRows ? window._finGetRows() : [];
+                        if (finRows.length > 0) {
+                            var finIdx = window._finGetSelectedRow ? window._finGetSelectedRow() : -1;
+                            window._finSelectRow(finIdx + 1);
+                        }
+                        return;
+                    }
                     if (this.isAITab()) {
                         if (window._tradingVimHandler) window._tradingVimHandler(dir);
                         return;
@@ -1488,9 +1519,11 @@ window.onerror = function (msg, src, line, col, err) {
             _highlightFocus: function () {
                 // Visual indicator of which tab row has focus
                 var mainTabs = document.getElementById('info-tabs');
-                var subTabs = document.getElementById('fin-sub-tabs');
+                var finSubTabs = document.getElementById('fin-sub-tabs');
+                var secSubTabs = document.getElementById('sec-filters');
                 if (mainTabs) mainTabs.classList.toggle('tab-row-focused', this._focus === 'main');
-                if (subTabs) subTabs.classList.toggle('tab-row-focused', this._focus === 'sub');
+                if (finSubTabs) finSubTabs.classList.toggle('tab-row-focused', this._focus === 'sub');
+                if (secSubTabs) secSubTabs.classList.toggle('tab-row-focused', this._focus === 'sub');
             },
             jumpToTab: function (n) {
                 this._focus = 'main';

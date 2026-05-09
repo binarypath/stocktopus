@@ -3,6 +3,8 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -48,30 +50,32 @@ type SymbolLister interface {
 }
 
 type Server struct {
-	config     Config
-	logger     *slog.Logger
-	httpServer *http.Server
-	pages      map[string]*template.Template
-	hub        *hub.Hub
-	debug      *DebugBroadcaster
-	symbols    SymbolLister
-	news       *news.Client
-	pipeline   *agent.Pipeline
-	trading    *trading.TradingPipeline
-	store      *store.Store
+	config       Config
+	logger       *slog.Logger
+	httpServer   *http.Server
+	pages        map[string]*template.Template
+	hub          *hub.Hub
+	debug        *DebugBroadcaster
+	symbols      SymbolLister
+	news         *news.Client
+	pipeline     *agent.Pipeline
+	trading      *trading.TradingPipeline
+	store        *store.Store
+	assetVersion string
 }
 
 func New(cfg Config, h *hub.Hub, debug *DebugBroadcaster, symbols SymbolLister, newsClient *news.Client, pipeline *agent.Pipeline, tp *trading.TradingPipeline, st *store.Store, logger *slog.Logger) (*Server, error) {
 	s := &Server{
-		config:   cfg,
-		logger:   logger,
-		hub:      h,
-		debug:    debug,
-		symbols:  symbols,
-		pipeline: pipeline,
-		trading:  tp,
-		store:    st,
-		news:     newsClient,
+		config:       cfg,
+		logger:       logger,
+		hub:          h,
+		debug:        debug,
+		symbols:      symbols,
+		pipeline:     pipeline,
+		trading:      tp,
+		store:        st,
+		news:         newsClient,
+		assetVersion: newAssetVersion(),
 	}
 
 	if err := s.loadTemplates(); err != nil {
@@ -907,11 +911,28 @@ func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, name string,
 		templateName = "content"
 	}
 
+	if data == nil {
+		data = map[string]any{}
+	}
+	data["AssetVersion"] = s.assetVersion
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := t.ExecuteTemplate(w, templateName, data); err != nil {
 		s.logger.Error("template render failed", "template", name, "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
+}
+
+// newAssetVersion returns a random hex string used as a per-process cache buster
+// for static assets. A new value is generated each time the server starts so
+// browsers refetch CSS/JS after a deploy without us having to bump versions by hand.
+func newAssetVersion() string {
+	var b [6]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		// Fall back to start-time nanos — still unique per process start.
+		return strconv.FormatInt(time.Now().UnixNano(), 36)
+	}
+	return hex.EncodeToString(b[:])
 }
 
 // --- SEC filing handlers ---
