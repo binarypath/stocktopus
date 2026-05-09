@@ -812,8 +812,8 @@
                     html += '<p class="empty-state">No filings found' + (secFilter ? ' for this category' : '') + '</p>';
                 }
             } else {
-                // Key People timeline
-                html += renderKeyPeopleTimeline(people);
+                // Key People timeline (wrapped so polling can replace just this slice)
+                html += '<div id="kp-content">' + renderKeyPeopleTimeline(people) + '</div>';
             }
 
             html += '</div>';
@@ -838,35 +838,164 @@
                     loadSEC();
                 };
             });
+
+            // Background extraction can take 30s+ per filing. Poll while on the people view
+            // so freshly-extracted rows appear without a manual refresh.
+            stopKeyPeoplePolling();
+            if (secView === 'people') {
+                startKeyPeoplePolling(people.length);
+            }
         }).catch(function () {
             container.innerHTML = '<p class="empty-state">Failed to load SEC filings</p>';
         });
     }
 
+    var kpPollInterval = null;
+    var kpLastCount = 0;
+    var kpStableTicks = 0;
+
+    function stopKeyPeoplePolling() {
+        if (kpPollInterval) {
+            clearInterval(kpPollInterval);
+            kpPollInterval = null;
+        }
+        kpStableTicks = 0;
+    }
+
+    function startKeyPeoplePolling(initialCount) {
+        kpLastCount = initialCount;
+        kpStableTicks = 0;
+        var maxTicks = 75; // ~5 min at 4s intervals
+        var ticks = 0;
+        kpPollInterval = setInterval(function () {
+            ticks++;
+            // Bail out if we're no longer on the SEC tab / people view
+            if (currentTab !== 'sec' || secView !== 'people') { stopKeyPeoplePolling(); return; }
+            if (ticks > maxTicks) { stopKeyPeoplePolling(); return; }
+
+            fetch('/api/security/' + symbol + '/key-people')
+                .then(function (r) { return r.ok ? r.json() : []; })
+                .then(function (people) {
+                    if (currentTab !== 'sec' || secView !== 'people') { stopKeyPeoplePolling(); return; }
+                    var n = (people || []).length;
+                    var kpEl = document.getElementById('kp-content');
+                    if (kpEl && n !== kpLastCount) {
+                        kpEl.innerHTML = renderKeyPeopleTimeline(people);
+                        kpLastCount = n;
+                        kpStableTicks = 0;
+                    } else {
+                        kpStableTicks++;
+                    }
+                    // Stop after 6 polls (~24s) with no change — extraction has settled
+                    if (kpStableTicks >= 6 && kpLastCount > 0) {
+                        stopKeyPeoplePolling();
+                    }
+                })
+                .catch(function () { /* keep polling */ });
+        }, 4000);
+    }
+
+    // Reject extraction garbage: XBRL element names, legal entities, category labels.
+    // Mirror of looksLikeRealPerson in people.go so old rows in the DB don't render.
+    function isRealPerson(name) {
+        if (!name) return false;
+        name = String(name).trim();
+        if (name.length < 3 || name.length > 60) return false;
+        if (name.indexOf(' ') < 0) return false;
+        var lower = name.toLowerCase();
+        var entitySuffixes = [' inc', ' inc.', ' llc', ' l.l.c.', ' corp', ' corp.', ' co.', ' company', ' trust', ' bank', ' n.a.', ' n.a', ' l.p.', ' lp', ' plc', ' ltd', ' ltd.'];
+        for (var i = 0; i < entitySuffixes.length; i++) {
+            if (lower.endsWith(entitySuffixes[i])) return false;
+        }
+        var blocked = ['board of directors', 'compensation committee', 'audit committee', 'named executive', 'principal executive', 'non-employee director', 'initial purchaser', 'registered holder', 'beneficial owner'];
+        if (blocked.indexOf(lower) >= 0) return false;
+        var words = name.split(/\s+/);
+        for (var j = 0; j < words.length; j++) {
+            var w = words[j].replace(/^[(),.;:'"]+|[(),.;:'"]+$/g, '');
+            if (w.length > 22) return false;
+        }
+        return true;
+    }
+
     function renderKeyPeopleTimeline(people) {
         if (!people || people.length === 0) {
-            return '<p class="empty-state">No executive changes recorded yet. Key people are extracted from 8-K filings as they arrive.</p>';
+            return '<p class="empty-state">No leadership data extracted yet. Key people are pulled from 10-K (Item 10), DEF 14A proxy statements, and 8-K (Item 5.02 changes).</p>';
         }
-        // Sort newest first
-        people.sort(function (a, b) { return (b.eventDate || '').localeCompare(a.eventDate || ''); });
 
-        var html = '<div class="sec-count">' + people.length + ' executive change' + (people.length === 1 ? '' : 's') + '</div>';
-        html += '<ul class="kp-timeline">';
-        people.forEach(function (p, idx) {
-            var date = (p.eventDate || '').substring(0, 10) || '—';
-            var evt = (p.eventType || '').toLowerCase();
-            var evtClass = 'kp-event-' + (evt || 'other');
-            html += '<li class="kp-row" data-idx="' + idx + '" data-link="' + esc(p.source || '') + '">';
-            html += '<span class="kp-date">' + esc(date) + '</span>';
-            html += '<span class="kp-event ' + evtClass + '">' + esc(p.eventType || 'change') + '</span>';
-            html += '<span class="kp-name">' + esc(p.name || '—') + '</span>';
-            html += '<span class="kp-title">' + esc(p.title || '') + '</span>';
-            if (p.source) {
-                html += '<a class="kp-link" href="' + esc(p.source) + '" target="_blank" rel="noopener">&#8599;</a>';
-            }
-            html += '</li>';
+        people = people.filter(function (p) { return isRealPerson(p.name); });
+
+        var current = people.filter(function (p) { return p.isCurrent; });
+        var events = people.filter(function (p) { return !p.isCurrent; });
+
+        // Dedup current by name+title (DEF 14A and 10-K may both list the same exec)
+        var seen = {};
+        current = current.filter(function (p) {
+            var key = (p.name || '').toLowerCase() + '|' + (p.title || '').toLowerCase();
+            if (seen[key]) return false;
+            seen[key] = true;
+            return true;
         });
-        html += '</ul>';
+
+        // Newest first for events
+        events.sort(function (a, b) { return (b.eventDate || '').localeCompare(a.eventDate || ''); });
+
+        var html = '';
+        var rowIdx = 0;
+
+        if (current.length > 0) {
+            // Sort: officers first then directors, alphabetical within
+            current.sort(function (a, b) {
+                var aRole = a.eventType === 'director' ? 1 : 0;
+                var bRole = b.eventType === 'director' ? 1 : 0;
+                if (aRole !== bRole) return aRole - bRole;
+                return (a.name || '').localeCompare(b.name || '');
+            });
+
+            html += '<div class="kp-section-header">Current Leadership <span class="kp-section-meta">' + current.length + ' people</span></div>';
+            html += '<table class="fin-table kp-current-table"><thead><tr>';
+            html += '<th>Name</th><th>Title</th><th>Role</th><th>As of</th><th>Source</th>';
+            html += '</tr></thead><tbody>';
+            current.forEach(function (p) {
+                var roleClass = 'kp-event-' + (p.eventType || 'other');
+                var asOf = (p.asOfDate || '').substring(0, 10) || (p.eventDate || '').substring(0, 10) || '—';
+                var form = p.formType ? '<span class="kp-form-badge">' + esc(p.formType) + '</span>' : '';
+                html += '<tr class="kp-row" data-idx="' + (rowIdx++) + '" data-link="' + esc(p.source || '') + '">';
+                html += '<td class="kp-name">' + esc(p.name || '—') + '</td>';
+                html += '<td class="kp-title">' + esc(p.title || '') + '</td>';
+                html += '<td><span class="kp-event ' + roleClass + '">' + esc(p.eventType || 'officer') + '</span></td>';
+                html += '<td class="kp-date">' + esc(asOf) + ' ' + form + '</td>';
+                html += '<td>';
+                if (p.source) {
+                    html += '<a class="kp-link" href="' + esc(p.source) + '" target="_blank" rel="noopener">&#8599;</a>';
+                }
+                html += '</td></tr>';
+            });
+            html += '</tbody></table>';
+        }
+
+        if (events.length > 0) {
+            html += '<div class="kp-section-header">Recent Changes <span class="kp-section-meta">' + events.length + ' event' + (events.length === 1 ? '' : 's') + '</span></div>';
+            html += '<ul class="kp-timeline">';
+            events.forEach(function (p) {
+                var date = (p.eventDate || '').substring(0, 10) || '—';
+                var evt = (p.eventType || '').toLowerCase();
+                var evtClass = 'kp-event-' + (evt || 'other');
+                html += '<li class="kp-row" data-idx="' + (rowIdx++) + '" data-link="' + esc(p.source || '') + '">';
+                html += '<span class="kp-date">' + esc(date) + '</span>';
+                html += '<span class="kp-event ' + evtClass + '">' + esc(p.eventType || 'change') + '</span>';
+                html += '<span class="kp-name">' + esc(p.name || '—') + '</span>';
+                html += '<span class="kp-title">' + esc(p.title || '') + '</span>';
+                if (p.source) {
+                    html += '<a class="kp-link" href="' + esc(p.source) + '" target="_blank" rel="noopener">&#8599;</a>';
+                }
+                html += '</li>';
+            });
+            html += '</ul>';
+        }
+
+        if (current.length === 0 && events.length === 0) {
+            html = '<p class="empty-state">No leadership data extracted yet.</p>';
+        }
         return html;
     }
 

@@ -41,7 +41,7 @@ type TradingPipelineConfig struct {
 func NewTradingPipeline(cfg TradingPipelineConfig, fmp *news.Client, st *store.Store, logger *slog.Logger) *TradingPipeline {
 	analysts := NewAnalystRunner(fmp, cfg.OllamaHost, cfg.OllamaModel, cfg.AgentsDir, logger)
 	debater := NewDebater(cfg.OllamaHost, cfg.OllamaModel, cfg.DebateRounds, logger)
-	people := NewPeopleExtractor(cfg.OllamaHost, cfg.OllamaModel, cfg.AgentsDir, st, logger)
+	people := NewPeopleExtractor(cfg.OllamaHost, cfg.OllamaModel, st, logger)
 
 	return &TradingPipeline{
 		analysts: analysts,
