@@ -173,6 +173,31 @@ func (s *Store) migrate() error {
 		return err
 	}
 
+	// Adding is_current is the upgrade signal from the broken-Python-fetcher era
+	// to the SEC-compliant Go fetcher: if the column doesn't yet exist, reset the
+	// processed flag so previously-attempted filings get a real extraction pass.
+	upgradedToSECFetcher := false
+	if _, err := s.db.Exec(`ALTER TABLE key_people ADD COLUMN is_current INTEGER NOT NULL DEFAULT 0`); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column") {
+			return err
+		}
+	} else {
+		upgradedToSECFetcher = true
+	}
+	if _, err := s.db.Exec(`ALTER TABLE key_people ADD COLUMN as_of_date TEXT DEFAULT ''`); err != nil &&
+		!strings.Contains(err.Error(), "duplicate column") {
+		return err
+	}
+	if _, err := s.db.Exec(`ALTER TABLE key_people ADD COLUMN form_type TEXT DEFAULT ''`); err != nil &&
+		!strings.Contains(err.Error(), "duplicate column") {
+		return err
+	}
+	if upgradedToSECFetcher {
+		if _, err := s.db.Exec(`UPDATE sec_filings SET processed_for_people = 0`); err != nil {
+			return err
+		}
+	}
+
 	return s.seedSECFormTypes()
 }
 
@@ -555,7 +580,9 @@ type SECFormType struct {
 	Category string `json:"category"`
 }
 
-// KeyPerson represents an executive or board member change.
+// KeyPerson represents either a current leadership snapshot row (IsCurrent=true,
+// sourced from 10-K Item 10/11/12 or DEF 14A) or a personnel-change event
+// (IsCurrent=false, sourced from 8-K Item 5.02 — appointed / resigned / departed / promoted).
 type KeyPerson struct {
 	Symbol    string `json:"symbol"`
 	Name      string `json:"name"`
@@ -563,6 +590,9 @@ type KeyPerson struct {
 	EventType string `json:"eventType"`
 	EventDate string `json:"eventDate"`
 	Source    string `json:"source"`
+	IsCurrent bool   `json:"isCurrent"`
+	AsOfDate  string `json:"asOfDate"`
+	FormType  string `json:"formType"`
 }
 
 func (s *Store) seedSECFormTypes() error {
@@ -723,14 +753,47 @@ func (s *Store) GetSECFormTypes() ([]SECFormType, error) {
 
 // PutKeyPerson inserts a key person record.
 func (s *Store) PutKeyPerson(kp KeyPerson) error {
-	_, err := s.db.Exec(`INSERT INTO key_people (symbol, name, title, event_type, event_date, source) VALUES (?, ?, ?, ?, ?, ?)`,
-		kp.Symbol, kp.Name, kp.Title, kp.EventType, kp.EventDate, kp.Source)
+	current := 0
+	if kp.IsCurrent {
+		current = 1
+	}
+	_, err := s.db.Exec(
+		`INSERT INTO key_people (symbol, name, title, event_type, event_date, source, is_current, as_of_date, form_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		kp.Symbol, kp.Name, kp.Title, kp.EventType, kp.EventDate, kp.Source, current, kp.AsOfDate, kp.FormType)
 	return err
 }
 
-// GetKeyPeople returns key people events for a symbol.
+// ReplaceCurrentKeyPeople atomically swaps the current-leadership snapshot for a
+// symbol+formType — older snapshot rows from the same form are deleted before
+// inserting the new ones. Event rows (is_current=0) are untouched.
+func (s *Store) ReplaceCurrentKeyPeople(symbol, formType string, people []KeyPerson) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(`DELETE FROM key_people WHERE symbol = ? AND form_type = ? AND is_current = 1`, symbol, formType); err != nil {
+		return err
+	}
+	stmt, err := tx.Prepare(`INSERT INTO key_people (symbol, name, title, event_type, event_date, source, is_current, as_of_date, form_type) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	for _, p := range people {
+		if _, err := stmt.Exec(p.Symbol, p.Name, p.Title, p.EventType, p.EventDate, p.Source, p.AsOfDate, formType); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// GetKeyPeople returns all key people rows for a symbol — both current snapshot
+// rows (is_current=1) and historical events (is_current=0). Caller separates by
+// inspecting IsCurrent.
 func (s *Store) GetKeyPeople(symbol string) ([]KeyPerson, error) {
-	rows, err := s.db.Query(`SELECT symbol, name, title, event_type, event_date, source FROM key_people WHERE symbol = ? ORDER BY event_date DESC`, symbol)
+	rows, err := s.db.Query(`SELECT symbol, name, title, event_type, event_date, source, is_current, COALESCE(as_of_date, ''), COALESCE(form_type, '') FROM key_people WHERE symbol = ? ORDER BY is_current DESC, event_date DESC`, symbol)
 	if err != nil {
 		return nil, err
 	}
@@ -739,9 +802,11 @@ func (s *Store) GetKeyPeople(symbol string) ([]KeyPerson, error) {
 	var people []KeyPerson
 	for rows.Next() {
 		var p KeyPerson
-		if err := rows.Scan(&p.Symbol, &p.Name, &p.Title, &p.EventType, &p.EventDate, &p.Source); err != nil {
+		var isCurrent int
+		if err := rows.Scan(&p.Symbol, &p.Name, &p.Title, &p.EventType, &p.EventDate, &p.Source, &isCurrent, &p.AsOfDate, &p.FormType); err != nil {
 			continue
 		}
+		p.IsCurrent = isCurrent == 1
 		people = append(people, p)
 	}
 	return people, nil

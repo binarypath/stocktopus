@@ -845,28 +845,81 @@
 
     function renderKeyPeopleTimeline(people) {
         if (!people || people.length === 0) {
-            return '<p class="empty-state">No executive changes recorded yet. Key people are extracted from 8-K filings as they arrive.</p>';
+            return '<p class="empty-state">No leadership data extracted yet. Key people are pulled from 10-K (Item 10), DEF 14A proxy statements, and 8-K (Item 5.02 changes).</p>';
         }
-        // Sort newest first
-        people.sort(function (a, b) { return (b.eventDate || '').localeCompare(a.eventDate || ''); });
 
-        var html = '<div class="sec-count">' + people.length + ' executive change' + (people.length === 1 ? '' : 's') + '</div>';
-        html += '<ul class="kp-timeline">';
-        people.forEach(function (p, idx) {
-            var date = (p.eventDate || '').substring(0, 10) || '—';
-            var evt = (p.eventType || '').toLowerCase();
-            var evtClass = 'kp-event-' + (evt || 'other');
-            html += '<li class="kp-row" data-idx="' + idx + '" data-link="' + esc(p.source || '') + '">';
-            html += '<span class="kp-date">' + esc(date) + '</span>';
-            html += '<span class="kp-event ' + evtClass + '">' + esc(p.eventType || 'change') + '</span>';
-            html += '<span class="kp-name">' + esc(p.name || '—') + '</span>';
-            html += '<span class="kp-title">' + esc(p.title || '') + '</span>';
-            if (p.source) {
-                html += '<a class="kp-link" href="' + esc(p.source) + '" target="_blank" rel="noopener">&#8599;</a>';
-            }
-            html += '</li>';
+        var current = people.filter(function (p) { return p.isCurrent; });
+        var events = people.filter(function (p) { return !p.isCurrent; });
+
+        // Dedup current by name+title (DEF 14A and 10-K may both list the same exec)
+        var seen = {};
+        current = current.filter(function (p) {
+            var key = (p.name || '').toLowerCase() + '|' + (p.title || '').toLowerCase();
+            if (seen[key]) return false;
+            seen[key] = true;
+            return true;
         });
-        html += '</ul>';
+
+        // Newest first for events
+        events.sort(function (a, b) { return (b.eventDate || '').localeCompare(a.eventDate || ''); });
+
+        var html = '';
+        var rowIdx = 0;
+
+        if (current.length > 0) {
+            // Sort: officers first then directors, alphabetical within
+            current.sort(function (a, b) {
+                var aRole = a.eventType === 'director' ? 1 : 0;
+                var bRole = b.eventType === 'director' ? 1 : 0;
+                if (aRole !== bRole) return aRole - bRole;
+                return (a.name || '').localeCompare(b.name || '');
+            });
+
+            html += '<div class="kp-section-header">Current Leadership <span class="kp-section-meta">' + current.length + ' people</span></div>';
+            html += '<table class="fin-table kp-current-table"><thead><tr>';
+            html += '<th>Name</th><th>Title</th><th>Role</th><th>As of</th><th>Source</th>';
+            html += '</tr></thead><tbody>';
+            current.forEach(function (p) {
+                var roleClass = 'kp-event-' + (p.eventType || 'other');
+                var asOf = (p.asOfDate || '').substring(0, 10) || (p.eventDate || '').substring(0, 10) || '—';
+                var form = p.formType ? '<span class="kp-form-badge">' + esc(p.formType) + '</span>' : '';
+                html += '<tr class="kp-row" data-idx="' + (rowIdx++) + '" data-link="' + esc(p.source || '') + '">';
+                html += '<td class="kp-name">' + esc(p.name || '—') + '</td>';
+                html += '<td class="kp-title">' + esc(p.title || '') + '</td>';
+                html += '<td><span class="kp-event ' + roleClass + '">' + esc(p.eventType || 'officer') + '</span></td>';
+                html += '<td class="kp-date">' + esc(asOf) + ' ' + form + '</td>';
+                html += '<td>';
+                if (p.source) {
+                    html += '<a class="kp-link" href="' + esc(p.source) + '" target="_blank" rel="noopener">&#8599;</a>';
+                }
+                html += '</td></tr>';
+            });
+            html += '</tbody></table>';
+        }
+
+        if (events.length > 0) {
+            html += '<div class="kp-section-header">Recent Changes <span class="kp-section-meta">' + events.length + ' event' + (events.length === 1 ? '' : 's') + '</span></div>';
+            html += '<ul class="kp-timeline">';
+            events.forEach(function (p) {
+                var date = (p.eventDate || '').substring(0, 10) || '—';
+                var evt = (p.eventType || '').toLowerCase();
+                var evtClass = 'kp-event-' + (evt || 'other');
+                html += '<li class="kp-row" data-idx="' + (rowIdx++) + '" data-link="' + esc(p.source || '') + '">';
+                html += '<span class="kp-date">' + esc(date) + '</span>';
+                html += '<span class="kp-event ' + evtClass + '">' + esc(p.eventType || 'change') + '</span>';
+                html += '<span class="kp-name">' + esc(p.name || '—') + '</span>';
+                html += '<span class="kp-title">' + esc(p.title || '') + '</span>';
+                if (p.source) {
+                    html += '<a class="kp-link" href="' + esc(p.source) + '" target="_blank" rel="noopener">&#8599;</a>';
+                }
+                html += '</li>';
+            });
+            html += '</ul>';
+        }
+
+        if (current.length === 0 && events.length === 0) {
+            html = '<p class="empty-state">No leadership data extracted yet.</p>';
+        }
         return html;
     }
 

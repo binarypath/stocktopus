@@ -2344,7 +2344,46 @@ body {
     user-select: none;
 }
 
-/* Key People timeline */
+/* Key People — section headers, current snapshot table, change timeline */
+
+.kp-section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin: 14px 0 6px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 4px;
+}
+.kp-section-header:first-child { margin-top: 4px; }
+
+.kp-section-meta {
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: normal;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.kp-current-table { font-size: 12px; }
+.kp-current-table tr.kp-row { cursor: pointer; }
+.kp-current-table tr.kp-row:hover { background: var(--bg-tertiary); }
+
+.kp-form-badge {
+    display: inline-block;
+    padding: 0 4px;
+    margin-left: 4px;
+    border-radius: 2px;
+    font-size: 9px;
+    color: var(--text-muted);
+    background: var(--bg-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
 
 .kp-timeline {
     list-style: none;
@@ -2354,7 +2393,7 @@ body {
     margin-left: 4px;
 }
 
-.kp-row {
+li.kp-row {
     display: grid;
     grid-template-columns: 90px 90px 1fr 1.4fr 24px;
     gap: 10px;
@@ -2366,9 +2405,9 @@ body {
     position: relative;
 }
 
-.kp-row:hover { background: var(--bg-tertiary); }
+li.kp-row:hover { background: var(--bg-tertiary); }
 
-.kp-row::before {
+li.kp-row::before {
     content: '';
     position: absolute;
     left: -7px;
@@ -2395,10 +2434,14 @@ body {
 }
 
 .kp-event-appointed,
-.kp-event-promoted { background: #1a3a2a; color: var(--green); }
+.kp-event-promoted,
+.kp-event-officer { background: #1a3a2a; color: var(--green); }
 
 .kp-event-resigned,
 .kp-event-departed { background: #3a1a1a; color: var(--red); }
+
+.kp-event-director { background: #1a2a3a; color: var(--blue); }
+.kp-event-both { background: #2a1a3a; color: #bb88ff; }
 
 .kp-event-other { background: var(--bg-tertiary); color: var(--text-muted); }
 
