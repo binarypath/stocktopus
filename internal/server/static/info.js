@@ -332,6 +332,148 @@
         finSelectedRow = -1;
     };
 
+    // ── Financials Preview Chart Slide-in ──
+
+    var finChart = null;
+
+    function disposeFinChart() {
+        if (finChart) {
+            try { finChart.remove(); } catch (e) {}
+            finChart = null;
+        }
+    }
+
+    function buildFinSeries(rows, finKey, format) {
+        var pts = [];
+        rows.forEach(function (d) {
+            var v;
+            if (format === 'calc') {
+                var parts = String(finKey).split('/');
+                var num = d[parts[0]], den = d[parts[1]];
+                if (num != null && den != null && den !== 0) {
+                    v = (num / den) * 100;
+                }
+            } else {
+                v = d[finKey];
+            }
+            if (v != null) {
+                var year = String(d.fiscalYear || d.date || '').substring(0, 4);
+                if (year) pts.push({ time: year + '-12-31', value: Number(v) });
+            }
+        });
+        pts.sort(function (a, b) { return a.time < b.time ? -1 : 1; });
+        return pts;
+    }
+
+    function fmtAxisValue(v) {
+        var abs = Math.abs(v);
+        if (abs >= 1e12) return (v / 1e12).toFixed(1) + 'T';
+        if (abs >= 1e9)  return (v / 1e9).toFixed(1) + 'B';
+        if (abs >= 1e6)  return (v / 1e6).toFixed(1) + 'M';
+        if (abs >= 1e3)  return (v / 1e3).toFixed(1) + 'k';
+        return Number(v).toFixed(2);
+    }
+
+    window._finOpenChart = function () {
+        if (finSelectedRow < 0) return;
+        var rows = window._finGetRows();
+        if (finSelectedRow >= rows.length) return;
+        var row = rows[finSelectedRow];
+
+        var label  = row.dataset.finLabel || 'Metric';
+        var finKey = row.dataset.finKey || '';
+        var format = row.dataset.finFormat || '';
+        var type   = window._finCurrentType || 'income';
+        var data   = (window._finData && window._finData[type]) || [];
+
+        var series = buildFinSeries(data, finKey, format);
+
+        var reader = document.getElementById('article-reader');
+        var readerTitle = document.getElementById('reader-title');
+        var readerBody = document.getElementById('reader-body');
+        if (!reader || !readerBody) return;
+        reader.classList.remove('hidden');
+        reader.dataset.mode = 'fin-chart';
+        if (readerTitle) readerTitle.textContent = label + ' — 5y';
+
+        if (series.length === 0) {
+            readerBody.innerHTML = '<p class="empty-state">No data points for this metric.</p>';
+            return;
+        }
+
+        readerBody.innerHTML = '<div id="fin-chart-host" style="width:100%;height:280px"></div>'
+            + '<div class="fin-chart-points" id="fin-chart-points"></div>';
+
+        // Render values list below the chart, colored to match the chart segments
+        var isPct = format === 'calc';
+        var pointsEl = document.getElementById('fin-chart-points');
+        pointsEl.innerHTML = series.map(function (p, i) {
+            var year = p.time.substring(0, 4);
+            var val = isPct ? p.value.toFixed(1) + '%' : fmtAxisValue(p.value);
+            var dirClass = '';
+            if (i > 0) {
+                var prev = series[i - 1].value;
+                if (p.value > prev) dirClass = ' price-up';
+                else if (p.value < prev) dirClass = ' price-down';
+            }
+            return '<div class="fin-chart-point"><span class="fin-chart-year">' + year + '</span><span class="fin-chart-val' + dirClass + '">' + val + '</span></div>';
+        }).join('');
+
+        // Build the line chart — one LineSeries per year-over-year segment so
+        // each segment is colored green (up) or red (down) vs the previous year.
+        disposeFinChart();
+        var host = document.getElementById('fin-chart-host');
+        if (!window.LightweightCharts || !host) return;
+
+        finChart = LightweightCharts.createChart(host, {
+            layout: { background: { color: '#0a0a0a' }, textColor: '#888888', fontFamily: "'SF Mono','Consolas',monospace", fontSize: 10 },
+            grid: { vertLines: { color: '#1a1a1a' }, horzLines: { color: '#1a1a1a' } },
+            rightPriceScale: { borderColor: '#2a2a2a' },
+            timeScale: { borderColor: '#2a2a2a', timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
+            handleScale: false,
+            handleScroll: false,
+        });
+        var priceFormat = isPct
+            ? { type: 'custom', formatter: function (v) { return v.toFixed(1) + '%'; }, minMove: 0.1 }
+            : { type: 'custom', formatter: fmtAxisValue, minMove: 0.01 };
+
+        var GREEN = '#00cc66', RED = '#ff4444', NEUTRAL = '#888888';
+        if (series.length === 1) {
+            // Just one data point — single series, neutral colour, marker at the point.
+            var solo = finChart.addSeries(LightweightCharts.LineSeries, {
+                color: NEUTRAL, lineWidth: 2, priceFormat: priceFormat,
+                pointMarkersVisible: true,
+            });
+            solo.setData(series);
+        } else {
+            for (var i = 1; i < series.length; i++) {
+                var prev = series[i - 1].value;
+                var curr = series[i].value;
+                var color = curr > prev ? GREEN : (curr < prev ? RED : NEUTRAL);
+                var seg = finChart.addSeries(LightweightCharts.LineSeries, {
+                    color: color, lineWidth: 2, priceFormat: priceFormat,
+                });
+                seg.setData([series[i - 1], series[i]]);
+            }
+        }
+        finChart.timeScale().fitContent();
+    };
+
+    window._finCloseChart = function () {
+        var reader = document.getElementById('article-reader');
+        if (!reader) return;
+        if (reader.dataset.mode !== 'fin-chart') return false;
+        disposeFinChart();
+        reader.classList.add('hidden');
+        delete reader.dataset.mode;
+        return true;
+    };
+
+    window._finIsChartOpen = function () {
+        var reader = document.getElementById('article-reader');
+        return !!(reader && !reader.classList.contains('hidden') && reader.dataset.mode === 'fin-chart');
+    };
+
     var FIN_EXPLAINERS = {
         income: 'The income statement shows how much money the company earned (revenue), what it cost to earn it (expenses), and what was left over (profit). Read top to bottom: revenue minus costs gives gross profit, minus operating expenses gives operating income, minus interest and taxes gives net income. Margins show these as percentages of revenue — higher is better, and the trend matters more than the absolute number.',
         balance: 'The balance sheet is a snapshot of what the company owns (assets), what it owes (liabilities), and what belongs to shareholders (equity) at a single point in time. Assets = Liabilities + Equity, always. Key things to watch: cash vs debt levels, whether goodwill is a large portion of assets (acquisition risk), and whether equity is growing or shrinking over time.',
@@ -350,6 +492,10 @@
                     tc.innerHTML = '<p class="empty-state">No data available</p>';
                     return;
                 }
+                // Cache for the chart slide-in (key by type so switching sub-tabs gets the right rows)
+                window._finData = window._finData || {};
+                window._finData[type] = data;
+                window._finCurrentType = type;
 
                 var html = '';
                 if (FIN_EXPLAINERS[type]) {
