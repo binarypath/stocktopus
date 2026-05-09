@@ -812,8 +812,8 @@
                     html += '<p class="empty-state">No filings found' + (secFilter ? ' for this category' : '') + '</p>';
                 }
             } else {
-                // Key People timeline
-                html += renderKeyPeopleTimeline(people);
+                // Key People timeline (wrapped so polling can replace just this slice)
+                html += '<div id="kp-content">' + renderKeyPeopleTimeline(people) + '</div>';
             }
 
             html += '</div>';
@@ -838,15 +838,91 @@
                     loadSEC();
                 };
             });
+
+            // Background extraction can take 30s+ per filing. Poll while on the people view
+            // so freshly-extracted rows appear without a manual refresh.
+            stopKeyPeoplePolling();
+            if (secView === 'people') {
+                startKeyPeoplePolling(people.length);
+            }
         }).catch(function () {
             container.innerHTML = '<p class="empty-state">Failed to load SEC filings</p>';
         });
+    }
+
+    var kpPollInterval = null;
+    var kpLastCount = 0;
+    var kpStableTicks = 0;
+
+    function stopKeyPeoplePolling() {
+        if (kpPollInterval) {
+            clearInterval(kpPollInterval);
+            kpPollInterval = null;
+        }
+        kpStableTicks = 0;
+    }
+
+    function startKeyPeoplePolling(initialCount) {
+        kpLastCount = initialCount;
+        kpStableTicks = 0;
+        var maxTicks = 75; // ~5 min at 4s intervals
+        var ticks = 0;
+        kpPollInterval = setInterval(function () {
+            ticks++;
+            // Bail out if we're no longer on the SEC tab / people view
+            if (currentTab !== 'sec' || secView !== 'people') { stopKeyPeoplePolling(); return; }
+            if (ticks > maxTicks) { stopKeyPeoplePolling(); return; }
+
+            fetch('/api/security/' + symbol + '/key-people')
+                .then(function (r) { return r.ok ? r.json() : []; })
+                .then(function (people) {
+                    if (currentTab !== 'sec' || secView !== 'people') { stopKeyPeoplePolling(); return; }
+                    var n = (people || []).length;
+                    var kpEl = document.getElementById('kp-content');
+                    if (kpEl && n !== kpLastCount) {
+                        kpEl.innerHTML = renderKeyPeopleTimeline(people);
+                        kpLastCount = n;
+                        kpStableTicks = 0;
+                    } else {
+                        kpStableTicks++;
+                    }
+                    // Stop after 6 polls (~24s) with no change — extraction has settled
+                    if (kpStableTicks >= 6 && kpLastCount > 0) {
+                        stopKeyPeoplePolling();
+                    }
+                })
+                .catch(function () { /* keep polling */ });
+        }, 4000);
+    }
+
+    // Reject extraction garbage: XBRL element names, legal entities, category labels.
+    // Mirror of looksLikeRealPerson in people.go so old rows in the DB don't render.
+    function isRealPerson(name) {
+        if (!name) return false;
+        name = String(name).trim();
+        if (name.length < 3 || name.length > 60) return false;
+        if (name.indexOf(' ') < 0) return false;
+        var lower = name.toLowerCase();
+        var entitySuffixes = [' inc', ' inc.', ' llc', ' l.l.c.', ' corp', ' corp.', ' co.', ' company', ' trust', ' bank', ' n.a.', ' n.a', ' l.p.', ' lp', ' plc', ' ltd', ' ltd.'];
+        for (var i = 0; i < entitySuffixes.length; i++) {
+            if (lower.endsWith(entitySuffixes[i])) return false;
+        }
+        var blocked = ['board of directors', 'compensation committee', 'audit committee', 'named executive', 'principal executive', 'non-employee director', 'initial purchaser', 'registered holder', 'beneficial owner'];
+        if (blocked.indexOf(lower) >= 0) return false;
+        var words = name.split(/\s+/);
+        for (var j = 0; j < words.length; j++) {
+            var w = words[j].replace(/^[(),.;:'"]+|[(),.;:'"]+$/g, '');
+            if (w.length > 22) return false;
+        }
+        return true;
     }
 
     function renderKeyPeopleTimeline(people) {
         if (!people || people.length === 0) {
             return '<p class="empty-state">No leadership data extracted yet. Key people are pulled from 10-K (Item 10), DEF 14A proxy statements, and 8-K (Item 5.02 changes).</p>';
         }
+
+        people = people.filter(function (p) { return isRealPerson(p.name); });
 
         var current = people.filter(function (p) { return p.isCurrent; });
         var events = people.filter(function (p) { return !p.isCurrent; });

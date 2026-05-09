@@ -124,7 +124,8 @@ func (pe *PeopleExtractor) processForm(ctx context.Context, symbol, formType str
 }
 
 // relevantSection narrows huge filings down to the leadership-relevant slice so
-// the LLM doesn't have to scan an entire 200k+ char document.
+// the LLM doesn't have to scan an entire 200k+ char document. Smaller input also
+// keeps Ollama response time reasonable on consumer-grade GPUs.
 func relevantSection(text, formType string) string {
 	switch formType {
 	case "10-K":
@@ -149,15 +150,48 @@ func relevantSection(text, formType string) string {
 		}
 		return text[idx:end]
 	case "DEF 14A":
-		// First ~80k chars of a proxy almost always covers director nominees, NEOs and the
-		// summary compensation table. Beyond that is mostly long-form comp narrative + appendices.
-		if len(text) > 80000 {
-			return text[:80000]
-		}
-		return text
+		return def14aLeadershipSection(text)
 	default:
 		return text
 	}
+}
+
+// def14aLeadershipSection finds the directors+officers section of a proxy and
+// returns ~40k chars from there, falling back to the first 50k chars if no
+// recognised marker is present. Skipping the comp tables further down avoids
+// XBRL pay-for-performance noise like "PeoMember" and "NonPeoNeo" tags.
+func def14aLeadershipSection(text string) string {
+	const sectionLen = 40000
+	const fallbackLen = 50000
+
+	lower := strings.ToLower(text)
+	markers := []string{
+		"election of directors",
+		"director nominees",
+		"information about our directors",
+		"information about the director nominees",
+		"our directors",
+		"our board of directors",
+		"executive officers of the registrant",
+		"information about our executive officers",
+	}
+	bestIdx := -1
+	for _, m := range markers {
+		if i := strings.Index(lower, m); i >= 0 && (bestIdx < 0 || i < bestIdx) {
+			bestIdx = i
+		}
+	}
+	if bestIdx < 0 {
+		if len(text) > fallbackLen {
+			return text[:fallbackLen]
+		}
+		return text
+	}
+	end := bestIdx + sectionLen
+	if end > len(text) {
+		end = len(text)
+	}
+	return text[bestIdx:end]
 }
 
 // ── Ollama prompt + extraction for 8-K events ────────────────────────────────
@@ -203,7 +237,7 @@ Filing text:
 
 	var result []store.KeyPerson
 	for _, p := range parsed.People {
-		if strings.TrimSpace(p.Name) == "" {
+		if !looksLikeRealPerson(p.Name) {
 			continue
 		}
 		result = append(result, store.KeyPerson{
@@ -271,13 +305,19 @@ Filing text:
 
 	var result []store.KeyPerson
 	for _, p := range parsed.People {
-		if strings.TrimSpace(p.Name) == "" {
+		if !looksLikeRealPerson(p.Name) {
 			continue
+		}
+		// Title "Member" by itself is a compensation-table column header, not a real role —
+		// only keep these if some other DEF 14A entry gives the person a more descriptive title.
+		title := strings.TrimSpace(p.Title)
+		if strings.EqualFold(title, "member") || strings.EqualFold(title, "members") {
+			title = ""
 		}
 		result = append(result, store.KeyPerson{
 			Symbol:    symbol,
 			Name:      p.Name,
-			Title:     p.Title,
+			Title:     title,
 			EventType: p.Role,
 			EventDate: filingDate,
 			Source:    source,
@@ -287,6 +327,60 @@ Filing text:
 		})
 	}
 	return result
+}
+
+// ── Name sanity filter ───────────────────────────────────────────────────────
+
+// looksLikeRealPerson rejects extraction garbage that the LLM sometimes mistakes
+// for a person — XBRL taxonomy element names (e.g. "NonPeoNeoAvgChange" or
+// "YrEndFrValOfEqtyAwrdsGrntd"), legal-entity names (Computershare Inc.,
+// Trustee), and pure category labels ("Board of Directors").
+func looksLikeRealPerson(name string) bool {
+	name = strings.TrimSpace(name)
+	n := len(name)
+	if n < 3 || n > 60 {
+		return false
+	}
+
+	// Real human names contain at least one space (first + last).
+	if !strings.Contains(name, " ") {
+		return false
+	}
+
+	// Reject legal-entity suffixes — these are organisations, not people.
+	lower := strings.ToLower(name)
+	for _, suffix := range []string{
+		" inc", " inc.", " llc", " l.l.c.", " corp", " corp.",
+		" co.", " company", " trust", " bank", " n.a.", " n.a",
+		" l.p.", " lp", " plc", " ltd", " ltd.",
+	} {
+		if strings.HasSuffix(lower, suffix) {
+			return false
+		}
+	}
+
+	// Reject pure category labels.
+	for _, blocked := range []string{
+		"board of directors", "compensation committee", "audit committee",
+		"named executive", "principal executive", "non-employee director",
+		"initial purchaser", "registered holder", "beneficial owner",
+	} {
+		if lower == blocked {
+			return false
+		}
+	}
+
+	// Reject if any word is longer than 22 chars — XBRL identifiers like
+	// "YrEndFrValOfEqtyAwrdsGrntdInCvrdYrOutsdngAndUnvstd" run together
+	// without spaces and dwarf normal name lengths.
+	for _, word := range strings.Fields(name) {
+		word = strings.Trim(word, "().,;:'\"")
+		if len(word) > 22 {
+			return false
+		}
+	}
+
+	return true
 }
 
 // ── Ollama wrapper ───────────────────────────────────────────────────────────

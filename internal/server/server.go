@@ -963,12 +963,15 @@ func (s *Server) handleSECFilings(w http.ResponseWriter, r *http.Request) {
 			var filings []store.SECFiling
 			if json.Unmarshal(data, &filings) == nil && len(filings) > 0 {
 				s.store.PutSECFilings(filings)
-				// Extract key people from 8-K filings in the background
-				if s.trading != nil && s.trading.People != nil {
-					go s.trading.People.ExtractFromFilings(context.Background(), symbol)
-				}
 			}
 		}
+	}
+
+	// Always kick the people extractor — singleflight + processed_for_people make this
+	// a no-op if there's nothing new to do, and it lets us pick up filings that were
+	// reset (e.g. by the upgrade migration) without waiting 24h for FMP to go stale.
+	if s.trading != nil && s.trading.People != nil {
+		go s.trading.People.ExtractFromFilings(context.Background(), symbol)
 	}
 
 	filings, err := s.store.GetSECFilings(symbol, formType, limit)
