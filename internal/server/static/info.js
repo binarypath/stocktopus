@@ -229,8 +229,8 @@
 
             var html = '<div class="info-overview">';
 
-            // Key stats grid
-            html += '<div class="info-grid">';
+            // ── Top: dense Key Indicators block (8 wide × 2 rows) ──
+            html += '<div class="info-grid info-grid-dense">';
             html += stat('Market Cap', fmt(profile.marketCap));
             html += stat('P/E (TTM)', ratios.priceToEarningsRatioTTM ? ratios.priceToEarningsRatioTTM.toFixed(2) : '—');
             html += stat('EPS (TTM)', profile.eps ? profile.eps.toFixed(2) : '—');
@@ -239,10 +239,6 @@
             html += stat('52W Range', profile.range || '—');
             html += stat('Volume', fmt(profile.volume));
             html += stat('Avg Volume', fmt(profile.averageVolume));
-            html += '</div>';
-
-            // Metrics grid
-            html += '<div class="info-grid">';
             html += stat('EV/EBITDA', metrics.evToEBITDA ? metrics.evToEBITDA.toFixed(2) : '—');
             html += stat('EV/Sales', metrics.evToSales ? metrics.evToSales.toFixed(2) : '—');
             html += stat('Current Ratio', ratios.currentRatioTTM ? ratios.currentRatioTTM.toFixed(2) : '—');
@@ -253,23 +249,12 @@
             html += stat('P/B', ratios.priceToBookRatioTTM ? ratios.priceToBookRatioTTM.toFixed(2) : '—');
             html += '</div>';
 
-            // Company info
-            html += '<div class="info-company">';
-            html += '<div class="info-company-meta">';
-            html += '<span>' + esc(profile.sector) + ' / ' + esc(profile.industry) + '</span>';
-            html += '<span>CEO: ' + esc(profile.ceo) + '</span>';
-            html += '<span>' + esc(profile.fullTimeEmployees) + ' employees</span>';
-            html += '<span>' + esc(profile.exchange) + '</span>';
-            if (profile.website) html += '<span><a href="' + esc(profile.website) + '" target="_blank" rel="noopener">' + esc(profile.website) + '</a></span>';
-            html += '</div>';
-            if (profile.description) {
-                var desc = profile.description;
-                html += '<p class="info-description">' + esc(desc) + '</p>';
-            }
-            html += '</div>';
+            // ── Below: Key People (left) + Company description (right) ──
+            html += '<div class="info-overview-top">';
 
-            // Key People — dedup by name+title across forms (form4 / 10-K / DEF 14A)
-            // and show a compact strip. Full timeline still lives on the SEC tab.
+            // Left: Key People — dedup across forms (form4 / 10-K / DEF 14A);
+            // single row per person so longer titles aren't truncated.
+            html += '<div class="info-overview-left">';
             if (people && people.length) {
                 var seenKP = {};
                 var dedup = people.filter(function (p) {
@@ -278,30 +263,50 @@
                     seenKP[key] = true;
                     return true;
                 });
-                // Officers first, then directors, alphabetical within
                 dedup.sort(function (a, b) {
                     var aOfficer = (a.eventType === 'director') ? 1 : 0;
                     var bOfficer = (b.eventType === 'director') ? 1 : 0;
                     if (aOfficer !== bOfficer) return aOfficer - bOfficer;
                     return (a.name || '').localeCompare(b.name || '');
                 });
-                var top = dedup.slice(0, 12);
-                html += '<div class="info-people">';
+                var top = dedup.slice(0, 14);
                 html += '<div class="info-people-header">Key People <span class="info-people-meta">' + dedup.length + ' on file · <a href="/security/' + esc(symbol) + '#sec" class="info-people-more">timeline →</a></span></div>';
-                html += '<div class="info-people-grid">';
+                html += '<ul class="info-people-list">';
                 top.forEach(function (p) {
                     var roleClass = 'kp-event-' + (p.eventType || 'other');
-                    html += '<div class="info-people-row">';
+                    html += '<li class="info-people-row">';
                     html += '<span class="kp-event ' + roleClass + '">' + esc(p.eventType || 'officer') + '</span>';
                     html += '<span class="info-people-name">' + esc(p.name) + '</span>';
                     html += '<span class="info-people-title">' + esc(p.title || '') + '</span>';
-                    html += '</div>';
+                    html += '</li>';
                 });
                 if (dedup.length > top.length) {
-                    html += '<div class="info-people-row info-people-more-row"><a href="/security/' + esc(symbol) + '#sec">+ ' + (dedup.length - top.length) + ' more on the SEC tab</a></div>';
+                    html += '<li class="info-people-more-row"><a href="/security/' + esc(symbol) + '#sec">+ ' + (dedup.length - top.length) + ' more on the SEC tab</a></li>';
                 }
-                html += '</div></div>';
+                html += '</ul>';
+            } else {
+                html += '<div class="info-people-header">Key People</div>';
+                html += '<p class="empty-state info-people-empty">No leadership data extracted yet.</p>';
             }
+            html += '</div>';
+
+            // Right: Company description + meta
+            html += '<div class="info-overview-right">';
+            html += '<div class="info-overview-meta">';
+            if (profile.sector || profile.industry) {
+                html += '<span class="info-overview-meta-item">' + esc(profile.sector || '') + (profile.industry ? ' / ' + esc(profile.industry) : '') + '</span>';
+            }
+            if (profile.ceo) html += '<span class="info-overview-meta-item">CEO: ' + esc(profile.ceo) + '</span>';
+            if (profile.fullTimeEmployees) html += '<span class="info-overview-meta-item">' + esc(profile.fullTimeEmployees) + ' employees</span>';
+            if (profile.exchange) html += '<span class="info-overview-meta-item">' + esc(profile.exchange) + '</span>';
+            if (profile.website) html += '<span class="info-overview-meta-item"><a href="' + esc(profile.website) + '" target="_blank" rel="noopener">' + esc(profile.website) + '</a></span>';
+            html += '</div>';
+            if (profile.description) {
+                html += '<p class="info-description">' + esc(profile.description) + '</p>';
+            }
+            html += '</div>';
+
+            html += '</div>'; // close info-overview-top
 
             html += '</div>';
             container.innerHTML = html;
@@ -709,31 +714,78 @@
 
     // ── News (reuse existing pattern) ──
 
-    function loadNews() {
-        container.innerHTML = '<p class="empty-state">Loading...</p>';
+    // ── News tab — sub-tabs mirror the /news page, scoped to this security ──
 
-        fetch('/api/news/press-releases?symbol=' + symbol + '&limit=20')
-            .then(function (r) { return r.json(); })
+    var NEWS_CATS = [
+        { key: 'press-releases', label: 'Press Releases' },
+        { key: 'articles',       label: 'Articles' },
+        { key: 'stock',          label: 'Stock' },
+        { key: 'crypto',         label: 'Crypto' },
+        { key: 'forex',          label: 'Forex' },
+        { key: 'general',        label: 'General' },
+    ];
+    var newsCurrent = 'press-releases'; // remembered across re-entries
+
+    function loadNews() {
+        var subHtml = '<div class="info-sub-tabs" id="news-sub-tabs">';
+        NEWS_CATS.forEach(function (c) {
+            var active = c.key === newsCurrent ? ' active' : '';
+            subHtml += '<button class="info-sub-tab' + active + '" data-cat="' + c.key + '">'
+                + c.label + '</button>';
+        });
+        subHtml += '</div><div id="news-cards-host" class="news-cards-host"></div>';
+        container.innerHTML = subHtml;
+
+        container.querySelectorAll('#news-sub-tabs .info-sub-tab').forEach(function (btn) {
+            btn.onclick = function () {
+                container.querySelectorAll('#news-sub-tabs .info-sub-tab').forEach(function (b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+                newsCurrent = btn.dataset.cat;
+                loadNewsCategory(newsCurrent);
+            };
+        });
+
+        loadNewsCategory(newsCurrent);
+    }
+
+    // Expose for the vim sub-tab navigation in terminal.js
+    window._infoNewsSubTabs = function () {
+        return Array.from(document.querySelectorAll('#news-sub-tabs .info-sub-tab'));
+    };
+    window._infoNewsJumpToSub = function (n) {
+        var tabs = window._infoNewsSubTabs();
+        if (n >= 0 && n < tabs.length) tabs[n].click();
+    };
+
+    function loadNewsCategory(category) {
+        var host = document.getElementById('news-cards-host');
+        if (!host) return;
+        host.innerHTML = '<p class="empty-state">Loading...</p>';
+
+        var url = '/api/news/' + category + '?symbol=' + encodeURIComponent(symbol) + '&limit=20';
+        fetch(url)
+            .then(function (r) { return r.ok ? r.json() : []; })
             .then(function (items) {
-                if (!items || items.length === 0) {
-                    container.innerHTML = '<p class="empty-state">No news available for ' + symbol + '</p>';
+                if (!Array.isArray(items) || items.length === 0) {
+                    host.innerHTML = '<p class="empty-state">No ' + esc(category) + ' news for ' + esc(symbol) + '</p>';
                     return;
                 }
-                container.innerHTML = '<div class="news-cards" style="max-height:calc(100vh - 220px)">' +
+                host.innerHTML = '<div class="news-cards" id="info-news-cards">' +
                     items.map(function (item) {
                         var date = item.date ? new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
                         var text = item.text || '';
-                        if (text.length > 200) text = text.substring(0, 200) + '...';
+                        var div = document.createElement('div');
+                        div.innerHTML = text;
+                        var plain = div.textContent || div.innerText || '';
+                        if (plain.length > 220) plain = plain.substring(0, 220) + '…';
                         return '<div class="news-card news-unread">'
                             + '<div class="news-card-title"><a href="' + esc(item.url) + '" onclick="event.preventDefault();if(window._openReader)window._openReader(this.href,this.textContent)">' + esc(item.title) + '</a></div>'
-                            + '<div class="news-card-meta"><span>' + esc(item.source) + '</span><span>' + date + '</span></div>'
-                            + '<div class="news-card-text">' + esc(text) + '</div>'
+                            + '<div class="news-card-meta"><span>' + esc(item.source || '') + '</span><span>' + date + '</span></div>'
+                            + '<div class="news-card-text">' + esc(plain) + '</div>'
                             + '</div>';
                     }).join('') + '</div>';
             })
-            .catch(function () {
-                container.innerHTML = '<p class="empty-state">Failed to load news</p>';
-            });
+            .catch(function () { host.innerHTML = '<p class="empty-state">Failed to load news</p>'; });
     }
 
     // ── Sector ──
