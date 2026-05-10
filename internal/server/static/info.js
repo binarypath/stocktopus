@@ -212,14 +212,20 @@
     // ── Overview ──
 
     function loadOverview() {
+        // Warm the SEC filings + people extraction cache so the Key People strip
+        // populates on first visit. Fire-and-forget — the handler is idempotent.
+        fetch('/api/security/' + symbol + '/sec-filings?limit=1').catch(function () {});
+
         Promise.all([
             fetch('/api/security/' + symbol + '/profile').then(function (r) { return r.json(); }),
             fetch('/api/security/' + symbol + '/metrics').then(function (r) { return r.json(); }),
+            fetch('/api/security/' + symbol + '/key-people').then(function (r) { return r.ok ? r.json() : []; }).catch(function () { return []; }),
         ]).then(function (results) {
             var profile = results[0] && results[0][0] ? results[0][0] : {};
             var metricsData = results[1] || {};
             var metrics = metricsData.metrics && metricsData.metrics[0] ? metricsData.metrics[0] : {};
             var ratios = metricsData.ratios && metricsData.ratios[0] ? metricsData.ratios[0] : {};
+            var people = (results[2] || []).filter(function (p) { return p.isCurrent; });
 
             var html = '<div class="info-overview">';
 
@@ -262,11 +268,71 @@
             }
             html += '</div>';
 
+            // Key People — dedup by name+title across forms (form4 / 10-K / DEF 14A)
+            // and show a compact strip. Full timeline still lives on the SEC tab.
+            if (people && people.length) {
+                var seenKP = {};
+                var dedup = people.filter(function (p) {
+                    var key = (p.name || '').toLowerCase() + '|' + (p.title || '').toLowerCase();
+                    if (seenKP[key]) return false;
+                    seenKP[key] = true;
+                    return true;
+                });
+                // Officers first, then directors, alphabetical within
+                dedup.sort(function (a, b) {
+                    var aOfficer = (a.eventType === 'director') ? 1 : 0;
+                    var bOfficer = (b.eventType === 'director') ? 1 : 0;
+                    if (aOfficer !== bOfficer) return aOfficer - bOfficer;
+                    return (a.name || '').localeCompare(b.name || '');
+                });
+                var top = dedup.slice(0, 12);
+                html += '<div class="info-people">';
+                html += '<div class="info-people-header">Key People <span class="info-people-meta">' + dedup.length + ' on file · <a href="/security/' + esc(symbol) + '#sec" class="info-people-more">timeline →</a></span></div>';
+                html += '<div class="info-people-grid">';
+                top.forEach(function (p) {
+                    var roleClass = 'kp-event-' + (p.eventType || 'other');
+                    html += '<div class="info-people-row">';
+                    html += '<span class="kp-event ' + roleClass + '">' + esc(p.eventType || 'officer') + '</span>';
+                    html += '<span class="info-people-name">' + esc(p.name) + '</span>';
+                    html += '<span class="info-people-title">' + esc(p.title || '') + '</span>';
+                    html += '</div>';
+                });
+                if (dedup.length > top.length) {
+                    html += '<div class="info-people-row info-people-more-row"><a href="/security/' + esc(symbol) + '#sec">+ ' + (dedup.length - top.length) + ' more on the SEC tab</a></div>';
+                }
+                html += '</div></div>';
+            }
+
             html += '</div>';
             container.innerHTML = html;
+
+            // If we got nothing back the extraction is probably still running on
+            // the server. Poll briefly so the strip fills in without a refresh.
+            if (!people || !people.length) pollKeyPeople(symbol, currentTab);
         }).catch(function () {
             container.innerHTML = '<p class="empty-state">Failed to load overview</p>';
         });
+    }
+
+    var overviewPollTimer = null;
+    function pollKeyPeople(forSymbol, forTab) {
+        if (overviewPollTimer) clearInterval(overviewPollTimer);
+        var attempts = 0;
+        overviewPollTimer = setInterval(function () {
+            attempts++;
+            // Stop polling if the user has navigated away from this overview
+            if (currentTab !== forTab || symbol !== forSymbol || attempts > 20) {
+                clearInterval(overviewPollTimer); overviewPollTimer = null; return;
+            }
+            fetch('/api/security/' + forSymbol + '/key-people').then(function (r) { return r.ok ? r.json() : []; })
+                .then(function (rows) {
+                    var current = (rows || []).filter(function (p) { return p.isCurrent; });
+                    if (current.length === 0) return;
+                    // Got something — re-render the overview to show it.
+                    clearInterval(overviewPollTimer); overviewPollTimer = null;
+                    if (currentTab === forTab && symbol === forSymbol) loadOverview();
+                });
+        }, 3000);
     }
 
     function stat(label, value) {

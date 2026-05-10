@@ -12,10 +12,14 @@ import (
 	"sync"
 	"time"
 
+	"stocktopus/internal/news"
 	"stocktopus/internal/store"
 )
 
 // PeopleExtractor pulls leadership data out of SEC filings:
+//   - Form 3/4/5 (via FMP insider-trading) → instant snapshot of current
+//     directors and executive officers — schema'd JSON, no LLM, populates
+//     within a couple of seconds of the SEC tab loading.
 //   - 8-K Item 5.02 → personnel-change events (appointed / resigned / departed / promoted)
 //   - 10-K Item 10/11/12 → snapshot of current directors and executive officers
 //   - DEF 14A → snapshot of board of directors and named executive officers
@@ -27,6 +31,7 @@ type PeopleExtractor struct {
 	ollamaModel string
 	store       *store.Store
 	sec         *SECFetcher
+	fmp         *news.Client
 	client      *http.Client
 	logger      *slog.Logger
 
@@ -34,7 +39,7 @@ type PeopleExtractor struct {
 	inFlight map[string]bool // symbol → currently being processed
 }
 
-func NewPeopleExtractor(ollamaHost, ollamaModel string, st *store.Store, logger *slog.Logger) *PeopleExtractor {
+func NewPeopleExtractor(ollamaHost, ollamaModel string, fmp *news.Client, st *store.Store, logger *slog.Logger) *PeopleExtractor {
 	if ollamaHost == "" {
 		ollamaHost = "http://localhost:11434"
 	}
@@ -44,6 +49,7 @@ func NewPeopleExtractor(ollamaHost, ollamaModel string, st *store.Store, logger 
 	return &PeopleExtractor{
 		ollamaHost:  ollamaHost,
 		ollamaModel: ollamaModel,
+		fmp:         fmp,
 		store:       st,
 		sec:         NewSECFetcher(logger),
 		client:      &http.Client{Timeout: 5 * time.Minute},
@@ -69,12 +75,157 @@ func (pe *PeopleExtractor) ExtractFromFilings(ctx context.Context, symbol string
 		pe.mu.Unlock()
 	}()
 
+	// Fast path: schema'd Form 3/4/5 insiders via FMP. Populates the page in
+	// seconds. Runs first so the user sees something immediately while the
+	// LLM-driven 10-K / DEF 14A passes catch up in the background.
+	pe.extractInsiderSnapshot(ctx, symbol)
+
 	// Process 8-K events (multiple per period — events accumulate)
 	pe.processForm(ctx, symbol, "8-K", 10)
 
 	// Snapshots: only the most-recent filing of each type matters
 	pe.processForm(ctx, symbol, "10-K", 1)
 	pe.processForm(ctx, symbol, "DEF 14A", 1)
+}
+
+// ── Form 3/4/5 insider list (via FMP) ────────────────────────────────────────
+
+// extractInsiderSnapshot pulls FMP's recent insider transactions for a symbol,
+// groups by reporter, and writes a current-leadership snapshot to key_people
+// with form_type="form4". Officer titles parsed out of FMP's "officer: <title>"
+// convention. Directors keep an empty title (FMP doesn't supply one).
+func (pe *PeopleExtractor) extractInsiderSnapshot(ctx context.Context, symbol string) {
+	if pe.fmp == nil {
+		return
+	}
+	raw, err := pe.fmp.GetInsiderTrading(ctx, symbol, 200)
+	if err != nil {
+		pe.logger.Debug("insider trading fetch failed", "symbol", symbol, "error", err)
+		return
+	}
+
+	var rows []struct {
+		ReportingName string `json:"reportingName"`
+		TypeOfOwner   string `json:"typeOfOwner"`
+		FilingDate    string `json:"filingDate"`
+		URL           string `json:"url"`
+	}
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		pe.logger.Debug("insider trading unmarshal", "error", err)
+		return
+	}
+	if len(rows) == 0 {
+		return
+	}
+
+	// Reduce to one row per reporter — keep the most recent transaction's title.
+	// FMP returns rows sorted newest-first, so first occurrence is what we keep.
+	type insiderRec struct {
+		Name       string
+		Title      string
+		Role       string // 'officer' | 'director' | 'both' | 'other'
+		FilingDate string
+		Source     string
+	}
+	seen := make(map[string]bool)
+	var people []store.KeyPerson
+	for _, r := range rows {
+		nm := strings.TrimSpace(r.ReportingName)
+		if nm == "" {
+			continue
+		}
+		key := strings.ToLower(nm)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+
+		role, title := classifyOwner(r.TypeOfOwner)
+		if role == "other" {
+			continue // 10%-only owners or unknowns — skip the leadership list
+		}
+		date := r.FilingDate
+		if len(date) > 10 {
+			date = date[:10]
+		}
+		people = append(people, store.KeyPerson{
+			Symbol:    symbol,
+			Name:      titleCaseName(nm),
+			Title:     title,
+			EventType: role,
+			EventDate: date,
+			Source:    r.URL,
+			IsCurrent: true,
+			AsOfDate:  date,
+			FormType:  "form4",
+		})
+	}
+	if len(people) == 0 {
+		return
+	}
+	if err := pe.store.ReplaceCurrentKeyPeople(symbol, "form4", people); err != nil {
+		pe.logger.Debug("replace insider snapshot failed", "error", err)
+	}
+}
+
+// classifyOwner unpacks FMP's typeOfOwner string into (role, title).
+//
+// Common shapes:
+//   "officer: Chief Executive Officer"     → (officer, Chief Executive Officer)
+//   "director"                             → (director, "")
+//   "officer: COO, director"               → (both, COO)
+//   "10 percent owner"                     → (other, "")
+//   "officer: VP, 10 percent owner"        → (officer, VP)
+func classifyOwner(s string) (role, title string) {
+	s = strings.TrimSpace(s)
+	lower := strings.ToLower(s)
+	hasOfficer := strings.Contains(lower, "officer")
+	hasDirector := strings.Contains(lower, "director")
+
+	if hasOfficer {
+		// Pull the title text after "officer:"
+		if idx := strings.Index(lower, "officer:"); idx >= 0 {
+			rest := s[idx+len("officer:"):]
+			// title runs until the next comma (which separates roles)
+			if c := strings.Index(rest, ","); c >= 0 {
+				rest = rest[:c]
+			}
+			title = strings.TrimSpace(rest)
+		}
+	}
+
+	switch {
+	case hasOfficer && hasDirector:
+		return "both", title
+	case hasOfficer:
+		return "officer", title
+	case hasDirector:
+		return "director", ""
+	default:
+		return "other", ""
+	}
+}
+
+// titleCaseName converts "LEVINSON ARTHUR D" → "Levinson Arthur D".
+// FMP returns names ALL-CAPS for some filers; render as title case for legibility.
+func titleCaseName(s string) string {
+	if s == "" {
+		return s
+	}
+	// If the string already has any lowercase letters, assume it's correctly cased.
+	for _, r := range s {
+		if r >= 'a' && r <= 'z' {
+			return s
+		}
+	}
+	words := strings.Fields(s)
+	for i, w := range words {
+		if len(w) == 0 {
+			continue
+		}
+		words[i] = strings.ToUpper(w[:1]) + strings.ToLower(w[1:])
+	}
+	return strings.Join(words, " ")
 }
 
 func (pe *PeopleExtractor) processForm(ctx context.Context, symbol, formType string, limit int) {
