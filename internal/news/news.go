@@ -309,6 +309,26 @@ func (c *Client) GetAnalystEstimates(ctx context.Context, symbol string, limit i
 	return c.fetchJSON(ctx, "/stable/analyst-estimates", params)
 }
 
+// GetHistoricalPriceLight returns lightweight EOD prices ([{date, price}, ...]) for a symbol.
+// Works uniformly for stocks, commodities, forex pairs, crypto and indices on FMP's
+// /stable/historical-price-eod/light endpoint.
+func (c *Client) GetHistoricalPriceLight(ctx context.Context, symbol string) (json.RawMessage, error) {
+	params := url.Values{"symbol": {symbol}}
+	return c.fetchJSON(ctx, "/stable/historical-price-eod/light", params)
+}
+
+// GetFinancials dispatches to income / balance / cashflow by statementType.
+func (c *Client) GetFinancials(ctx context.Context, symbol, statementType string, limit int) (json.RawMessage, error) {
+	switch statementType {
+	case "balance":
+		return c.GetBalanceSheet(ctx, symbol, limit)
+	case "cashflow":
+		return c.GetCashFlow(ctx, symbol, limit)
+	default:
+		return c.GetIncomeStatement(ctx, symbol, limit)
+	}
+}
+
 // GetSECFilings searches SEC filings for a symbol within a date range.
 func (c *Client) GetSECFilings(ctx context.Context, symbol, from, to string) (json.RawMessage, error) {
 	params := url.Values{"symbol": {symbol}}
