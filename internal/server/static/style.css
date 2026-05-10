@@ -2764,3 +2764,62 @@ li.kp-row::before {
     text-transform: uppercase;
     letter-spacing: 0.3px;
 }
+
+/* Overview Key People strip */
+
+.info-people {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.info-people-header {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.info-people-meta {
+    color: var(--text-muted);
+    font-weight: normal;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 10px;
+    margin-left: 8px;
+}
+
+.info-people-more,
+.info-people-more-row a {
+    color: var(--orange);
+    text-decoration: none;
+}
+.info-people-more:hover,
+.info-people-more-row a:hover { text-decoration: underline; }
+
+.info-people-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 6px 16px;
+}
+
+.info-people-row {
+    display: grid;
+    grid-template-columns: 64px 130px 1fr;
+    gap: 8px;
+    align-items: center;
+    font-size: 11px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--bg-tertiary);
+}
+
+.info-people-name { color: var(--text-primary); font-weight: 500; }
+.info-people-title { color: var(--text-secondary); font-size: 10px; }
+
+.info-people-more-row {
+    grid-column: 1 / -1;
+    border-bottom: none;
+    padding-top: 6px;
+}

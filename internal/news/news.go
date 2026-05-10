@@ -309,6 +309,17 @@ func (c *Client) GetAnalystEstimates(ctx context.Context, symbol string, limit i
 	return c.fetchJSON(ctx, "/stable/analyst-estimates", params)
 }
 
+// GetInsiderTrading returns recent Form 3/4/5 insider transactions for a symbol.
+// Each entry includes reportingName + typeOfOwner so we can extract a current
+// directors / officers list without hitting an LLM.
+func (c *Client) GetInsiderTrading(ctx context.Context, symbol string, limit int) (json.RawMessage, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	params := url.Values{"symbol": {symbol}, "limit": {strconv.Itoa(limit)}, "page": {"0"}}
+	return c.fetchJSON(ctx, "/stable/insider-trading/search", params)
+}
+
 // GetHistoricalPriceLight returns lightweight EOD prices ([{date, price}, ...]) for a symbol.
 // Works uniformly for stocks, commodities, forex pairs, crypto and indices on FMP's
 // /stable/historical-price-eod/light endpoint.

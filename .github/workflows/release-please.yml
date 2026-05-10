@@ -1,0 +1,29 @@
+name: Release Please
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          # Conventional commits drive bumps:
+          #   feat: …  → minor   (X.Y+1.0)
+          #   fix: …   → patch   (X.Y.Z+1)
+          #   perf: …  → patch
+          #   refactor:, docs:, chore:, ci:, build:, test:, style: → no bump
+          #   "feat!: …" or footer "BREAKING CHANGE:" → major (X+1.0.0)
+          #
+          # release-please opens (and continually updates) a "chore: release vX.Y.Z"
+          # PR that bumps .release-please-manifest.json + CHANGELOG.md. Merging
+          # that PR cuts the actual git tag and GitHub release.
+          release-type: go
+          package-name: stocktopus
