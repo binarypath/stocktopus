@@ -2823,3 +2823,55 @@ li.kp-row::before {
     border-bottom: none;
     padding-top: 6px;
 }
+
+/* Ideas — three-pane vim navigation */
+
+.ideas-sidebar.pane-focused,
+.ideas-main.pane-focused,
+.ideas-notes.pane-focused {
+    box-shadow: inset 0 0 0 1px var(--orange);
+}
+
+.ideas-help {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 6px 0 12px;
+    padding: 8px 10px;
+    border: 1px dashed var(--border);
+    border-radius: 2px;
+    background: var(--bg-tertiary);
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.ideas-help.hidden { display: none; }
+
+.ideas-help-row { line-height: 1.6; }
+
+.ideas-help kbd {
+    display: inline-block;
+    padding: 1px 6px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--orange);
+    font-family: var(--font-mono);
+    font-size: 10px;
+}
+
+.ideas-help-toggle {
+    margin-left: 6px;
+    color: var(--text-muted);
+    font-weight: bold;
+    cursor: help;
+    padding: 0 6px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    font-size: 10px;
+}
+
+.ideas-legend-row.vim-selected {
+    border-color: var(--orange);
+    box-shadow: 0 0 0 1px var(--orange);
+}

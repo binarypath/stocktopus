@@ -195,12 +195,13 @@ window.onerror = function (msg, src, line, col, err) {
         ws.onopen = function () {
             wsRetryDelay = 1000; // reset on successful connect
             setConnStatus(true);
+            // subscribedSecurities is the single source of truth for which
+            // quote topics this client cares about (loadWatchlists feeds it
+            // every watchlist symbol via subscribeSecurity). One frame per
+            // unique symbol — no duplicates.
             subscribedSecurities.forEach(function (sym) {
                 ws.send(JSON.stringify({ type: 'subscribe', topic: 'quote:' + sym }));
             });
-            // Resubscribe watchlist symbols
-            resubscribeWatchlists();
-            // Resubscribe to active news topic
             if (newsCurrentTopic) {
                 ws.send(JSON.stringify({ type: 'subscribe', topic: newsCurrentTopic }));
             }
@@ -239,6 +240,7 @@ window.onerror = function (msg, src, line, col, err) {
 
     var watchlistData = []; // cached watchlist data
     var activeWatchlistId = parseInt(localStorage.getItem('stocktopus-watchlist-id') || '0');
+    var watchlistBuffer = ''; // last symbol cut via 'd' on a watchlist row, ready to paste with 'p'
 
     function initWatchlist() {
         const form = document.getElementById('add-security-form');
@@ -353,18 +355,6 @@ window.onerror = function (msg, src, line, col, err) {
             .catch(function () {});
     }
 
-    function resubscribeWatchlists() {
-        if (watchlistData.length > 0) {
-            watchlistData.forEach(function (wl) {
-                (wl.symbols || []).forEach(function (sym) {
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify({ type: 'subscribe', topic: 'quote:' + sym }));
-                    }
-                });
-            });
-        }
-    }
-
     function renderWatchlistTabs() {
         var tabContainer = document.getElementById('watchlist-tabs');
         if (!tabContainer) return;
@@ -407,21 +397,46 @@ window.onerror = function (msg, src, line, col, err) {
 
         var activeWl = watchlistData.find(function (wl) { return wl.id === activeWatchlistId; });
         var activeSymbols = activeWl && activeWl.symbols ? activeWl.symbols : [];
+        var activeColor = activeWl ? activeWl.color : '#ff8800';
 
-        // Show/hide rows based on active watchlist
+        // Show/hide rows based on active watchlist + paint borders with the active
+        // list's color (so a symbol that lives in multiple lists picks up the
+        // currently-viewed list's tone, not whichever list it was first added to).
         var visibleCount = 0;
         tbody.querySelectorAll('tr').forEach(function (row) {
             var sym = row.querySelector('[data-symbol]');
             var symbol = sym ? sym.dataset.symbol : '';
             var inList = activeSymbols.indexOf(symbol) >= 0;
             row.style.display = inList ? '' : 'none';
-            if (inList) visibleCount++;
+            if (inList) {
+                row.style.borderLeft = '3px solid ' + activeColor;
+                visibleCount++;
+            }
         });
 
         if (empty) {
             empty.style.display = visibleCount > 0 ? 'none' : '';
             empty.textContent = visibleCount > 0 ? '' : 'No securities in this watchlist — use :watch to add';
         }
+    }
+
+    // Refresh the entire watchlist view after a mutation (delete / paste / copy).
+    // Pulls fresh metadata, re-renders tabs, then re-fetches quotes which
+    // repaint borders per the active list and hide rows that no longer fit.
+    function refreshWatchlistView() {
+        return fetch('/api/watchlists')
+            .then(function (r) { return r.json(); })
+            .then(function (lists) {
+                watchlistData = lists || [];
+                renderWatchlistTabs();
+                renderWatchlistPicker();
+                // Rebuild the row set from scratch so symbols removed from every
+                // watchlist drop out of the table entirely instead of lingering.
+                var tbody = document.getElementById('quote-body');
+                if (tbody) tbody.innerHTML = '';
+                fetchWatchlistQuotes();
+            })
+            .catch(function () {});
     }
 
     function getActiveWatchlistId() {
@@ -451,6 +466,7 @@ window.onerror = function (msg, src, line, col, err) {
     }
 
     function subscribeSecurity(sec) {
+        if (subscribedSecurities.has(sec)) return; // already subscribed for this client
         subscribedSecurities.add(sec);
         if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'subscribe', topic: 'quote:' + sec }));
@@ -1166,6 +1182,8 @@ window.onerror = function (msg, src, line, col, err) {
                     hideCmdDropdown();
                     e.stopPropagation();
                 }
+                // Cancel any pending y/p row-op mode so the next :watch starts fresh.
+                clearWatchOp();
             } else if (e.key === 'ArrowUp' && dropdown.classList.contains('hidden')) {
                 e.preventDefault();
                 if (historyIndex > 0) {
@@ -1340,6 +1358,30 @@ window.onerror = function (msg, src, line, col, err) {
         renderCmdDropdown(matches);
     }
 
+    // Stashed when y/p on a watchlist row opens the picker. The :watch dropdown
+    // and Enter handler read this to decide whether to copy (leave in source)
+    // or move (also delete from source).
+    var watchOpMode = null;       // null | 'copy' | 'move'
+    var watchOpSourceSymbol = ''; // the row symbol that triggered y/p
+    var watchOpSourceListId = 0;  // active watchlist id at the time
+
+    function openWatchPicker(mode, symbol) {
+        watchOpMode = mode;
+        watchOpSourceSymbol = symbol;
+        watchOpSourceListId = getActiveWatchlistId();
+        var input = document.getElementById('cmd-input');
+        input.value = ':watch ';
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+        renderCmdWatchlistDropdown('');
+    }
+
+    function clearWatchOp() {
+        watchOpMode = null;
+        watchOpSourceSymbol = '';
+        watchOpSourceListId = 0;
+    }
+
     function renderCmdWatchlistDropdown(query) {
         var dropdown = document.getElementById('cmd-dropdown');
         var input = document.getElementById('cmd-input');
@@ -1355,7 +1397,11 @@ window.onerror = function (msg, src, line, col, err) {
             return 0;
         });
 
-        var sym = selectedSecurity || '';
+        // Mode determines what the row description reads as. y/p stash sets
+        // mode='copy'/'move' and watchOpSourceSymbol; default is 'add' which
+        // uses the picker's selected security.
+        var sym = watchOpMode ? watchOpSourceSymbol : (selectedSecurity || '');
+        var verb = watchOpMode === 'copy' ? 'copy' : (watchOpMode === 'move' ? 'move' : 'add');
         var noSymLabel = 'no security selected — press s first';
 
         if (matches.length === 0) {
@@ -1366,9 +1412,9 @@ window.onerror = function (msg, src, line, col, err) {
         }
 
         dropdown.innerHTML = matches.map(function (wl) {
-            var desc = sym ? 'add ' + sym + ' to ' + wl.name + ' watchlist' : noSymLabel;
+            var desc = sym ? verb + ' ' + sym + ' to ' + wl.name + ' watchlist' : noSymLabel;
             return '<div class="cmd-option cmd-watchlist-option" data-watchlist-id="' + wl.id + '" data-watchlist-name="' + escapeHtml(wl.name) + '">'
-                + '<span class="cmd-option-usage" style="color:' + escapeHtml(wl.color || '#ff8800') + '">watch ' + escapeHtml(wl.name) + '</span>'
+                + '<span class="cmd-option-usage" style="color:' + escapeHtml(wl.color || '#ff8800') + '">' + escapeHtml(verb) + ' ' + escapeHtml(wl.name) + '</span>'
                 + '<span class="cmd-option-desc">' + escapeHtml(desc) + '</span>'
                 + '</div>';
         }).join('');
@@ -1386,8 +1432,31 @@ window.onerror = function (msg, src, line, col, err) {
         });
     }
 
-    // Add the picker's currently-selected security to the named watchlist.
+    // Execute a watchlist command per current mode:
+    //   default → add picker selection to <name>
+    //   copy    → add the source row's symbol to <name>, leave it in source
+    //   move    → add to <name>, then remove from source
     function executeWatchCommand(watchlistId, watchlistName) {
+        // y/p modes use the stashed source symbol, not the picker selection.
+        if (watchOpMode === 'copy' || watchOpMode === 'move') {
+            var sym = watchOpSourceSymbol;
+            var srcId = watchOpSourceListId;
+            var mode = watchOpMode;
+            addToWatchlist(watchlistId, sym);
+            subscribeSecurity(sym);
+            if (mode === 'move' && srcId && srcId !== watchlistId) {
+                fetch('/api/watchlists/' + srcId + '/symbols/' + encodeURIComponent(sym), { method: 'DELETE' })
+                    .then(function () { refreshWatchlistView(); });
+                flashError('Moved ' + sym + ' to ' + watchlistName);
+            } else {
+                flashError((mode === 'copy' ? 'Copied ' : 'Added ') + sym + ' to ' + watchlistName);
+                // Repaint borders + quote rows so the symbol picks up the destination
+                // list's color when the user switches to that tab.
+                if (currentView === 'watchlist') refreshWatchlistView();
+            }
+            clearWatchOp();
+            return true;
+        }
         if (!selectedSecurity) {
             flashError('No security selected — press s first');
             return false;
@@ -1395,6 +1464,7 @@ window.onerror = function (msg, src, line, col, err) {
         addToWatchlist(watchlistId, selectedSecurity);
         subscribeSecurity(selectedSecurity);
         flashError('Added ' + selectedSecurity + ' to ' + watchlistName);
+        if (currentView === 'watchlist') refreshWatchlistView();
         return true;
     }
 
@@ -1587,12 +1657,16 @@ window.onerror = function (msg, src, line, col, err) {
     var vimHandlers = {
         ideas: {
             move: function (dir) {
-                if (dir === 'j' || dir === 'k') {
-                    if (window._ideasMoveList) window._ideasMoveList(dir);
-                }
+                if (window._ideasMove) window._ideasMove(dir);
             },
             activate: function () {
-                if (window._ideasActivateList) window._ideasActivateList();
+                if (window._ideasActivate) window._ideasActivate();
+            },
+            deleteSelected: function () {
+                return window._ideasDeleteSelected ? window._ideasDeleteSelected() : false;
+            },
+            toggleHelp: function () {
+                if (window._ideasToggleHelp) window._ideasToggleHelp();
             },
         },
         watchlist: {
@@ -1643,7 +1717,56 @@ window.onerror = function (msg, src, line, col, err) {
                     onViewLeave(currentView);
                     navigate('graph', sym.dataset.symbol);
                 }
-            }
+            },
+            // ── Vim row ops (idea #12) ──
+            //
+            // Vim-faithful cut/paste model:
+            //   d → cut (delete from source list, store symbol in buffer)
+            //   p → paste from buffer to the *current* watchlist
+            //   y → yank to another list via picker (does not delete source);
+            //       on confirm the dest list re-renders so the new color sticks
+            _selectedSymbol: function () {
+                var items = this.getItems();
+                if (vimSelectedIndex < 0 || vimSelectedIndex >= items.length) return null;
+                var el = items[vimSelectedIndex].querySelector('[data-symbol]');
+                return el ? el.dataset.symbol : null;
+            },
+            deleteSelected: function () {
+                var sym = this._selectedSymbol();
+                if (!sym) return false;
+                var wlId = getActiveWatchlistId();
+                fetch('/api/watchlists/' + wlId + '/symbols/' + encodeURIComponent(sym), { method: 'DELETE' })
+                    .then(function () {
+                        watchlistBuffer = sym;
+                        flashError('Cut ' + sym + ' — press p to paste into another watchlist');
+                        refreshWatchlistView();
+                    })
+                    .catch(function () { flashError('Remove failed'); });
+                return true;
+            },
+            yankSelected: function () {
+                var sym = this._selectedSymbol();
+                if (!sym) return false;
+                openWatchPicker('copy', sym);
+                return true;
+            },
+            pasteSelected: function () {
+                if (!watchlistBuffer) {
+                    flashError('Buffer empty — d on a row to cut first');
+                    return true; // consume the keypress so we don't fall through
+                }
+                var sym = watchlistBuffer;
+                var dest = getActiveWatchlistId();
+                addToWatchlist(dest, sym);
+                subscribeSecurity(sym);
+                watchlistBuffer = '';
+                var name = (watchlistData.find(function (wl) { return wl.id === dest; }) || {}).name || 'watchlist';
+                flashError('Pasted ' + sym + ' into ' + name);
+                // addToWatchlist already calls loadWatchlists internally, but it
+                // doesn't repaint quote rows. Force a full refresh.
+                refreshWatchlistView();
+                return true;
+            },
         },
         graph: {
             move: function (dir) {
@@ -2084,7 +2207,22 @@ window.onerror = function (msg, src, line, col, err) {
                 return;
             case '?':
                 e.preventDefault();
+                // Per-view help toggles; falls back to the security-info help.
+                if (handler && handler.toggleHelp) { handler.toggleHelp(); return; }
                 if (window._infoToggleHelp) window._infoToggleHelp();
+                return;
+            case 'd':
+                // View-level delete: ideas removes the focused metric, watchlist
+                // removes the selected symbol from the active list (idea #12).
+                if (handler && handler.deleteSelected) {
+                    if (handler.deleteSelected()) e.preventDefault();
+                }
+                return;
+            case 'y':
+                // Watchlist: copy selected symbol to another list (idea #12).
+                if (handler && handler.yankSelected) {
+                    if (handler.yankSelected()) e.preventDefault();
+                }
                 return;
             case 'i':
                 if (handler && handler.sectorNav && handler.isSectorTab && handler.isSectorTab()) { e.preventDefault(); handler.sectorNav('info'); return; }
@@ -2111,6 +2249,11 @@ window.onerror = function (msg, src, line, col, err) {
                     } else if (window._finOpenChart) {
                         window._finOpenChart();
                     }
+                    return;
+                }
+                // Watchlist: move (paste) selected symbol to another list (idea #12).
+                if (handler && handler.pasteSelected) {
+                    if (handler.pasteSelected()) e.preventDefault();
                 }
                 return;
             case '\\':
