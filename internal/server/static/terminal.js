@@ -242,6 +242,19 @@ window.onerror = function (msg, src, line, col, err) {
     var activeWatchlistId = parseInt(localStorage.getItem('stocktopus-watchlist-id') || '0');
     var watchlistBuffer = ''; // last symbol cut via 'd' on a watchlist row, ready to paste with 'p'
 
+    // Cache of saved sketches for cross-page :add autocomplete. Lazy-filled on
+    // first ':add' keystroke so we don't fetch unconditionally on every load.
+    var sketchesData = [];
+    var sketchesLoaded = false;
+    function ensureSketchesLoaded() {
+        if (sketchesLoaded) return Promise.resolve(sketchesData);
+        sketchesLoaded = true;
+        return fetch('/api/sketches')
+            .then(function (r) { return r.ok ? r.json() : []; })
+            .then(function (list) { sketchesData = list || []; return sketchesData; })
+            .catch(function () { return []; });
+    }
+
     function initWatchlist() {
         const form = document.getElementById('add-security-form');
         if (form) {
@@ -997,11 +1010,13 @@ window.onerror = function (msg, src, line, col, err) {
                         executeIdeasAdd(item.dataset.sym + '.' + item.dataset.field, '');
                         return;
                     }
-                    if (item.dataset.sketchName) {
-                        // ":add <metric> to <sketch>" — combine current input + selection then execute
+                    if (item.dataset.sketchName || item.dataset.sketchCreate) {
+                        // ":add <metric> to <sketch>" — combine current input + selection then execute.
+                        // sketchCreate carries the typed name when no existing sketch matched.
+                        var sketchTarget = item.dataset.sketchName || item.dataset.sketchCreate;
                         var existing = input.value;
                         var toIE = existing.toLowerCase().lastIndexOf(' to ');
-                        var withTo = (toIE > 0 ? existing.substring(0, toIE + 4) : existing.replace(/\s+$/, '') + ' to ') + item.dataset.sketchName;
+                        var withTo = (toIE > 0 ? existing.substring(0, toIE + 4) : existing.replace(/\s+$/, '') + ' to ') + sketchTarget;
                         var afterColon = withTo.charAt(0) === ':' ? withTo.substring(1) : withTo;
                         var addArg2 = afterColon.toLowerCase().startsWith('add ') ? afterColon.substring(4) : afterColon;
                         var toI2 = addArg2.toLowerCase().lastIndexOf(' to ');
@@ -1254,12 +1269,88 @@ window.onerror = function (msg, src, line, col, err) {
         })();
     }
 
-    // Common path for "execute :add <metric> [to <sketch>]" — used both by
-    // typed Enter and by Enter on a dropdown selection. When run from a
-    // foreign page (not /ideas), resume the last-used sketch instead of
-    // dropping the user onto the default scratchpad.
+    // Mirror of ideas.js's parseAddArg, kept in sync. Used when executing :add
+    // from a foreign page where ideas.js isn't loaded.
+    var SERIES_COLORS_FALLBACK = ['#ff8800', '#4499ff', '#00cc66', '#bb88ff', '#ccaa00'];
+    function parseAddArgRemote(arg, fallbackSymbol) {
+        var raw = (arg || '').trim();
+        if (!raw) {
+            if (!fallbackSymbol) return null;
+            return { kind: 'price', identifier: fallbackSymbol, label: fallbackSymbol };
+        }
+        var dot = raw.lastIndexOf('.');
+        if (dot > 0 && dot < raw.length - 1) {
+            var sym = raw.substring(0, dot).toUpperCase();
+            var field = raw.substring(dot + 1);
+            return { kind: 'financial', identifier: sym + '.' + field, label: sym + ' ' + field };
+        }
+        var s = raw.toUpperCase();
+        var commodityPrefixes = ['GC','SI','CL','NG','HG','PL','PA','BZ','HO','RB','ZC','ZW','ZS','KC','SB','CC','CT'];
+        var forexCurrencies = ['USD','EUR','GBP','JPY','AUD','CAD','CHF','CNY','HKD','NZD','SEK','NOK','SGD','MXN'];
+        if (s.length === 5 && s.endsWith('USD')) {
+            var prefix = s.substring(0, 2);
+            if (commodityPrefixes.indexOf(prefix) >= 0) return { kind: 'commodity', identifier: s, label: s };
+        }
+        if (s.length === 6) {
+            var a = s.substring(0, 3), b = s.substring(3);
+            if (forexCurrencies.indexOf(a) >= 0 && forexCurrencies.indexOf(b) >= 0) return { kind: 'forex', identifier: s, label: a + '/' + b };
+            if (b === 'USD' || b === 'EUR') return { kind: 'crypto', identifier: s, label: s };
+        }
+        return { kind: 'price', identifier: s, label: s };
+    }
+
+    // Add a parsed metric to a sketch by id. Picks a colour by current count
+    // so the destination sketch's series stay visually distinct.
+    function postMetricToSketch(sketchID, parsed, count) {
+        var color = SERIES_COLORS_FALLBACK[(count || 0) % SERIES_COLORS_FALLBACK.length];
+        var body = { kind: parsed.kind, identifier: parsed.identifier, label: parsed.label || parsed.identifier, color: color };
+        return fetch('/api/sketches/' + sketchID + '/metrics', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+    }
+
+    // Foreign-page :add path. Find or create the named sketch, append the
+    // metric, and stay on the current page so the user can keep adding.
+    function executeIdeasAddRemote(metric, fallback, sketchName) {
+        var parsed = parseAddArgRemote(metric, fallback);
+        if (!parsed) { flashError('No symbol given'); return; }
+        ensureSketchesLoaded().then(function () {
+            var lower = sketchName.toLowerCase();
+            var match = sketchesData.find(function (sk) { return sk.name.toLowerCase() === lower; });
+            if (!match) match = sketchesData.find(function (sk) { return sk.name.toLowerCase().indexOf(lower) === 0; });
+            if (match) {
+                postMetricToSketch(match.id, parsed, (match.metrics || []).length)
+                    .then(function () { flashError('Added ' + parsed.label + ' to ' + match.name); });
+                return;
+            }
+            // Not found: create the sketch with the typed name then add.
+            fetch('/api/sketches', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: sketchName }),
+            }).then(function (r) { return r.json(); })
+            .then(function (resp) { return postMetricToSketch(resp.id, parsed, 0); })
+            .then(function () {
+                flashError('Idea "' + sketchName + '" created — added ' + parsed.label);
+                // Refresh the local cache so subsequent :add tos see it
+                sketchesLoaded = false;
+                ensureSketchesLoaded();
+            });
+        });
+    }
+
+    // Common path for "execute :add <metric> [to <sketch>]". When the user
+    // names a target sketch with `to`, stay on the current page and post via
+    // the API. When no target is given, navigate them onto /ideas (the
+    // last-used sketch) so they see what they just added.
     function executeIdeasAdd(metric, toSketch) {
         var fallback = selectedSecurity || '';
+        if (toSketch) {
+            executeIdeasAddRemote(metric, fallback, toSketch);
+            return;
+        }
         if (currentView !== 'ideas') {
             var lastId = localStorage.getItem('stocktopus-last-sketch');
             var ideasPath = lastId ? '/ideas/' + lastId : '/ideas';
@@ -1284,8 +1375,11 @@ window.onerror = function (msg, src, line, col, err) {
     }
 
     function filterAndShowCommands(value) {
-        var raw = value.trim();
-        var parts = raw.split(/\s+/);
+        // Only trim leading whitespace — keep trailing because we use it as a
+        // signal: ":add SYMBOL.field to " (with trailing space) means "user
+        // just finished typing 'to', show the sketch list with no prefix".
+        var raw = (value || '').replace(/^\s+/, '');
+        var parts = raw.trim().split(/\s+/);
         var cmdPart = parts[0].toLowerCase();
 
         // :watch <prefix> — autocomplete watchlist names (adds selectedSecurity to that list)
@@ -1302,11 +1396,18 @@ window.onerror = function (msg, src, line, col, err) {
             }
 
             // :add <metric> [to <sketch>] — autocomplete fields after a dot,
-            // and saved sketches after " to ".
+            // and saved sketches after " to " or " to" at the end.
             if (afterColonLower.startsWith('add ')) {
                 clearTimeout(searchTimer);
                 var addArg = afterColon.substring(4); // preserve case
-                var toIdx = addArg.toLowerCase().lastIndexOf(' to ');
+                var lower = addArg.toLowerCase();
+                var toIdx = lower.lastIndexOf(' to ');
+                // Also catch the user mid-typing, before the trailing space lands:
+                // ":add AAPL.revenue to" → empty prefix, show all sketches.
+                if (toIdx < 0 && (lower.endsWith(' to') || lower === 'to')) {
+                    renderCmdSketchDropdown('');
+                    return;
+                }
                 if (toIdx >= 0) {
                     var sketchPrefix = addArg.substring(toIdx + 4);
                     renderCmdSketchDropdown(sketchPrefix);
@@ -1536,18 +1637,40 @@ window.onerror = function (msg, src, line, col, err) {
 
     function renderCmdSketchDropdown(prefix) {
         var dropdown = document.getElementById('cmd-dropdown');
-        var sketches = (window._ideasGetSketches && window._ideasGetSketches()) || [];
+        // Prefer the live ideas.js cache if we're on /ideas, otherwise the
+        // terminal-level cache. ensureSketchesLoaded fills the latter on first
+        // `:add` keystroke and re-renders when it lands.
+        var sketches;
+        if (window._ideasGetSketches) {
+            sketches = window._ideasGetSketches();
+        } else if (sketchesLoaded) {
+            sketches = sketchesData;
+        } else {
+            ensureSketchesLoaded().then(function () { renderCmdSketchDropdown(prefix); });
+            sketches = [];
+        }
         var p = (prefix || '').toLowerCase();
         var matches = sketches.filter(function (sk) {
             return !p || (sk.name || '').toLowerCase().indexOf(p) >= 0;
         });
+        // No matches and the user typed a prefix: hint that Enter creates a new
+        // sketch with that name (idea-create path, B3).
         if (!matches.length) {
-            dropdown.innerHTML = '<div class="cmd-option cmd-option-empty">No saved sketch matches "' + escapeHtml(prefix) + '"</div>';
+            if (p) {
+                dropdown.innerHTML = '<div class="cmd-option cmd-sketch-create-option" data-sketch-create="' + escapeHtml(prefix) + '">'
+                    + '<span class="cmd-option-usage">create "' + escapeHtml(prefix) + '"</span>'
+                    + '<span class="cmd-option-desc">no match — Enter creates this sketch and adds the metric</span>'
+                    + '</div>';
+            } else {
+                dropdown.innerHTML = '<div class="cmd-option cmd-option-empty">No saved sketches yet — Enter creates one with this name</div>';
+            }
             dropdown.classList.remove('hidden');
             cmdDropdownIndex = -1;
             return;
         }
-        dropdown.innerHTML = matches.slice(0, 12).map(function (sk) {
+        // 5-recent cap when no prefix typed; loosens when filtering.
+        var cap = p ? 12 : 5;
+        dropdown.innerHTML = matches.slice(0, cap).map(function (sk) {
             return '<div class="cmd-option cmd-sketch-option" data-sketch-name="' + escapeHtml(sk.name) + '">'
                 + '<span class="cmd-option-usage">to ' + escapeHtml(sk.name) + '</span>'
                 + '<span class="cmd-option-desc">add to that saved sketch</span>'
@@ -1836,6 +1959,7 @@ window.onerror = function (msg, src, line, col, err) {
                 var tab = this.getActiveTab();
                 if (tab === 'financials') return window._infoFinSubTabs && window._infoFinSubTabs().length > 0;
                 if (tab === 'sec') return this.getSECSubTabs().length > 0;
+                if (tab === 'news') return window._infoNewsSubTabs && window._infoNewsSubTabs().length > 0;
                 return false;
             },
             getSECSubTabs: function () {
@@ -1982,7 +2106,10 @@ window.onerror = function (msg, src, line, col, err) {
                 }
                 if (dir === 'h' || dir === 'l') {
                     if (this._focus === 'sub' && hasSub) {
-                        var subTabs = this.isSECTab() ? this.getSECSubTabs() : (window._infoFinSubTabs ? window._infoFinSubTabs() : []);
+                        var subTabs;
+                        if (this.isSECTab()) subTabs = this.getSECSubTabs();
+                        else if (this.isNewsTab() && window._infoNewsSubTabs) subTabs = window._infoNewsSubTabs();
+                        else subTabs = window._infoFinSubTabs ? window._infoFinSubTabs() : [];
                         var activeIdx = subTabs.findIndex(function (t) { return t.classList.contains('active'); });
                         if (dir === 'l') activeIdx = Math.min(activeIdx + 1, subTabs.length - 1);
                         else activeIdx = Math.max(activeIdx - 1, 0);
@@ -2006,9 +2133,11 @@ window.onerror = function (msg, src, line, col, err) {
                 var mainTabs = document.getElementById('info-tabs');
                 var finSubTabs = document.getElementById('fin-sub-tabs');
                 var secSubTabs = document.getElementById('sec-filters');
+                var newsSubTabs = document.getElementById('news-sub-tabs');
                 if (mainTabs) mainTabs.classList.toggle('tab-row-focused', this._focus === 'main');
                 if (finSubTabs) finSubTabs.classList.toggle('tab-row-focused', this._focus === 'sub');
                 if (secSubTabs) secSubTabs.classList.toggle('tab-row-focused', this._focus === 'sub');
+                if (newsSubTabs) newsSubTabs.classList.toggle('tab-row-focused', this._focus === 'sub');
             },
             jumpToTab: function (n) {
                 this._focus = 'main';
@@ -2016,11 +2145,12 @@ window.onerror = function (msg, src, line, col, err) {
                 this._highlightFocus();
             },
             jumpToSubTab: function (n) {
-                if (this.hasSubTabs() && window._infoFinJumpToSub) {
-                    this._focus = 'sub';
-                    window._infoFinJumpToSub(n);
-                    this._highlightFocus();
-                }
+                if (!this.hasSubTabs()) return;
+                this._focus = 'sub';
+                // Route per active tab — different sub-tab universes per tab.
+                if (this.isNewsTab() && window._infoNewsJumpToSub) window._infoNewsJumpToSub(n);
+                else if (window._infoFinJumpToSub) window._infoFinJumpToSub(n);
+                this._highlightFocus();
             },
             refresh: function () {
                 if (window._infoRefresh) window._infoRefresh();
@@ -2190,10 +2320,25 @@ window.onerror = function (msg, src, line, col, err) {
             case 'k':
             case 'l':
                 e.preventDefault();
+                // When the article-reader slide-in is open, capture nav keys so
+                // we don't move the underlying tabs. j scrolls the reader; once
+                // the body is scrolled to the bottom, j/k cycle through the
+                // ticker chips at the foot of the article. k unwinds back to
+                // scrolling. h/l also cycle chips when in chip-selection mode.
+                var readerEl = document.getElementById('article-reader');
+                if (readerEl && !readerEl.classList.contains('hidden')) {
+                    handleReaderNav(e.key);
+                    return;
+                }
                 if (handler && handler.move) handler.move(e.key);
                 return;
             case 'Enter':
                 e.preventDefault();
+                // Reader chip activation takes priority when a chip is selected.
+                if (window._readerInChipMode && window._readerInChipMode()) {
+                    if (window._readerActivate) window._readerActivate();
+                    return;
+                }
                 if (handler && handler.activate) handler.activate();
                 return;
             case 'g':
@@ -2262,6 +2407,15 @@ window.onerror = function (msg, src, line, col, err) {
                 if (currentView === 'ideas' && window._ideasDrawHline) {
                     e.preventDefault();
                     window._ideasDrawHline();
+                }
+                return;
+            case 'z':
+                // Toggle the reader between its slide-in width and full-width
+                // expanded mode (more comfortable reading).
+                var rdr = document.getElementById('article-reader');
+                if (rdr && !rdr.classList.contains('hidden')) {
+                    e.preventDefault();
+                    rdr.classList.toggle('reader-expanded');
                 }
                 return;
             case 'a':
@@ -2528,8 +2682,77 @@ window.onerror = function (msg, src, line, col, err) {
         var reader = document.getElementById('article-reader');
         if (!reader) return;
         if (window._finCloseChart) window._finCloseChart();
+        reader.classList.remove('reader-expanded');
         reader.classList.add('hidden');
+        readerChipIdx = -1;
     };
+
+    // ── Reader keyboard navigation ──
+    //
+    // Two modes inside the open reader, switched implicitly:
+    //   1. scroll  → j/k scroll the body; h/l absorbed
+    //   2. chip    → j/k/h/l move selection across the ticker chips at the
+    //                bottom; Enter navigates to /security/<symbol>; further
+    //                k off the first chip drops back to scroll mode.
+    // Transition: once the body is at-bottom, the first j enters chip mode.
+    var readerChipIdx = -1;
+
+    function getReaderChips() {
+        return Array.from(document.querySelectorAll('#article-reader .reader-ticker'));
+    }
+    function highlightChip(idx) {
+        var chips = getReaderChips();
+        if (!chips.length) return;
+        idx = Math.max(0, Math.min(idx, chips.length - 1));
+        readerChipIdx = idx;
+        chips.forEach(function (el, i) { el.classList.toggle('vim-selected', i === idx); });
+        chips[idx].scrollIntoView({ block: 'nearest' });
+    }
+    function clearChipSelection() {
+        getReaderChips().forEach(function (el) { el.classList.remove('vim-selected'); });
+        readerChipIdx = -1;
+    }
+    function handleReaderNav(key) {
+        var body = document.getElementById('reader-body');
+        if (!body) return;
+        var chips = getReaderChips();
+        var atBottom = body.scrollTop + body.clientHeight >= body.scrollHeight - 4;
+
+        if (readerChipIdx >= 0) {
+            // chip mode
+            if (key === 'j' || key === 'l') { highlightChip(readerChipIdx + 1); return; }
+            if (key === 'k') {
+                if (readerChipIdx === 0) {
+                    clearChipSelection();
+                    body.scrollBy({ top: -80, behavior: 'smooth' });
+                } else {
+                    highlightChip(readerChipIdx - 1);
+                }
+                return;
+            }
+            if (key === 'h') { highlightChip(readerChipIdx - 1); return; }
+            return;
+        }
+        // scroll mode
+        if (key === 'j') {
+            if (atBottom && chips.length) { highlightChip(0); return; }
+            body.scrollBy({ top: 80, behavior: 'smooth' });
+            return;
+        }
+        if (key === 'k') { body.scrollBy({ top: -80, behavior: 'smooth' }); return; }
+        // h/l absorbed in scroll mode (no main-tab nav)
+    }
+    function activateReaderChip() {
+        var chips = getReaderChips();
+        if (readerChipIdx < 0 || readerChipIdx >= chips.length) return false;
+        var chip = chips[readerChipIdx];
+        // The chip's onclick already calls _navigateToSecurity — fire it.
+        chip.click();
+        return true;
+    }
+    // Expose so the keydown handler can dispatch Enter to chip activation.
+    window._readerActivate = activateReaderChip;
+    window._readerInChipMode = function () { return readerChipIdx >= 0; };
 
     // ── Browser History ──
 
@@ -2742,6 +2965,15 @@ window.onerror = function (msg, src, line, col, err) {
         onViewEnter(currentView);
         updateClock();
         setInterval(updateClock, 1000);
+
+        // Mouse clicks on buttons leave them DOM-focused, which Chrome paints
+        // as :focus-visible — leaks an orange outline that lingers after h/l
+        // navigates elsewhere. Blur immediately so selection state is purely
+        // class-driven (.active / .vim-selected).
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('button, [tabindex]');
+            if (btn) btn.blur();
+        });
 
         // Set initial history state
         history.replaceState({ view: currentView, security: selectedSecurity }, '');

@@ -864,9 +864,7 @@ body {
     font-size: 12px;
     color: var(--text-muted);
     line-height: 1.6;
-    max-height: 200px;
-    overflow-y: scroll;
-    padding-right: 8px;
+    margin: 0;
 }
 
 .info-sub-tabs {
@@ -2765,12 +2763,40 @@ li.kp-row::before {
     letter-spacing: 0.3px;
 }
 
-/* Overview Key People strip */
+/* Overview — two-column top split: Key People (left) + Description (right);
+   key indicators sit underneath. */
 
-.info-people {
-    margin-top: 16px;
-    padding-top: 12px;
+.info-overview-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: 24px;
+    margin-bottom: 20px;
+}
+
+.info-overview-left,
+.info-overview-right { min-width: 0; }
+
+.info-overview-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    margin-bottom: 10px;
+}
+
+.info-overview-meta-item a { color: var(--orange); text-decoration: none; }
+.info-overview-meta-item a:hover { text-decoration: underline; }
+
+.info-indicators-header {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
     border-top: 1px solid var(--border);
+    padding-top: 12px;
+    margin-bottom: 8px;
 }
 
 .info-people-header {
@@ -2799,29 +2825,39 @@ li.kp-row::before {
 .info-people-more:hover,
 .info-people-more-row a:hover { text-decoration: underline; }
 
-.info-people-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 6px 16px;
+.info-people-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
 }
 
 .info-people-row {
     display: grid;
-    grid-template-columns: 64px 130px 1fr;
-    gap: 8px;
-    align-items: center;
+    grid-template-columns: 64px minmax(120px, max-content) 1fr;
+    gap: 10px;
+    align-items: baseline;
     font-size: 11px;
-    padding: 4px 0;
+    padding: 5px 0;
     border-bottom: 1px solid var(--bg-tertiary);
 }
 
 .info-people-name { color: var(--text-primary); font-weight: 500; }
-.info-people-title { color: var(--text-secondary); font-size: 10px; }
+.info-people-title { color: var(--text-secondary); font-size: 11px; line-height: 1.4; }
 
 .info-people-more-row {
-    grid-column: 1 / -1;
     border-bottom: none;
-    padding-top: 6px;
+    padding: 8px 0 0;
+    font-size: 11px;
+}
+
+.info-people-empty {
+    margin: 0;
+    text-align: left;
+    padding: 12px 0;
+}
+
+@media (max-width: 900px) {
+    .info-overview-top { grid-template-columns: 1fr; }
 }
 
 /* Ideas — three-pane vim navigation */
@@ -2874,4 +2910,54 @@ li.kp-row::before {
 .ideas-legend-row.vim-selected {
     border-color: var(--orange);
     box-shadow: 0 0 0 1px var(--orange);
+}
+
+/* Focus ring — selection state for tabs / list rows / cards lives in .active
+   and .vim-selected classes, never in browser-managed :focus. Chrome's click
+   focus on <button> triggers :focus-visible too, so any rule here would leak
+   stale outlines after h/l navigates elsewhere. Just hide it everywhere. */
+
+button, .info-tab, .info-sub-tab, .news-tab, .wl-tab, .ideas-list-item,
+.cmd-option, .security-option, .sec-row, .kp-row, .ideas-legend-row,
+a, [tabindex] {
+    outline: none !important;
+}
+
+/* News reader full-width mode (`z` toggles) — covers the main view area for
+   easier long-form reading. Esc / `z` again returns to side-panel. */
+.article-reader.reader-expanded {
+    width: auto;
+    flex: 1;
+    border-left: none;
+}
+
+/* Security info → News tab — sub-tab cards live inside their own scroll host
+   so the sub-tab row stays anchored at the top. */
+.news-cards-host {
+    margin-top: 8px;
+    max-height: calc(100vh - 240px);
+    overflow-y: auto;
+}
+
+/* Overview — dense 8-wide indicator grid up top */
+.info-grid-dense {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 6px;
+    margin-bottom: 16px;
+}
+
+.info-grid-dense .info-stat {
+    padding: 6px 8px;
+}
+.info-grid-dense .info-stat-label { font-size: 9px; }
+.info-grid-dense .info-stat-value { font-size: 13px; }
+
+@media (max-width: 1100px) {
+    .info-grid-dense { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+.reader-ticker.vim-selected {
+    border-color: var(--orange);
+    box-shadow: 0 0 0 1px var(--orange);
+    background: var(--bg-tertiary);
 }
