@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [1.1.0](https://github.com/binarypath/stocktopus/compare/v1.0.0...v1.1.0) (2026-05-10)
+
+
+### Features
+
+* vim QoL on /ideas + watchlist row ops + dedup WS subscriptions ([#51](https://github.com/binarypath/stocktopus/issues/51)) ([f7e43fd](https://github.com/binarypath/stocktopus/commit/f7e43fd290a2a1ebaefda6c782f1ede975b9f74e))
+
 ## 1.0.0 (2026-05-10)
 
 
