@@ -470,21 +470,125 @@
         return (sketches || []).slice();
     };
 
-    // ── Vim navigation through the sketches sidebar (j/k, Enter to load) ──
-    window._ideasMoveList = function (dir) {
-        var items = Array.from(document.querySelectorAll('#ideas-list .ideas-list-item'));
-        if (!items.length) return;
-        if (dir === 'j') listSelectedIdx = Math.min(listSelectedIdx + 1, items.length - 1);
-        else if (dir === 'k') listSelectedIdx = Math.max(listSelectedIdx - 1, 0);
-        items.forEach(function (el, i) { el.classList.toggle('vim-selected', i === listSelectedIdx); });
-        if (items[listSelectedIdx]) items[listSelectedIdx].scrollIntoView({ block: 'nearest' });
-    };
-    window._ideasActivateList = function () {
-        var items = Array.from(document.querySelectorAll('#ideas-list .ideas-list-item'));
-        if (listSelectedIdx >= 0 && listSelectedIdx < items.length) {
-            navigateToSketch(items[listSelectedIdx].dataset.sketchId);
+    // ── Three-pane vim navigation: list ↔ chart ↔ notes ──
+    //
+    // Pane state machine:
+    //   focus = 'list'  → j/k navigate sketches sidebar; Enter loads
+    //   focus = 'chart' → j/k navigate metrics in the legend; d removes
+    //   focus = 'notes' → l from chart focuses the textarea (insert mode);
+    //                     Esc returns to 'notes' state in normal mode
+    //   h/l moves between panes; visual outline highlights the active one.
+    var paneFocus = 'list';
+    var metricSelectedIdx = -1;
+
+    function highlightPane() {
+        document.getElementById('ideas-sidebar').classList.toggle('pane-focused', paneFocus === 'list');
+        document.getElementById('ideas-main').classList.toggle('pane-focused', paneFocus === 'chart');
+        var notesPanel = document.getElementById('ideas-notes-panel');
+        if (notesPanel) notesPanel.classList.toggle('pane-focused', paneFocus === 'notes');
+    }
+
+    function getMetricRows() {
+        return Array.from(document.querySelectorAll('#ideas-legend .ideas-legend-row'));
+    }
+    function selectMetric(i) {
+        var rows = getMetricRows();
+        if (!rows.length) { metricSelectedIdx = -1; return; }
+        metricSelectedIdx = Math.max(0, Math.min(i, rows.length - 1));
+        rows.forEach(function (el, idx) { el.classList.toggle('vim-selected', idx === metricSelectedIdx); });
+    }
+    function clearMetricSelection() {
+        getMetricRows().forEach(function (el) { el.classList.remove('vim-selected'); });
+        metricSelectedIdx = -1;
+    }
+
+    window._ideasMove = function (dir) {
+        if (dir === 'h' || dir === 'l') {
+            // Cross-pane move
+            var order = ['list', 'chart', 'notes'];
+            var idx = order.indexOf(paneFocus);
+            if (dir === 'l') idx = Math.min(idx + 1, order.length - 1);
+            else idx = Math.max(idx - 1, 0);
+            var newFocus = order[idx];
+            if (newFocus === paneFocus) return;
+            paneFocus = newFocus;
+            // Keep selections intact when leaving — re-highlight on entry.
+            if (paneFocus === 'chart') {
+                if (metricSelectedIdx < 0) selectMetric(0);
+                else selectMetric(metricSelectedIdx);
+            } else {
+                clearMetricSelection();
+            }
+            if (paneFocus === 'notes') {
+                var ta = document.getElementById('ideas-notes-textarea');
+                if (ta) ta.focus();
+            }
+            highlightPane();
+            return;
+        }
+        if (dir === 'j' || dir === 'k') {
+            if (paneFocus === 'list') {
+                var items = Array.from(document.querySelectorAll('#ideas-list .ideas-list-item'));
+                if (!items.length) return;
+                if (dir === 'j') listSelectedIdx = Math.min(listSelectedIdx + 1, items.length - 1);
+                else listSelectedIdx = Math.max(listSelectedIdx - 1, 0);
+                items.forEach(function (el, i) { el.classList.toggle('vim-selected', i === listSelectedIdx); });
+                if (items[listSelectedIdx]) items[listSelectedIdx].scrollIntoView({ block: 'nearest' });
+            } else if (paneFocus === 'chart') {
+                var rows = getMetricRows();
+                if (!rows.length) return;
+                var next = dir === 'j' ? metricSelectedIdx + 1 : metricSelectedIdx - 1;
+                selectMetric(next);
+            }
+            // 'notes' pane intentionally ignores j/k — let the textarea handle keys
+            // when focused (insert mode), or do nothing in normal mode.
         }
     };
+
+    window._ideasActivate = function () {
+        if (paneFocus === 'list') {
+            var items = Array.from(document.querySelectorAll('#ideas-list .ideas-list-item'));
+            if (listSelectedIdx >= 0 && listSelectedIdx < items.length) {
+                navigateToSketch(items[listSelectedIdx].dataset.sketchId);
+            }
+        }
+        // chart/notes have no Enter action right now — chart 'd' deletes,
+        // notes is text-edit only.
+    };
+
+    window._ideasDeleteSelected = function () {
+        if (paneFocus !== 'chart') return false;
+        var rows = getMetricRows();
+        if (metricSelectedIdx < 0 || metricSelectedIdx >= rows.length) return false;
+        var metricId = parseInt(rows[metricSelectedIdx].dataset.metricId, 10);
+        if (!metricId) return false;
+        // Drop selection so the next render doesn't try to re-highlight a missing row
+        var keepIdx = metricSelectedIdx;
+        clearMetricSelection();
+        removeMetric(metricId);
+        // After re-render, snap selection to the row that took the deleted slot
+        // (or the new last row if the deleted one was last).
+        setTimeout(function () {
+            var newRows = getMetricRows();
+            if (!newRows.length) return;
+            selectMetric(Math.min(keepIdx, newRows.length - 1));
+        }, 100);
+        return true;
+    };
+
+    window._ideasGetPaneFocus = function () { return paneFocus; };
+
+    window._ideasToggleHelp = function () {
+        var el = document.getElementById('ideas-help');
+        if (el) el.classList.toggle('hidden');
+    };
+
+    // Expose the legacy single-pane fns for backward compat with terminal.js
+    window._ideasMoveList = function (dir) { window._ideasMove(dir); };
+    window._ideasActivateList = function () { window._ideasActivate(); };
+
+    // Initial visual state
+    highlightPane();
 
     window._ideasSave = function (name) {
         return ensureSketch().then(function (sk) {
