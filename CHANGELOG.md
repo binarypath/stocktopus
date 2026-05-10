@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [1.2.0](https://github.com/binarypath/stocktopus/compare/v1.1.0...v1.2.0) (2026-05-10)
+
+
+### Features
+
+* overview redesign, sketch autocomplete polish, reader vim nav, focus-ring fix ([#53](https://github.com/binarypath/stocktopus/issues/53)) ([6786ade](https://github.com/binarypath/stocktopus/commit/6786ade85e28efa8534b3b10282b45a6936d7340))
+
 ## [1.1.0](https://github.com/binarypath/stocktopus/compare/v1.0.0...v1.1.0) (2026-05-10)
 
 
