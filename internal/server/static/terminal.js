@@ -32,6 +32,7 @@ window.onerror = function (msg, src, line, col, err) {
         info:       { path: '/security/{symbol}', needsSecurity: true, usage: 'info <SECURITY>',     desc: 'deep-dive company fundamentals for SECURITY' },
         news:       { path: '/news',            needsSecurity: false, usage: 'news [SECURITY]',     desc: 'market news — optionally filter by security', optionalSecurity: true },
         ei:         { path: '/indices',          needsSecurity: false, usage: 'ei',                  desc: 'equity indices — global market overview' },
+        ideas:      { path: '/ideas',           needsSecurity: false, usage: 'ideas',               desc: 'sketchpad — comparative graphs across metrics' },
         screener:   { path: '/screener',        needsSecurity: false, usage: 'screener',            desc: 'filter and scan stocks by criteria' },
         debug:      { path: '/debug',           needsSecurity: false, usage: 'debug',               desc: 'live server log console' },
         analyze:    { path: '/security/{symbol}#ai', needsSecurity: true, usage: 'analyze <SECURITY>',  desc: 'run deep multi-agent trading analysis', aliases: ['az'] },
@@ -80,12 +81,18 @@ window.onerror = function (msg, src, line, col, err) {
             path = path.replace('{symbol}', resolved);
             setSecurity(resolved);
         }
+        // Caller-supplied explicit path wins over the COMMANDS template. Used
+        // by executeIdeasAdd to land on /ideas/{lastId} instead of the default.
+        if (opts.path) {
+            path = opts.path;
+        }
 
-        // Preserve the current URL hash (sub-tab state) when going back via popstate;
-        // the browser already restored it before firing popstate, but our explicit
-        // pushPath would clobber it. For forward navigation we always start clean.
-        if (opts.fromHistory && location.hash) {
-            path = path + location.hash;
+        // When going back via popstate the browser has already restored the
+        // exact URL (including any sub-resource id like /ideas/5 or hash like
+        // #financials-income). Use that directly so we don't lose the id by
+        // re-templating cmd.path.
+        if (opts.fromHistory) {
+            path = location.pathname + location.search + location.hash;
         }
 
         // Handle optional security (e.g. news MSFT)
@@ -105,14 +112,18 @@ window.onerror = function (msg, src, line, col, err) {
             container.dataset.view = command;
             currentView = command;
 
-            // Execute any <script> tags in the loaded fragment (in order)
+            // Execute any <script> tags in the loaded fragment (in order).
+            // Copy *all* attributes so things like data-sketch-id come through to
+            // the script — otherwise document.currentScript.dataset is empty.
             var scripts = Array.from(container.querySelectorAll('script'));
             (function loadNext(i) {
                 if (i >= scripts.length) return;
                 var old = scripts[i];
                 var s = document.createElement('script');
+                for (var a = 0; a < old.attributes.length; a++) {
+                    s.setAttribute(old.attributes[a].name, old.attributes[a].value);
+                }
                 if (old.src) {
-                    s.src = old.src;
                     s.onload = function () { loadNext(i + 1); };
                     s.onerror = function () { loadNext(i + 1); };
                 } else {
@@ -941,6 +952,14 @@ window.onerror = function (msg, src, line, col, err) {
                     if (item.dataset.watchlistName) {
                         input.value = ':watch ' + item.dataset.watchlistName;
                         hideCmdDropdown();
+                    } else if (item.dataset.field) {
+                        input.value = ':add ' + item.dataset.sym + '.' + item.dataset.field;
+                        hideCmdDropdown();
+                    } else if (item.dataset.sketchName) {
+                        var existing = input.value;
+                        var toI = existing.toLowerCase().lastIndexOf(' to ');
+                        input.value = (toI > 0 ? existing.substring(0, toI + 4) : existing.replace(/\s+$/, '') + ' to ') + item.dataset.sketchName;
+                        hideCmdDropdown();
                     } else if (item.dataset.symbol) {
                         input.value = item.dataset.cmd + ' ' + item.dataset.symbol;
                     } else {
@@ -952,6 +971,34 @@ window.onerror = function (msg, src, line, col, err) {
                 // If dropdown is visible and a watchlist option is highlighted, execute the watch.
                 if (!dropdown.classList.contains('hidden') && cmdDropdownIndex >= 0 && items[cmdDropdownIndex]) {
                     var item = items[cmdDropdownIndex];
+                    if (item.dataset.field) {
+                        // :add SYM.<field> — execute right away
+                        hideCmdDropdown();
+                        commandHistory.push(':add ' + item.dataset.sym + '.' + item.dataset.field);
+                        historyIndex = commandHistory.length;
+                        input.value = '';
+                        enterNormalMode();
+                        executeIdeasAdd(item.dataset.sym + '.' + item.dataset.field, '');
+                        return;
+                    }
+                    if (item.dataset.sketchName) {
+                        // ":add <metric> to <sketch>" — combine current input + selection then execute
+                        var existing = input.value;
+                        var toIE = existing.toLowerCase().lastIndexOf(' to ');
+                        var withTo = (toIE > 0 ? existing.substring(0, toIE + 4) : existing.replace(/\s+$/, '') + ' to ') + item.dataset.sketchName;
+                        var afterColon = withTo.charAt(0) === ':' ? withTo.substring(1) : withTo;
+                        var addArg2 = afterColon.toLowerCase().startsWith('add ') ? afterColon.substring(4) : afterColon;
+                        var toI2 = addArg2.toLowerCase().lastIndexOf(' to ');
+                        var metric2 = toI2 > 0 ? addArg2.substring(0, toI2).trim() : addArg2.trim();
+                        var sketch2 = toI2 > 0 ? addArg2.substring(toI2 + 4).trim() : '';
+                        hideCmdDropdown();
+                        commandHistory.push(withTo);
+                        historyIndex = commandHistory.length;
+                        input.value = '';
+                        enterNormalMode();
+                        executeIdeasAdd(metric2, sketch2);
+                        return;
+                    }
                     if (item.dataset.watchlistName) {
                         hideCmdDropdown();
                         executeWatchCommand(parseInt(item.dataset.watchlistId, 10), item.dataset.watchlistName);
@@ -1040,6 +1087,42 @@ window.onerror = function (msg, src, line, col, err) {
                         if (wlName) createWatchlist(wlName);
                         input.value = '';
                         enterNormalMode();
+                        return;
+                    }
+
+                    // :add <metric> [to <sketch>] — push a metric onto a sketchpad.
+                    // Navigates to /ideas first if not already there.
+                    if (colonLower === 'add' || colonLower.startsWith('add ')) {
+                        var addArgRaw = colonCmd.substring(3).trim();
+                        var toIdx = addArgRaw.toLowerCase().lastIndexOf(' to ');
+                        var addMetric = addArgRaw, addToSketch = '';
+                        if (toIdx > 0) {
+                            addMetric = addArgRaw.substring(0, toIdx).trim();
+                            addToSketch = addArgRaw.substring(toIdx + 4).trim();
+                        }
+                        input.value = '';
+                        hideCmdDropdown();
+                        enterNormalMode();
+                        executeIdeasAdd(addMetric, addToSketch);
+                        return;
+                    }
+
+                    // :save <name> — name + persist the current sketch
+                    if (colonLower === 'save' || colonLower.startsWith('save ')) {
+                        var saveName = colonCmd.substring(4).trim();
+                        input.value = '';
+                        hideCmdDropdown();
+                        enterNormalMode();
+                        if (window._ideasSave) window._ideasSave(saveName);
+                        return;
+                    }
+
+                    // :cl — clear horizontal price lines on the sketchpad chart
+                    if (colonLower === 'cl' || colonLower === 'clear') {
+                        input.value = '';
+                        hideCmdDropdown();
+                        enterNormalMode();
+                        if (window._ideasClearLines) window._ideasClearLines();
                         return;
                     }
 
@@ -1142,6 +1225,34 @@ window.onerror = function (msg, src, line, col, err) {
         input.focus();
     }
 
+    // Polls until ideas.js init has populated _ideasAdd. Used by the :add
+    // handler to avoid a flat 100ms setTimeout race against the ideas init.
+    function whenIdeasReady(fn) {
+        var tries = 0;
+        (function check() {
+            if (window._ideasAdd) { fn(); return; }
+            if (++tries > 40) return; // ~2s ceiling
+            setTimeout(check, 50);
+        })();
+    }
+
+    // Common path for "execute :add <metric> [to <sketch>]" — used both by
+    // typed Enter and by Enter on a dropdown selection. When run from a
+    // foreign page (not /ideas), resume the last-used sketch instead of
+    // dropping the user onto the default scratchpad.
+    function executeIdeasAdd(metric, toSketch) {
+        var fallback = selectedSecurity || '';
+        if (currentView !== 'ideas') {
+            var lastId = localStorage.getItem('stocktopus-last-sketch');
+            var ideasPath = lastId ? '/ideas/' + lastId : '/ideas';
+            navigate('ideas', '', { path: ideasPath }).then(function () {
+                whenIdeasReady(function () { window._ideasAdd(metric, fallback, toSketch); });
+            });
+        } else if (window._ideasAdd) {
+            window._ideasAdd(metric, fallback, toSketch);
+        }
+    }
+
     function hideCmdDropdown() {
         var dropdown = document.getElementById('cmd-dropdown');
         dropdown.classList.add('hidden');
@@ -1169,6 +1280,27 @@ window.onerror = function (msg, src, line, col, err) {
                 clearTimeout(searchTimer);
                 var query = afterColonLower === 'watch' ? '' : afterColon.substring(6);
                 renderCmdWatchlistDropdown(query);
+                return;
+            }
+
+            // :add <metric> [to <sketch>] — autocomplete fields after a dot,
+            // and saved sketches after " to ".
+            if (afterColonLower.startsWith('add ')) {
+                clearTimeout(searchTimer);
+                var addArg = afterColon.substring(4); // preserve case
+                var toIdx = addArg.toLowerCase().lastIndexOf(' to ');
+                if (toIdx >= 0) {
+                    var sketchPrefix = addArg.substring(toIdx + 4);
+                    renderCmdSketchDropdown(sketchPrefix);
+                    return;
+                }
+                var dotIdx = addArg.lastIndexOf('.');
+                if (dotIdx > 0 && dotIdx < addArg.length) {
+                    var fieldPrefix = addArg.substring(dotIdx + 1);
+                    renderCmdFieldDropdown(addArg.substring(0, dotIdx), fieldPrefix);
+                    return;
+                }
+                hideCmdDropdown();
                 return;
             }
         }
@@ -1278,6 +1410,100 @@ window.onerror = function (msg, src, line, col, err) {
         return { type: 'symbol', symbol: arg.toUpperCase() };
     }
 
+    // Field list for :add SYMBOL.<prefix> autocomplete. Mirrors the rows we
+    // render on the Financials tab. Extending: add the new field name here.
+    var FIN_FIELDS = [
+        // Income
+        'revenue', 'costOfRevenue', 'grossProfit', 'researchAndDevelopmentExpenses',
+        'sellingGeneralAndAdministrativeExpenses', 'operatingIncome', 'interestExpense',
+        'incomeBeforeTax', 'incomeTaxExpense', 'ebitda', 'netIncome', 'eps',
+        // Balance
+        'totalAssets', 'totalCurrentAssets', 'cashAndCashEquivalents', 'shortTermInvestments',
+        'netReceivables', 'inventory', 'goodwill', 'intangibleAssets', 'totalLiabilities',
+        'totalCurrentLiabilities', 'shortTermDebt', 'longTermDebt', 'totalDebt',
+        'totalStockholdersEquity', 'retainedEarnings',
+        // Cash flow
+        'operatingCashFlow', 'depreciationAndAmortization', 'stockBasedCompensation',
+        'accountsReceivables', 'accountsPayables', 'netCashUsedForInvestingActivities',
+        'netCashUsedProvidedByFinancingActivities', 'debtRepayment', 'capitalExpenditure',
+        'freeCashFlow', 'netChangeInCash', 'dividendsPaid', 'commonStockRepurchased',
+    ];
+
+    function renderCmdFieldDropdown(symPart, fieldPrefix) {
+        var dropdown = document.getElementById('cmd-dropdown');
+        var p = (fieldPrefix || '').toLowerCase();
+        var matches = FIN_FIELDS.filter(function (f) {
+            return !p || f.toLowerCase().indexOf(p) >= 0;
+        });
+        // Prefix matches first
+        matches.sort(function (a, b) {
+            var ap = a.toLowerCase().indexOf(p) === 0 ? 0 : 1;
+            var bp = b.toLowerCase().indexOf(p) === 0 ? 0 : 1;
+            return ap - bp;
+        });
+        if (!matches.length) { hideCmdDropdown(); return; }
+        var symLabel = (symPart || 'SYMBOL').toUpperCase();
+        dropdown.innerHTML = matches.slice(0, 12).map(function (f) {
+            return '<div class="cmd-option cmd-field-option" data-cmd="add" data-sym="' + escapeHtml(symLabel) + '" data-field="' + escapeHtml(f) + '">'
+                + '<span class="cmd-option-usage">add ' + escapeHtml(symLabel) + '.' + escapeHtml(f) + '</span>'
+                + '<span class="cmd-option-desc">project ' + escapeHtml(f) + ' onto current sketch</span>'
+                + '</div>';
+        }).join('');
+        dropdown.classList.remove('hidden');
+        cmdDropdownIndex = -1;
+
+        dropdown.querySelectorAll('.cmd-field-option').forEach(function (el) {
+            el.onmousedown = function (e) {
+                e.preventDefault();
+                var input = document.getElementById('cmd-input');
+                input.value = ':add ' + el.dataset.sym + '.' + el.dataset.field;
+                hideCmdDropdown();
+                input.focus();
+                input.setSelectionRange(input.value.length, input.value.length);
+            };
+        });
+    }
+
+    function renderCmdSketchDropdown(prefix) {
+        var dropdown = document.getElementById('cmd-dropdown');
+        var sketches = (window._ideasGetSketches && window._ideasGetSketches()) || [];
+        var p = (prefix || '').toLowerCase();
+        var matches = sketches.filter(function (sk) {
+            return !p || (sk.name || '').toLowerCase().indexOf(p) >= 0;
+        });
+        if (!matches.length) {
+            dropdown.innerHTML = '<div class="cmd-option cmd-option-empty">No saved sketch matches "' + escapeHtml(prefix) + '"</div>';
+            dropdown.classList.remove('hidden');
+            cmdDropdownIndex = -1;
+            return;
+        }
+        dropdown.innerHTML = matches.slice(0, 12).map(function (sk) {
+            return '<div class="cmd-option cmd-sketch-option" data-sketch-name="' + escapeHtml(sk.name) + '">'
+                + '<span class="cmd-option-usage">to ' + escapeHtml(sk.name) + '</span>'
+                + '<span class="cmd-option-desc">add to that saved sketch</span>'
+                + '</div>';
+        }).join('');
+        dropdown.classList.remove('hidden');
+        cmdDropdownIndex = -1;
+
+        dropdown.querySelectorAll('.cmd-sketch-option').forEach(function (el) {
+            el.onmousedown = function (e) {
+                e.preventDefault();
+                var input = document.getElementById('cmd-input');
+                var existing = input.value;
+                var toIdx = existing.toLowerCase().lastIndexOf(' to ');
+                if (toIdx > 0) {
+                    input.value = existing.substring(0, toIdx + 4) + el.dataset.sketchName;
+                } else {
+                    input.value = existing.replace(/\s+$/, '') + ' to ' + el.dataset.sketchName;
+                }
+                hideCmdDropdown();
+                input.focus();
+                input.setSelectionRange(input.value.length, input.value.length);
+            };
+        });
+    }
+
     function renderCmdSecurityDropdown(results, cmdName) {
         var dropdown = document.getElementById('cmd-dropdown');
         // Guard against stale debounced fires that come back after the user has
@@ -1359,6 +1585,16 @@ window.onerror = function (msg, src, line, col, err) {
     // ── Per-View Vim Handlers ──
 
     var vimHandlers = {
+        ideas: {
+            move: function (dir) {
+                if (dir === 'j' || dir === 'k') {
+                    if (window._ideasMoveList) window._ideasMoveList(dir);
+                }
+            },
+            activate: function () {
+                if (window._ideasActivateList) window._ideasActivateList();
+            },
+        },
         watchlist: {
             getItems: function () {
                 // Only visible rows (filtered by active watchlist)
@@ -1877,6 +2113,34 @@ window.onerror = function (msg, src, line, col, err) {
                     }
                 }
                 return;
+            case '\\':
+                // Drop a horizontal price line on the sketchpad chart at the last
+                // hovered crosshair value (or midpoint if the user hasn't hovered).
+                if (currentView === 'ideas' && window._ideasDrawHline) {
+                    e.preventDefault();
+                    window._ideasDrawHline();
+                }
+                return;
+            case 'a':
+                // 'a' on a highlighted Financials row prefills :add SYMBOL.field
+                // in the command bar so the user can confirm + send to the sketchpad.
+                if (handler && handler.isFinTab && handler.isFinTab()) {
+                    var rows = window._finGetRows ? window._finGetRows() : [];
+                    var idx = window._finGetSelectedRow ? window._finGetSelectedRow() : -1;
+                    if (idx >= 0 && idx < rows.length) {
+                        var row = rows[idx];
+                        var key = row.dataset.finKey || '';
+                        // Skip calculated rows (margins) — they're not raw fields the sketch can fetch.
+                        if (row.dataset.finFormat === 'calc' || !key || key.indexOf('/') >= 0) return;
+                        if (!selectedSecurity) return;
+                        e.preventDefault();
+                        var cmdInput = document.getElementById('cmd-input');
+                        cmdInput.value = ':add ' + selectedSecurity + '.' + key;
+                        cmdInput.focus();
+                        cmdInput.setSelectionRange(cmdInput.value.length, cmdInput.value.length);
+                    }
+                }
+                return;
             case '1': case '2': case '3': case '4': case '5': case '6': case '7':
                 if (handler && handler.jumpToTab) {
                     e.preventDefault();
@@ -2242,9 +2506,9 @@ window.onerror = function (msg, src, line, col, err) {
             var from = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
             var to = new Date().toISOString().slice(0, 10);
             fetch('/api/chart/eod/' + encodeURIComponent(sym) + '?from=' + from + '&to=' + to)
-                .then(function (r) { return r.json(); })
+                .then(function (r) { return r.ok ? r.json() : null; })
                 .then(function (eod) {
-                    if (!eod || eod.length < 1) return;
+                    if (!Array.isArray(eod) || eod.length < 1) return;
                     var latest = eod[eod.length - 1];
                     var prev = eod.length > 1 ? eod[eod.length - 2] : latest;
                     var chg = latest.close - prev.close;
@@ -2292,9 +2556,9 @@ window.onerror = function (msg, src, line, col, err) {
             from.setMonth(from.getMonth() - 6);
             var to = new Date();
             fetch('/api/chart/eod/' + symbol + '?from=' + from.toISOString().slice(0, 10) + '&to=' + to.toISOString().slice(0, 10))
-                .then(function (r) { return r.json(); })
+                .then(function (r) { return r.ok ? r.json() : null; })
                 .then(function (data) {
-                    if (!data || data.length < 2) return;
+                    if (!Array.isArray(data) || data.length < 2) return;
                     var first = data[0].close;
                     var last = data[data.length - 1].close;
                     var color = last >= first ? '#00cc66' : '#ff4444';

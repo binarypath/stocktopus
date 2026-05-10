@@ -162,6 +162,39 @@ func (s *Store) migrate() error {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_people_symbol ON key_people(symbol);
+
+		CREATE TABLE IF NOT EXISTS users (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			handle TEXT NOT NULL UNIQUE,
+			display_name TEXT NOT NULL DEFAULT '',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+
+		-- Single global user for now — every sketch belongs to this row.
+		-- Refactored to per-user later by adding more rows + auth.
+		INSERT OR IGNORE INTO users (id, handle, display_name) VALUES (1, 'global', 'Global');
+
+		CREATE TABLE IF NOT EXISTS sketches (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			owner_id INTEGER NOT NULL DEFAULT 1,
+			name TEXT NOT NULL DEFAULT '',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (owner_id) REFERENCES users(id)
+		);
+		CREATE INDEX IF NOT EXISTS idx_sketches_owner ON sketches(owner_id);
+
+		CREATE TABLE IF NOT EXISTS sketch_metrics (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			sketch_id INTEGER NOT NULL,
+			kind TEXT NOT NULL,        -- 'price' | 'financial' | 'commodity' | 'forex' | 'crypto' | 'index'
+			identifier TEXT NOT NULL,  -- 'AAPL' | 'AAPL.revenue' | 'GCUSD' | 'EURUSD' | 'BTCUSD' | 'SPX'
+			label TEXT NOT NULL DEFAULT '',
+			color TEXT NOT NULL DEFAULT '',
+			position INTEGER NOT NULL DEFAULT 0,
+			FOREIGN KEY (sketch_id) REFERENCES sketches(id) ON DELETE CASCADE
+		);
+		CREATE INDEX IF NOT EXISTS idx_sketch_metrics_sketch ON sketch_metrics(sketch_id);
 	`)
 	if err != nil {
 		return err
@@ -189,6 +222,10 @@ func (s *Store) migrate() error {
 		return err
 	}
 	if _, err := s.db.Exec(`ALTER TABLE key_people ADD COLUMN form_type TEXT DEFAULT ''`); err != nil &&
+		!strings.Contains(err.Error(), "duplicate column") {
+		return err
+	}
+	if _, err := s.db.Exec(`ALTER TABLE sketches ADD COLUMN notes TEXT NOT NULL DEFAULT ''`); err != nil &&
 		!strings.Contains(err.Error(), "duplicate column") {
 		return err
 	}
@@ -810,4 +847,124 @@ func (s *Store) GetKeyPeople(symbol string) ([]KeyPerson, error) {
 		people = append(people, p)
 	}
 	return people, nil
+}
+
+// ── Ideas Sketchpad ──────────────────────────────────────────────────────────
+
+// SketchMetric is one series in a sketch — a metric to plot alongside others.
+type SketchMetric struct {
+	ID         int64  `json:"id"`
+	SketchID   int64  `json:"sketchId"`
+	Kind       string `json:"kind"`       // 'price' | 'financial' | 'commodity' | 'forex' | 'crypto' | 'index'
+	Identifier string `json:"identifier"` // 'AAPL' | 'AAPL.revenue' | 'GCUSD' | 'EURUSD' | 'BTCUSD' | 'SPX'
+	Label      string `json:"label"`
+	Color      string `json:"color"`
+	Position   int    `json:"position"`
+}
+
+// Sketch is a saved comparison chart — a named bag of metrics owned by a user.
+type Sketch struct {
+	ID        int64          `json:"id"`
+	OwnerID   int64          `json:"ownerId"`
+	Name      string         `json:"name"`
+	Notes     string         `json:"notes"`
+	CreatedAt time.Time      `json:"createdAt"`
+	UpdatedAt time.Time      `json:"updatedAt"`
+	Metrics   []SketchMetric `json:"metrics"`
+}
+
+// CreateSketch inserts a new sketch (typically empty) and returns its id.
+func (s *Store) CreateSketch(ownerID int64, name string) (int64, error) {
+	if ownerID == 0 {
+		ownerID = 1
+	}
+	res, err := s.db.Exec(`INSERT INTO sketches (owner_id, name) VALUES (?, ?)`, ownerID, name)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+// RenameSketch updates an existing sketch's name and bumps updated_at.
+func (s *Store) RenameSketch(id int64, name string) error {
+	_, err := s.db.Exec(`UPDATE sketches SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, name, id)
+	return err
+}
+
+// UpdateSketchNotes saves the free-text notes panel for a sketch.
+func (s *Store) UpdateSketchNotes(id int64, notes string) error {
+	_, err := s.db.Exec(`UPDATE sketches SET notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, notes, id)
+	return err
+}
+
+// DeleteSketch removes a sketch and (cascade) its metrics.
+func (s *Store) DeleteSketch(id int64) error {
+	_, err := s.db.Exec(`DELETE FROM sketches WHERE id = ?`, id)
+	return err
+}
+
+// ListSketches returns all sketches for an owner, newest first.
+func (s *Store) ListSketches(ownerID int64) ([]Sketch, error) {
+	if ownerID == 0 {
+		ownerID = 1
+	}
+	rows, err := s.db.Query(`SELECT id, owner_id, name, COALESCE(notes, ''), created_at, updated_at FROM sketches WHERE owner_id = ? ORDER BY updated_at DESC`, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Sketch
+	for rows.Next() {
+		var sk Sketch
+		if err := rows.Scan(&sk.ID, &sk.OwnerID, &sk.Name, &sk.Notes, &sk.CreatedAt, &sk.UpdatedAt); err != nil {
+			continue
+		}
+		out = append(out, sk)
+	}
+	return out, nil
+}
+
+// GetSketch returns a single sketch with its metrics in position order.
+func (s *Store) GetSketch(id int64) (*Sketch, error) {
+	row := s.db.QueryRow(`SELECT id, owner_id, name, COALESCE(notes, ''), created_at, updated_at FROM sketches WHERE id = ?`, id)
+	var sk Sketch
+	if err := row.Scan(&sk.ID, &sk.OwnerID, &sk.Name, &sk.Notes, &sk.CreatedAt, &sk.UpdatedAt); err != nil {
+		return nil, err
+	}
+	mrows, err := s.db.Query(`SELECT id, sketch_id, kind, identifier, label, color, position FROM sketch_metrics WHERE sketch_id = ? ORDER BY position ASC, id ASC`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer mrows.Close()
+	for mrows.Next() {
+		var m SketchMetric
+		if err := mrows.Scan(&m.ID, &m.SketchID, &m.Kind, &m.Identifier, &m.Label, &m.Color, &m.Position); err == nil {
+			sk.Metrics = append(sk.Metrics, m)
+		}
+	}
+	return &sk, nil
+}
+
+// AddSketchMetric appends a metric to a sketch. Position defaults to current count.
+func (s *Store) AddSketchMetric(m SketchMetric) (int64, error) {
+	if m.Position == 0 {
+		var n int
+		_ = s.db.QueryRow(`SELECT COUNT(*) FROM sketch_metrics WHERE sketch_id = ?`, m.SketchID).Scan(&n)
+		m.Position = n
+	}
+	res, err := s.db.Exec(
+		`INSERT INTO sketch_metrics (sketch_id, kind, identifier, label, color, position) VALUES (?, ?, ?, ?, ?, ?)`,
+		m.SketchID, m.Kind, m.Identifier, m.Label, m.Color, m.Position,
+	)
+	if err != nil {
+		return 0, err
+	}
+	_, _ = s.db.Exec(`UPDATE sketches SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`, m.SketchID)
+	return res.LastInsertId()
+}
+
+// RemoveSketchMetric drops a metric row by id.
+func (s *Store) RemoveSketchMetric(id int64) error {
+	_, err := s.db.Exec(`DELETE FROM sketch_metrics WHERE id = ?`, id)
+	return err
 }

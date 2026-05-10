@@ -113,7 +113,7 @@ func (s *Server) loadTemplates() error {
 	layoutPath := filepath.Join(templatesDir(), "layout.html")
 	s.pages = make(map[string]*template.Template)
 
-	pageNames := []string{"watchlist", "stock", "security", "screener", "feed", "debug", "news", "indices"}
+	pageNames := []string{"watchlist", "stock", "security", "screener", "feed", "debug", "news", "indices", "ideas"}
 	for _, page := range pageNames {
 		pagePath := filepath.Join(templatesDir(), page+".html")
 		t, err := template.ParseFiles(layoutPath, pagePath)
@@ -172,6 +172,17 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/security/{symbol}/trading/result", s.handleTradingResult)
 	mux.HandleFunc("GET /api/trading/cost", s.handleTradingCost)
 
+	// Ideas / sketchpad
+	mux.HandleFunc("GET /api/sketches", s.handleListSketches)
+	mux.HandleFunc("POST /api/sketches", s.handleCreateSketch)
+	mux.HandleFunc("GET /api/sketches/{id}", s.handleGetSketch)
+	mux.HandleFunc("PATCH /api/sketches/{id}", s.handleRenameSketch)
+	mux.HandleFunc("PUT /api/sketches/{id}/notes", s.handleSketchNotes)
+	mux.HandleFunc("DELETE /api/sketches/{id}", s.handleDeleteSketch)
+	mux.HandleFunc("POST /api/sketches/{id}/metrics", s.handleAddSketchMetric)
+	mux.HandleFunc("DELETE /api/sketches/{id}/metrics/{metricId}", s.handleRemoveSketchMetric)
+	mux.HandleFunc("GET /api/historical/{kind}/{symbol}", s.handleHistorical)
+
 	// WebSocket
 	mux.HandleFunc("GET /ws", s.handleWebSocket)
 	mux.HandleFunc("GET /ws/debug", s.handleDebugWS)
@@ -186,6 +197,8 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /feed", s.handleFeed)
 	mux.HandleFunc("GET /news", s.handleNews)
 	mux.HandleFunc("GET /indices", s.handleIndicesPage)
+	mux.HandleFunc("GET /ideas", s.handleIdeas)
+	mux.HandleFunc("GET /ideas/{id}", s.handleIdeas)
 	mux.HandleFunc("GET /debug", s.handleDebug)
 }
 

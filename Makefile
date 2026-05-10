@@ -7,6 +7,7 @@ lint-js:
 	@node --check internal/server/static/terminal.js 2>&1 && echo "terminal.js OK" || (echo "terminal.js has syntax errors" && exit 1)
 	@node --check internal/server/static/info.js 2>&1 && echo "info.js OK" || (echo "info.js has syntax errors" && exit 1)
 	@node --check internal/server/static/chart.js 2>&1 && echo "chart.js OK" || (echo "chart.js has syntax errors" && exit 1)
+	@node --check internal/server/static/ideas.js 2>&1 && echo "ideas.js OK" || (echo "ideas.js has syntax errors" && exit 1)
 
 build: lint-js
 	CGO_ENABLED=1 go build -o bin/stocktopus ./cmd/stocktopus
