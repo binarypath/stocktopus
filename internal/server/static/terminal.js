@@ -1299,11 +1299,12 @@ window.onerror = function (msg, src, line, col, err) {
         return { kind: 'price', identifier: s, label: s };
     }
 
-    // Add a parsed metric to a sketch by id. Picks a colour by current count
-    // so the destination sketch's series stay visually distinct.
-    function postMetricToSketch(sketchID, parsed, count) {
-        var color = SERIES_COLORS_FALLBACK[(count || 0) % SERIES_COLORS_FALLBACK.length];
-        var body = { kind: parsed.kind, identifier: parsed.identifier, label: parsed.label || parsed.identifier, color: color };
+    // Add a parsed metric to a sketch by id. Colour is left empty so the
+    // server can pick an unused one — the foreign-page path doesn't know the
+    // sketch's current metric list, so client-side rotation would always
+    // hand out the first palette colour.
+    function postMetricToSketch(sketchID, parsed) {
+        var body = { kind: parsed.kind, identifier: parsed.identifier, label: parsed.label || parsed.identifier };
         return fetch('/api/sketches/' + sketchID + '/metrics', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1321,7 +1322,7 @@ window.onerror = function (msg, src, line, col, err) {
             var match = sketchesData.find(function (sk) { return sk.name.toLowerCase() === lower; });
             if (!match) match = sketchesData.find(function (sk) { return sk.name.toLowerCase().indexOf(lower) === 0; });
             if (match) {
-                postMetricToSketch(match.id, parsed, (match.metrics || []).length)
+                postMetricToSketch(match.id, parsed)
                     .then(function () { flashError('Added ' + parsed.label + ' to ' + match.name); });
                 return;
             }
@@ -1331,7 +1332,7 @@ window.onerror = function (msg, src, line, col, err) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: sketchName }),
             }).then(function (r) { return r.json(); })
-            .then(function (resp) { return postMetricToSketch(resp.id, parsed, 0); })
+            .then(function (resp) { return postMetricToSketch(resp.id, parsed); })
             .then(function () {
                 flashError('Idea "' + sketchName + '" created — added ' + parsed.label);
                 // Refresh the local cache so subsequent :add tos see it

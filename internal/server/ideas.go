@@ -133,6 +133,25 @@ func (s *Server) handleDeleteSketch(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// seriesPalette mirrors the JS SERIES_COLORS rotation. Used to pick a colour
+// for a new metric that isn't already in the sketch — keeps lines visually
+// distinct without making the client do the bookkeeping.
+var seriesPalette = []string{"#ff8800", "#4499ff", "#00cc66", "#bb88ff", "#ccaa00"}
+
+func pickUnusedColor(existing []store.SketchMetric) string {
+	used := make(map[string]bool, len(existing))
+	for _, m := range existing {
+		used[strings.ToLower(m.Color)] = true
+	}
+	for _, c := range seriesPalette {
+		if !used[strings.ToLower(c)] {
+			return c
+		}
+	}
+	// All five used — wrap around by count
+	return seriesPalette[len(existing)%len(seriesPalette)]
+}
+
 func (s *Server) handleAddSketchMetric(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -146,6 +165,16 @@ func (s *Server) handleAddSketchMetric(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m.SketchID = id
+	if strings.TrimSpace(m.Color) == "" {
+		// Server-side colour assignment so foreign-page :add paths (which
+		// don't know the sketch's current metric list) still produce
+		// distinct lines on the chart.
+		if existing, gerr := s.store.GetSketch(id); gerr == nil && existing != nil {
+			m.Color = pickUnusedColor(existing.Metrics)
+		} else {
+			m.Color = seriesPalette[0]
+		}
+	}
 	if m.Kind == "" || m.Identifier == "" {
 		http.Error(w, "kind and identifier required", http.StatusBadRequest)
 		return
