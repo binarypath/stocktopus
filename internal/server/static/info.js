@@ -497,7 +497,7 @@
         if (!window.LightweightCharts || !host) return;
 
         finChart = LightweightCharts.createChart(host, {
-            layout: { background: { color: '#0a0a0a' }, textColor: '#888888', fontFamily: "'SF Mono','Consolas',monospace", fontSize: 10 },
+            layout: { background: { color: '#0a0a0a' }, textColor: '#888888', fontFamily: "'SF Mono','Consolas',monospace", fontSize: 10, attributionLogo: false },
             grid: { vertLines: { color: '#1a1a1a' }, horzLines: { color: '#1a1a1a' } },
             rightPriceScale: { borderColor: '#2a2a2a' },
             timeScale: { borderColor: '#2a2a2a', timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
@@ -900,7 +900,7 @@
                         var color = last >= first ? '#00cc66' : '#ff4444';
                         var chart = LightweightCharts.createChart(el, {
                             width: 80, height: 24,
-                            layout: { background: { color: 'transparent' }, textColor: 'transparent' },
+                            layout: { background: { color: 'transparent' }, textColor: 'transparent', attributionLogo: false },
                             grid: { vertLines: { visible: false }, horzLines: { visible: false } },
                             rightPriceScale: { visible: false }, timeScale: { visible: false },
                             handleScroll: false, handleScale: false,
@@ -934,7 +934,7 @@
 
         sectorPerfChart = LightweightCharts.createChart(chartEl, {
             width: chartEl.clientWidth, height: 200,
-            layout: { background: { color: '#0a0a0a' }, textColor: '#888', fontFamily: "'SF Mono',monospace", fontSize: 10 },
+            layout: { background: { color: '#0a0a0a' }, textColor: '#888', fontFamily: "'SF Mono',monospace", fontSize: 10, attributionLogo: false },
             grid: { vertLines: { color: '#1a1a1a' }, horzLines: { color: '#1a1a1a' } },
             rightPriceScale: { borderColor: '#2a2a2a' },
             timeScale: { borderColor: '#2a2a2a', timeVisible: false },

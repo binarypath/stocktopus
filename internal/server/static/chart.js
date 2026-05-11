@@ -63,7 +63,7 @@
         return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate();
     }
     var chart = LightweightCharts.createChart(container, {
-        layout: { background: { color: '#0a0a0a' }, textColor: '#888888', fontFamily: "'SF Mono','Consolas',monospace", fontSize: 11 },
+        layout: { background: { color: '#0a0a0a' }, textColor: '#888888', fontFamily: "'SF Mono','Consolas',monospace", fontSize: 11, attributionLogo: false },
         grid: { vertLines: { color: '#1a1a1a' }, horzLines: { color: '#1a1a1a' } },
         crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { color: '#555', style: 2 }, horzLine: { color: '#555', style: 2 } },
         rightPriceScale: { borderColor: '#2a2a2a', scaleMargins: { top: 0.05, bottom: 0.25 } },

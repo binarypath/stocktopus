@@ -2963,3 +2963,271 @@ a, [tabindex] {
     box-shadow: 0 0 0 1px var(--orange);
     background: var(--bg-tertiary);
 }
+
+/* ── /economics — calendar + catalog ── */
+
+.economics-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.economics-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.economics-tabs {
+    display: flex;
+    gap: 4px;
+}
+
+.economics-tab {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    padding: 4px 12px;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.economics-tab:hover { color: var(--text-primary); }
+
+.economics-tab.active {
+    color: var(--orange);
+    border-color: var(--orange);
+}
+
+.economics-hint {
+    color: var(--text-muted);
+    font-size: 11px;
+    margin-left: auto;
+}
+
+.economics-panel {
+    flex: 1;
+    overflow: auto;
+    padding: 8px 12px;
+}
+
+.economics-panel.hidden { display: none; }
+
+.economics-filter-bar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 0;
+    position: sticky;
+    top: 0;
+    background: var(--bg-primary);
+    z-index: 2;
+}
+
+.economics-filter {
+    flex: 1;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    padding: 4px 8px;
+    font-family: inherit;
+    font-size: 12px;
+}
+
+.economics-filter:focus { outline: none; border-color: var(--blue); }
+
+.economics-filter-badges { display: flex; gap: 4px; }
+
+.economics-badge {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.economics-badge.active {
+    color: var(--orange);
+    border-color: var(--orange);
+}
+
+.economics-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.economics-table th {
+    text-align: left;
+    color: var(--text-secondary);
+    font-weight: normal;
+    border-bottom: 1px solid var(--border);
+    padding: 6px 8px;
+    position: sticky;
+    top: 36px;            /* sits below the filter bar */
+    background: var(--bg-primary);
+    z-index: 1;
+}
+
+.economics-table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--bg-tertiary);
+}
+
+.economics-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.economics-table th.num { text-align: right; }
+
+.economics-row { cursor: pointer; }
+.economics-row:hover { background: var(--bg-tertiary); }
+.economics-row.vim-selected {
+    background: var(--bg-tertiary);
+    box-shadow: inset 2px 0 0 var(--blue);
+}
+
+.economics-cat-row td {
+    color: var(--orange);
+    background: var(--bg-secondary);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 4px 8px;
+}
+
+.economics-code { color: var(--blue); font-weight: 500; }
+.economics-date { color: var(--text-secondary); }
+.economics-country { color: var(--yellow); }
+
+.economics-impact { font-size: 11px; }
+.economics-impact.impact-high   { color: var(--red); }
+.economics-impact.impact-medium { color: var(--orange); }
+.economics-impact.impact-low    { color: var(--text-muted); }
+
+.economics-table td.pos { color: var(--green); }
+.economics-table td.neg { color: var(--red); }
+
+/* Catalog drill-down */
+.economics-cb-list.hidden,
+.economics-cb-detail.hidden { display: none; }
+
+.economics-cb-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 0 8px;
+    border-bottom: 1px solid var(--bg-tertiary);
+    margin-bottom: 4px;
+}
+
+.economics-back {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.economics-back:hover {
+    color: var(--orange);
+    border-color: var(--orange);
+}
+
+.economics-cb-title {
+    color: var(--orange);
+    font-size: 12px;
+}
+
+/* CB tile grid — drill-down level 1 */
+.economics-cb-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+    padding: 12px 0;
+}
+
+.economics-cb-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    padding: 12px 14px;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.economics-cb-tile:hover,
+.economics-cb-tile.vim-selected {
+    border-color: var(--blue);
+    background: var(--bg-tertiary);
+}
+
+.cb-tile-country {
+    color: var(--yellow);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.cb-tile-name {
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.cb-tile-count {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+/* Preview slide-in meta strip below the chart inside #article-reader */
+.eco-chart-meta {
+    display: flex;
+    gap: 16px;
+    padding: 6px 0 4px;
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+/* Full-size economic graph page (/graph/US.UNRATE etc.) */
+.eco-graph-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.eco-graph-subtitle {
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: normal;
+    margin-left: 8px;
+}
+
+.eco-graph-range {
+    display: flex;
+    gap: 4px;
+}
+
+.eco-graph-meta {
+    display: flex;
+    gap: 12px;
+    margin-left: auto;
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.eco-graph-host {
+    height: calc(100vh - 140px);
+    width: 100%;
+}

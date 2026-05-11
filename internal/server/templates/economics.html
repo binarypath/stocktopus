@@ -1,0 +1,69 @@
+{{template "layout" .}}
+{{define "content"}}
+<div class="economics-layout" data-view="economics">
+    <header class="page-header economics-header">
+        <h2 class="view-title">Economics</h2>
+        <nav class="economics-tabs" id="economics-tabs">
+            <button class="economics-tab active" data-tab="calendar">1 Calendar</button>
+            <button class="economics-tab" data-tab="catalog">2 Catalog</button>
+        </nav>
+        <span class="economics-hint" id="economics-hint">
+            <kbd>h</kbd>/<kbd>l</kbd> tabs · <kbd>j</kbd>/<kbd>k</kbd> rows · <kbd>/</kbd> filter
+        </span>
+    </header>
+
+    <section class="economics-panel" id="economics-calendar-panel">
+        <div class="economics-filter-bar">
+            <input id="economics-calendar-filter" class="economics-filter" type="text"
+                   placeholder=":high :us cpi   ← directives (:high :medium :low :all, :US :UK :EU …) + free text"
+                   spellcheck="false" autocomplete="off">
+            <div class="economics-filter-badges" id="economics-impact-badges">
+                <button class="economics-badge active" data-impact="all">All</button>
+                <button class="economics-badge" data-impact="High">High</button>
+                <button class="economics-badge" data-impact="Medium">Medium</button>
+                <button class="economics-badge" data-impact="Low">Low</button>
+            </div>
+        </div>
+        <table class="economics-table economics-calendar-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Country</th>
+                    <th>Event</th>
+                    <th>Impact</th>
+                    <th class="num">Prior</th>
+                    <th class="num">Survey</th>
+                    <th class="num">Actual</th>
+                    <th class="num">Surprise</th>
+                </tr>
+            </thead>
+            <tbody id="economics-calendar-body">
+                <tr><td colspan="8" class="empty-state">Loading calendar…</td></tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section class="economics-panel hidden" id="economics-catalog-panel">
+        <!-- Level 1: central bank list. The future-proofing scaffold — v1 has one row. -->
+        <div class="economics-cb-list" id="economics-cb-list">
+            <p class="empty-state">Loading central banks…</p>
+        </div>
+
+        <!-- Level 2: indicator list for the selected central bank. -->
+        <div class="economics-cb-detail hidden" id="economics-cb-detail">
+            <div class="economics-cb-breadcrumb">
+                <button class="economics-back" id="economics-cb-back">← Central Banks</button>
+                <span class="economics-cb-title" id="economics-cb-title"></span>
+            </div>
+            <div class="economics-filter-bar">
+                <input id="economics-catalog-filter" class="economics-filter" type="text"
+                       placeholder="filter: code name category…" spellcheck="false" autocomplete="off">
+            </div>
+            <div class="economics-catalog-host" id="economics-catalog-host">
+                <p class="empty-state">Loading catalog…</p>
+            </div>
+        </div>
+    </section>
+</div>
+<script src="/static/economics.js?v={{.AssetVersion}}"></script>
+{{end}}

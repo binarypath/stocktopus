@@ -22,6 +22,7 @@ import (
 
 	"stocktopus/internal/agent"
 	"stocktopus/internal/agent/trading"
+	"stocktopus/internal/fred"
 	"stocktopus/internal/hub"
 	"stocktopus/internal/news"
 	"stocktopus/internal/store"
@@ -58,13 +59,14 @@ type Server struct {
 	debug        *DebugBroadcaster
 	symbols      SymbolLister
 	news         *news.Client
+	fred         *fred.Client
 	pipeline     *agent.Pipeline
 	trading      *trading.TradingPipeline
 	store        *store.Store
 	assetVersion string
 }
 
-func New(cfg Config, h *hub.Hub, debug *DebugBroadcaster, symbols SymbolLister, newsClient *news.Client, pipeline *agent.Pipeline, tp *trading.TradingPipeline, st *store.Store, logger *slog.Logger) (*Server, error) {
+func New(cfg Config, h *hub.Hub, debug *DebugBroadcaster, symbols SymbolLister, newsClient *news.Client, fredClient *fred.Client, pipeline *agent.Pipeline, tp *trading.TradingPipeline, st *store.Store, logger *slog.Logger) (*Server, error) {
 	s := &Server{
 		config:       cfg,
 		logger:       logger,
@@ -75,6 +77,7 @@ func New(cfg Config, h *hub.Hub, debug *DebugBroadcaster, symbols SymbolLister, 
 		trading:      tp,
 		store:        st,
 		news:         newsClient,
+		fred:         fredClient,
 		assetVersion: newAssetVersion(),
 	}
 
@@ -113,7 +116,7 @@ func (s *Server) loadTemplates() error {
 	layoutPath := filepath.Join(templatesDir(), "layout.html")
 	s.pages = make(map[string]*template.Template)
 
-	pageNames := []string{"watchlist", "stock", "security", "screener", "feed", "debug", "news", "indices", "ideas"}
+	pageNames := []string{"watchlist", "stock", "security", "screener", "feed", "debug", "news", "indices", "ideas", "economics", "economic-graph", "financial-graph"}
 	for _, page := range pageNames {
 		pagePath := filepath.Join(templatesDir(), page+".html")
 		t, err := template.ParseFiles(layoutPath, pagePath)
@@ -183,6 +186,12 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/sketches/{id}/metrics/{metricId}", s.handleRemoveSketchMetric)
 	mux.HandleFunc("GET /api/historical/{kind}/{symbol}", s.handleHistorical)
 
+	// Economics
+	mux.HandleFunc("GET /api/economics/catalog", s.handleEconomicsCatalog)
+	mux.HandleFunc("GET /api/economics/central-banks", s.handleEconomicsCentralBanks)
+	mux.HandleFunc("GET /api/economics/series/{identifier}", s.handleEconomicsSeries)
+	mux.HandleFunc("GET /api/economics/calendar", s.handleEconomicsCalendar)
+
 	// WebSocket
 	mux.HandleFunc("GET /ws", s.handleWebSocket)
 	mux.HandleFunc("GET /ws/debug", s.handleDebugWS)
@@ -199,6 +208,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /indices", s.handleIndicesPage)
 	mux.HandleFunc("GET /ideas", s.handleIdeas)
 	mux.HandleFunc("GET /ideas/{id}", s.handleIdeas)
+	mux.HandleFunc("GET /economics", s.handleEconomics)
 	mux.HandleFunc("GET /debug", s.handleDebug)
 }
 
@@ -223,6 +233,36 @@ func (s *Server) handleWatchlist(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleStock(w http.ResponseWriter, r *http.Request) {
 	symbol := r.PathValue("symbol")
+	// Disambiguate by suffix:
+	//   US.UNRATE       → catalog hit → economic graph
+	//   AAPL.revenue    → lowercase camelCase suffix → financial-field graph
+	//   BRK.A / GOOG.L  → uppercase ticker share class → stock graph
+	if entry := fred.LookupCatalog(strings.ToUpper(symbol)); entry != nil {
+		s.renderPage(w, r, "economic-graph.html", map[string]any{
+			"Title":     entry.Name,
+			"Active":    "graph",
+			"Symbol":    entry.Identifier(),
+			"Name":      entry.Name,
+			"Units":     entry.Units,
+			"Frequency": entry.Frequency,
+		})
+		return
+	}
+	if dot := strings.LastIndex(symbol, "."); dot > 0 && dot < len(symbol)-1 {
+		first := symbol[dot+1]
+		if first >= 'a' && first <= 'z' {
+			sym := strings.ToUpper(symbol[:dot])
+			field := symbol[dot+1:] // preserve camelCase
+			s.renderPage(w, r, "financial-graph.html", map[string]any{
+				"Title":  sym + " " + field,
+				"Active": "graph",
+				"Symbol": sym + "." + field,
+				"Ticker": sym,
+				"Field":  field,
+			})
+			return
+		}
+	}
 	s.renderPage(w, r, "stock.html", map[string]any{
 		"Title":  symbol,
 		"Active": "graph",

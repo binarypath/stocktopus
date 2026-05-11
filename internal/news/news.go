@@ -352,6 +352,20 @@ func (c *Client) GetSECFilings(ctx context.Context, symbol, from, to string) (js
 	return c.fetchJSON(ctx, "/stable/sec-filings-search/symbol", params)
 }
 
+// GetEconomicCalendar fetches economic release events between two dates.
+// Each row carries date (YYYY-MM-DD HH:MM:SS UTC), country (ISO-2), event,
+// previous/estimate/actual, impact (Low/Medium/High), and unit.
+func (c *Client) GetEconomicCalendar(ctx context.Context, from, to string) (json.RawMessage, error) {
+	params := url.Values{}
+	if from != "" {
+		params.Set("from", from)
+	}
+	if to != "" {
+		params.Set("to", to)
+	}
+	return c.fetchJSON(ctx, "/stable/economic-calendar", params)
+}
+
 // GetIntradayChart fetches intraday OHLCV data for a symbol.
 // interval: "1min", "5min", "15min", "30min", "1hour", "4hour"
 func (c *Client) GetIntradayChart(ctx context.Context, symbol, interval, from, to string) ([]model.OHLCV, error) {

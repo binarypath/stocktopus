@@ -187,14 +187,25 @@ func (s *Store) migrate() error {
 		CREATE TABLE IF NOT EXISTS sketch_metrics (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			sketch_id INTEGER NOT NULL,
-			kind TEXT NOT NULL,        -- 'price' | 'financial' | 'commodity' | 'forex' | 'crypto' | 'index'
-			identifier TEXT NOT NULL,  -- 'AAPL' | 'AAPL.revenue' | 'GCUSD' | 'EURUSD' | 'BTCUSD' | 'SPX'
+			kind TEXT NOT NULL,        -- 'price' | 'financial' | 'commodity' | 'forex' | 'crypto' | 'index' | 'economic'
+			identifier TEXT NOT NULL,  -- 'AAPL' | 'AAPL.revenue' | 'GCUSD' | 'EURUSD' | 'BTCUSD' | 'SPX' | 'UNRATE'
 			label TEXT NOT NULL DEFAULT '',
 			color TEXT NOT NULL DEFAULT '',
 			position INTEGER NOT NULL DEFAULT 0,
 			FOREIGN KEY (sketch_id) REFERENCES sketches(id) ON DELETE CASCADE
 		);
 		CREATE INDEX IF NOT EXISTS idx_sketch_metrics_sketch ON sketch_metrics(sketch_id);
+
+		CREATE TABLE IF NOT EXISTS economic_series (
+			code TEXT PRIMARY KEY,        -- FRED series ID (e.g. UNRATE)
+			title TEXT NOT NULL DEFAULT '',
+			category TEXT NOT NULL DEFAULT '',
+			frequency TEXT NOT NULL DEFAULT '', -- D / W / M / Q / A — from FRED
+			units TEXT NOT NULL DEFAULT '',
+			observations TEXT NOT NULL DEFAULT '[]', -- JSON [{date, value}, ...] in ascending date order
+			source_updated_at TEXT NOT NULL DEFAULT '', -- FRED's last_updated (string, parse on display)
+			fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
 	`)
 	if err != nil {
 		return err
@@ -967,4 +978,83 @@ func (s *Store) AddSketchMetric(m SketchMetric) (int64, error) {
 func (s *Store) RemoveSketchMetric(id int64) error {
 	_, err := s.db.Exec(`DELETE FROM sketch_metrics WHERE id = ?`, id)
 	return err
+}
+
+// EconomicObservation is one (date, value) point on an economic series.
+// Mirrors fred.Observation so the store package stays independent of the
+// FRED client.
+type EconomicObservation struct {
+	Date  string  `json:"date"`
+	Value float64 `json:"value"`
+}
+
+// EconomicSeries is the persisted row for one indicator.
+type EconomicSeries struct {
+	Code            string                `json:"code"`
+	Title           string                `json:"title"`
+	Category        string                `json:"category"`
+	Frequency       string                `json:"frequency"`
+	Units           string                `json:"units"`
+	Observations    []EconomicObservation `json:"observations"`
+	SourceUpdatedAt string                `json:"sourceUpdatedAt"`
+	FetchedAt       time.Time             `json:"fetchedAt"`
+}
+
+// PutEconomicSeries upserts a series row. Observations are stored as JSON in
+// ascending date order so the chart layer can stream straight through.
+func (s *Store) PutEconomicSeries(es *EconomicSeries) error {
+	obs, err := json.Marshal(es.Observations)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.Exec(`
+		INSERT INTO economic_series
+			(code, title, category, frequency, units, observations, source_updated_at, fetched_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+		ON CONFLICT(code) DO UPDATE SET
+			title             = excluded.title,
+			category          = excluded.category,
+			frequency         = excluded.frequency,
+			units             = excluded.units,
+			observations      = excluded.observations,
+			source_updated_at = excluded.source_updated_at,
+			fetched_at        = CURRENT_TIMESTAMP
+	`, es.Code, es.Title, es.Category, es.Frequency, es.Units, string(obs), es.SourceUpdatedAt)
+	return err
+}
+
+// GetEconomicSeries returns a series by code, or nil if not cached.
+func (s *Store) GetEconomicSeries(code string) (*EconomicSeries, error) {
+	row := s.db.QueryRow(`
+		SELECT code, title, category, frequency, units, observations, source_updated_at, fetched_at
+		FROM economic_series WHERE code = ?
+	`, code)
+	var es EconomicSeries
+	var obsJSON, fetchedAt string
+	err := row.Scan(&es.Code, &es.Title, &es.Category, &es.Frequency, &es.Units, &obsJSON, &es.SourceUpdatedAt, &fetchedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal([]byte(obsJSON), &es.Observations); err != nil {
+		return nil, err
+	}
+	es.FetchedAt, _ = time.Parse("2006-01-02 15:04:05Z", fetchedAt+"Z")
+	return &es, nil
+}
+
+// IsEconomicFresh returns true if the cached series is younger than ttl.
+func (s *Store) IsEconomicFresh(code string, ttl time.Duration) bool {
+	var fetchedAt string
+	err := s.db.QueryRow(`SELECT fetched_at FROM economic_series WHERE code = ?`, code).Scan(&fetchedAt)
+	if err != nil {
+		return false
+	}
+	t, err := time.Parse("2006-01-02 15:04:05Z", fetchedAt+"Z")
+	if err != nil {
+		return false
+	}
+	return time.Since(t) < ttl
 }
