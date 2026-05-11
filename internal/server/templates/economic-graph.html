@@ -1,0 +1,18 @@
+{{template "layout" .}}
+{{define "content"}}
+<div class="page-header eco-graph-header">
+    <h2 class="view-title">{{.Symbol}} <span class="eco-graph-subtitle">{{.Name}}</span></h2>
+    <div class="eco-graph-range" id="eco-graph-range">
+        <button class="chart-range-btn" data-range="1Y">1Y</button>
+        <button class="chart-range-btn" data-range="5Y" data-default>5Y</button>
+        <button class="chart-range-btn" data-range="10Y">10Y</button>
+        <button class="chart-range-btn" data-range="MAX">MAX</button>
+    </div>
+    <span class="eco-graph-meta">
+        <span>units: {{.Units}}</span>
+        <span>freq: {{.Frequency}}</span>
+    </span>
+</div>
+<div id="eco-graph-host" class="eco-graph-host" data-identifier="{{.Symbol}}"></div>
+<script src="/static/economic-graph.js?v={{.AssetVersion}}"></script>
+{{end}}

@@ -13,6 +13,7 @@ import (
 
 	"stocktopus/internal/agent"
 	"stocktopus/internal/agent/trading"
+	"stocktopus/internal/fred"
 	"stocktopus/internal/hub"
 	"stocktopus/internal/news"
 	"stocktopus/internal/newspoller"
@@ -192,6 +193,12 @@ func main() {
 		go sp.Run(appCtx)
 	}
 
+	// FRED client + prefetcher. Disabled (gracefully) if FRED_API_KEY is unset.
+	fredClient := fred.New(os.Getenv("FRED_API_KEY"))
+	if st != nil {
+		go fred.NewPrefetcher(fredClient, st, logger, 30*time.Minute).Run(appCtx)
+	}
+
 	h.SetSubscriptionHandler(composite)
 
 	// Trading analysis pipeline (multi-agent, button-triggered)
@@ -221,7 +228,7 @@ func main() {
 		slog.Info("trading pipeline ready", "model", analystModel)
 	}
 
-	srv, err := server.New(server.Config{Port: 8080, Host: "localhost"}, h, debug, poll, newsClient, pipeline, tradingPipeline, st, logger)
+	srv, err := server.New(server.Config{Port: 8080, Host: "localhost"}, h, debug, poll, newsClient, fredClient, pipeline, tradingPipeline, st, logger)
 	if err != nil {
 		slog.Error("failed to create server", "error", err)
 		os.Exit(1)

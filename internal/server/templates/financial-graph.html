@@ -1,0 +1,13 @@
+{{template "layout" .}}
+{{define "content"}}
+<div class="page-header eco-graph-header">
+    <h2 class="view-title">{{.Ticker}}<span class="eco-graph-subtitle">{{.Field}}</span></h2>
+    <span class="eco-graph-meta">
+        <span>annual</span>
+        <span>5y</span>
+    </span>
+</div>
+<div id="fin-graph-host" class="eco-graph-host" data-ticker="{{.Ticker}}" data-field="{{.Field}}"></div>
+<div class="fin-chart-points" id="fin-graph-points"></div>
+<script src="/static/financial-graph.js?v={{.AssetVersion}}"></script>
+{{end}}

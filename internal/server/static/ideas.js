@@ -239,7 +239,7 @@
         if (chart) return chart;
         if (!window.LightweightCharts || !hostEl) return null;
         chart = LightweightCharts.createChart(hostEl, {
-            layout: { background: { color: '#0a0a0a' }, textColor: '#888888', fontFamily: "'SF Mono','Consolas',monospace", fontSize: 11 },
+            layout: { background: { color: '#0a0a0a' }, textColor: '#888888', fontFamily: "'SF Mono','Consolas',monospace", fontSize: 11, attributionLogo: false },
             grid: { vertLines: { color: '#1a1a1a' }, horzLines: { color: '#1a1a1a' } },
             crosshair: { mode: LightweightCharts.CrosshairMode.Magnet, vertLine: { color: '#555', style: 2 }, horzLine: { color: '#555', style: 2 } },
             rightPriceScale: { borderColor: '#2a2a2a' },
@@ -384,6 +384,15 @@
         if (!raw) {
             if (!fallbackSymbol) return null;
             return { kind: 'price', identifier: fallbackSymbol, label: fallbackSymbol };
+        }
+        // Economic-catalog lookup runs FIRST — codes like "US.UNRATE" contain
+        // a dot and would otherwise be misread as SYMBOL.field. Bare "UNRATE"
+        // also resolves (v1 has one country). Server emits canonical "US.UNRATE".
+        var econCat = window._econCatalog || {};
+        var econHit = econCat[raw.toUpperCase()];
+        if (econHit) {
+            var ecoId = (econHit.identifier || (econHit.country + '.' + econHit.code)).toUpperCase();
+            return { kind: 'economic', identifier: ecoId, label: econHit.name || ecoId };
         }
         // Tickers can contain periods (BRK.A, BRK.B, GOOG.L), so split on the
         // *rightmost* dot — everything after is the FMP field name (camelCase,

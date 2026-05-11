@@ -148,7 +148,7 @@
                         var color = last >= first ? '#00cc66' : '#ff4444';
                         var chart = LightweightCharts.createChart(el, {
                             width: 80, height: 24,
-                            layout: { background: { color: 'transparent' }, textColor: 'transparent' },
+                            layout: { background: { color: 'transparent' }, textColor: 'transparent', attributionLogo: false },
                             grid: { vertLines: { visible: false }, horzLines: { visible: false } },
                             rightPriceScale: { visible: false }, timeScale: { visible: false },
                             handleScroll: false, handleScale: false,

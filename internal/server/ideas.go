@@ -215,6 +215,11 @@ func (s *Server) handleHistorical(w http.ResponseWriter, r *http.Request) {
 	kind := r.PathValue("kind")
 	rawSymbol := r.PathValue("symbol")
 
+	if kind == "economic" {
+		s.serveEconomicSeriesObservations(w, r, rawSymbol)
+		return
+	}
+
 	if kind == "financial" {
 		dot := strings.LastIndex(rawSymbol, ".")
 		if dot <= 0 || dot >= len(rawSymbol)-1 {

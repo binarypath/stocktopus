@@ -23,6 +23,27 @@ window.onerror = function (msg, src, line, col, err) {
     var newsCurrentTopic = '';
     var newsSeenURLs = new Set();
     var newsReadURLs = new Set();
+    // Economic catalog — keyed by full identifier ("US.UNRATE") AND by bare
+    // code ("UNRATE") for v1 ergonomics where typing `:add unrate` should
+    // still resolve. Populated by loadFredCodes on boot.
+    var econCatalog = {};
+    function loadFredCodes() {
+        fetch('/api/economics/catalog').then(function (r) { return r.json(); })
+            .then(function (rows) {
+                if (!Array.isArray(rows)) return;
+                rows.forEach(function (r) {
+                    var id = (r.identifier || (r.country + '.' + r.code)).toUpperCase();
+                    econCatalog[id] = r;
+                    // Bare-code alias — only one country in v1 so unambiguous.
+                    if (r.code) econCatalog[r.code.toUpperCase()] = r;
+                });
+                window._econCatalog = econCatalog;
+            })
+            .catch(function () { /* economics page is optional */ });
+    }
+    function lookupEcon(s) {
+        return econCatalog[String(s).toUpperCase()];
+    }
 
     // ── Commands ──
 
@@ -33,6 +54,7 @@ window.onerror = function (msg, src, line, col, err) {
         news:       { path: '/news',            needsSecurity: false, usage: 'news [SECURITY]',     desc: 'market news — optionally filter by security', optionalSecurity: true },
         ei:         { path: '/indices',          needsSecurity: false, usage: 'ei',                  desc: 'equity indices — global market overview' },
         ideas:      { path: '/ideas',           needsSecurity: false, usage: 'ideas',               desc: 'sketchpad — comparative graphs across metrics' },
+        economics:  { path: '/economics',       needsSecurity: false, usage: 'economics',           desc: 'economic calendar + indicator catalog (FRED + FMP)', aliases: ['eco', 'econ'] },
         screener:   { path: '/screener',        needsSecurity: false, usage: 'screener',            desc: 'filter and scan stocks by criteria' },
         debug:      { path: '/debug',           needsSecurity: false, usage: 'debug',               desc: 'live server log console' },
         analyze:    { path: '/security/{symbol}#ai', needsSecurity: true, usage: 'analyze <SECURITY>',  desc: 'run deep multi-agent trading analysis', aliases: ['az'] },
@@ -79,7 +101,10 @@ window.onerror = function (msg, src, line, col, err) {
         if (cmd.needsSecurity) {
             resolved = resolved.toUpperCase();
             path = path.replace('{symbol}', resolved);
-            setSecurity(resolved);
+            // skipSecurity is set when the "symbol" isn't a real ticker —
+            // e.g. an economic identifier like US.UNRATE that shouldn't end
+            // up in the security selector or WS subscriptions.
+            if (!opts.skipSecurity) setSecurity(resolved);
         }
         // Caller-supplied explicit path wins over the COMMANDS template. Used
         // by executeIdeasAdd to land on /ideas/{lastId} instead of the default.
@@ -166,6 +191,7 @@ window.onerror = function (msg, src, line, col, err) {
         if (view === 'news') initNews();
         if (view === 'graph') initGraph();
         if (view === 'debug') initDebug();
+        if (view === 'economics' && window._economicsInit) window._economicsInit();
     }
 
     function initGraph() {
@@ -1278,6 +1304,14 @@ window.onerror = function (msg, src, line, col, err) {
             if (!fallbackSymbol) return null;
             return { kind: 'price', identifier: fallbackSymbol, label: fallbackSymbol };
         }
+        // Economic-catalog lookup runs FIRST — "US.UNRATE" contains a dot and
+        // would otherwise be misread as SYMBOL.field. Bare "UNRATE" also
+        // resolves (v1 has one country). Canonical form is "US.UNRATE".
+        var econHit = lookupEcon(raw);
+        if (econHit) {
+            var ecoId = (econHit.identifier || (econHit.country + '.' + econHit.code)).toUpperCase();
+            return { kind: 'economic', identifier: ecoId, label: econHit.name || ecoId };
+        }
         var dot = raw.lastIndexOf('.');
         if (dot > 0 && dot < raw.length - 1) {
             var sym = raw.substring(0, dot).toUpperCase();
@@ -1793,6 +1827,11 @@ window.onerror = function (msg, src, line, col, err) {
                 if (window._ideasToggleHelp) window._ideasToggleHelp();
             },
         },
+        economics: {
+            move: function (dir) { if (window._economicsMove) window._economicsMove(dir); },
+            activate: function () { if (window._economicsActivate) window._economicsActivate(); },
+            focusFilter: function () { if (window._economicsFocusFilter) window._economicsFocusFilter(); },
+        },
         watchlist: {
             getItems: function () {
                 // Only visible rows (filtered by active watchlist)
@@ -2276,12 +2315,15 @@ window.onerror = function (msg, src, line, col, err) {
                 }
                 enterNormalMode();
             } else {
-                // Normal mode: close reader first, then focus command bar
+                // Normal mode: close reader first, then focus command bar.
+                // Dispatch the right close function by the reader's mode so
+                // chart instances get disposed properly (memory leak otherwise).
                 var reader = document.getElementById('article-reader');
                 if (reader && !reader.classList.contains('hidden')) {
-                    // Dispose the financials chart instance if we're closing that mode
-                    if (window._finCloseChart) window._finCloseChart();
-                    reader.classList.add('hidden');
+                    var mode = reader.dataset.mode;
+                    if (mode === 'fin-chart' && window._finCloseChart) window._finCloseChart();
+                    else if (mode === 'eco-chart' && window._economicsClosePreview) window._economicsClosePreview();
+                    else reader.classList.add('hidden');
                     return;
                 }
                 document.getElementById('cmd-input').focus();
@@ -2298,8 +2340,13 @@ window.onerror = function (msg, src, line, col, err) {
 
         switch (e.key) {
             case '/':
-                e.preventDefault();
-                document.getElementById('cmd-input').focus();
+                // Per-vim convention `/` is a *filter*, not the command bar
+                // (use `:` for that). Only views that expose a filter input
+                // claim it; other views drop the key.
+                if (handler && handler.focusFilter) {
+                    e.preventDefault();
+                    handler.focusFilter();
+                }
                 return;
             case 's':
                 e.preventDefault();
@@ -2343,6 +2390,32 @@ window.onerror = function (msg, src, line, col, err) {
                 if (handler && handler.activate) handler.activate();
                 return;
             case 'g':
+                // /economics catalog: navigate to the full graph for the
+                // selected indicator.
+                if (currentView === 'economics' && window._economicsSelectedIdentifier) {
+                    var id = window._economicsSelectedIdentifier();
+                    if (id) {
+                        e.preventDefault();
+                        navigate('graph', id, { skipSecurity: true });
+                        return;
+                    }
+                }
+                // Financials tab: navigate to /graph/SYMBOL.field for the
+                // selected row. Skip calc rows (margins) — they aren't a raw
+                // field the historical endpoint can fetch.
+                if (handler && handler.isFinTab && handler.isFinTab()) {
+                    var rows = window._finGetRows ? window._finGetRows() : [];
+                    var idx = window._finGetSelectedRow ? window._finGetSelectedRow() : -1;
+                    if (idx >= 0 && idx < rows.length && selectedSecurity) {
+                        var row = rows[idx];
+                        var key = row.dataset.finKey || '';
+                        if (row.dataset.finFormat !== 'calc' && key && key.indexOf('/') < 0) {
+                            e.preventDefault();
+                            navigate('graph', selectedSecurity + '.' + key, { skipSecurity: true });
+                            return;
+                        }
+                    }
+                }
                 e.preventDefault();
                 if (handler && handler.sectorNav) handler.sectorNav('graph');
                 else if (handler && handler.graph) handler.graph();
@@ -2387,6 +2460,10 @@ window.onerror = function (msg, src, line, col, err) {
                 }
                 return;
             case 'p':
+                // /economics catalog: open 5-year slide-in chart preview.
+                if (currentView === 'economics' && window._economicsOpenPreview) {
+                    if (window._economicsOpenPreview('5y')) { e.preventDefault(); return; }
+                }
                 // Financials chart slide-in: toggle on the selected row.
                 if (handler && handler.isFinTab && handler.isFinTab()) {
                     e.preventDefault();
@@ -2428,7 +2505,6 @@ window.onerror = function (msg, src, line, col, err) {
                     if (idx >= 0 && idx < rows.length) {
                         var row = rows[idx];
                         var key = row.dataset.finKey || '';
-                        // Skip calculated rows (margins) — they're not raw fields the sketch can fetch.
                         if (row.dataset.finFormat === 'calc' || !key || key.indexOf('/') >= 0) return;
                         if (!selectedSecurity) return;
                         e.preventDefault();
@@ -2436,6 +2512,19 @@ window.onerror = function (msg, src, line, col, err) {
                         cmdInput.value = ':add ' + selectedSecurity + '.' + key;
                         cmdInput.focus();
                         cmdInput.setSelectionRange(cmdInput.value.length, cmdInput.value.length);
+                    }
+                }
+                // 'a' on /economics catalog row prefills :add COUNTRY.CODE so
+                // the user can stack multiple :add commands without leaving
+                // the catalog — same UX as financials.
+                if (currentView === 'economics' && window._economicsAddCmd) {
+                    var prefilled = window._economicsAddCmd();
+                    if (prefilled) {
+                        e.preventDefault();
+                        var ci = document.getElementById('cmd-input');
+                        ci.value = prefilled;
+                        ci.focus();
+                        ci.setSelectionRange(ci.value.length, ci.value.length);
                     }
                 }
                 return;
@@ -2932,7 +3021,7 @@ window.onerror = function (msg, src, line, col, err) {
 
                     var chart = LightweightCharts.createChart(spark, {
                         width: 160, height: 40,
-                        layout: { background: { color: 'transparent' }, textColor: 'transparent' },
+                        layout: { background: { color: 'transparent' }, textColor: 'transparent', attributionLogo: false },
                         grid: { vertLines: { visible: false }, horzLines: { visible: false } },
                         rightPriceScale: { visible: false },
                         timeScale: { visible: false },
@@ -2962,6 +3051,7 @@ window.onerror = function (msg, src, line, col, err) {
         initCommandBar();
         initSecuritySelector();
         loadWatchlists(); // load persisted watchlists early
+        loadFredCodes();  // for :add UNRATE autocomplete + parser fast-path
         connectWS();
         onViewEnter(currentView);
         updateClock();

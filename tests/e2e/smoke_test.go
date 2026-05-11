@@ -84,7 +84,7 @@ func TestMain(m *testing.M) {
 	}
 
 	// Server
-	srv, err := server.New(server.Config{Port: 0}, h, debug, poll, newsClient, nil, nil, st, logger)
+	srv, err := server.New(server.Config{Port: 0}, h, debug, poll, newsClient, nil, nil, nil, st, logger)
 	if err != nil {
 		panic("failed to create server: " + err.Error())
 	}
