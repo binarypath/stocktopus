@@ -351,8 +351,9 @@
 
     function addMetric(parsed) {
         return ensureSketch().then(function (sk) {
-            var color = SERIES_COLORS[(sk.metrics || []).length % SERIES_COLORS.length];
-            var body = { kind: parsed.kind, identifier: parsed.identifier, label: parsed.label || parsed.identifier, color: color };
+            // Leave color empty so the server picks an unused palette entry —
+            // single source of truth for colour selection.
+            var body = { kind: parsed.kind, identifier: parsed.identifier, label: parsed.label || parsed.identifier };
             return fetch('/api/sketches/' + sk.id + '/metrics', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -451,8 +452,7 @@
     }
 
     function addMetricToSketch(sketchID, parsed) {
-        var color = SERIES_COLORS[Math.floor(Math.random() * SERIES_COLORS.length)];
-        var body = { kind: parsed.kind, identifier: parsed.identifier, label: parsed.label || parsed.identifier, color: color };
+        var body = { kind: parsed.kind, identifier: parsed.identifier, label: parsed.label || parsed.identifier };
         return fetch('/api/sketches/' + sketchID + '/metrics', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

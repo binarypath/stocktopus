@@ -2542,7 +2542,9 @@ li.kp-row::before {
 .ideas-list {
     list-style: none;
     margin: 0;
-    padding: 4px 0;
+    /* clear both edges of the sidebar's pane-focused inset outline so item
+       borders + backgrounds don't paint over it. */
+    padding: 4px 4px;
     flex: 1;
     overflow-y: auto;
 }
@@ -2551,6 +2553,9 @@ li.kp-row::before {
     display: flex;
     flex-direction: column;
     padding: 8px 12px;
+    /* reserve the 2px indicator stripe always so content doesn't shift when
+       an item becomes active or vim-selected. */
+    border-left: 2px solid transparent;
     border-bottom: 1px solid var(--bg-tertiary);
     cursor: pointer;
 }
@@ -2559,10 +2564,13 @@ li.kp-row::before {
     background: var(--bg-tertiary);
 }
 
-.ideas-list-item.active {
+/* Both "this sketch is loaded" (.active) and "vim cursor is here"
+   (.vim-selected) share the same blue treatment — the chart title is the
+   source of truth for which is loaded, and consistency reads cleaner. */
+.ideas-list-item.active,
+.ideas-list-item.vim-selected {
     background: var(--bg-tertiary);
-    border-left: 2px solid var(--orange);
-    padding-left: 10px;
+    border-left-color: var(--blue);
 }
 
 .ideas-list-name {
@@ -2744,12 +2752,6 @@ li.kp-row::before {
 
 .ideas-notes-textarea::placeholder {
     color: var(--text-muted);
-}
-
-.ideas-list-item.vim-selected {
-    background: var(--bg-tertiary);
-    border-left: 2px solid var(--blue);
-    padding-left: 10px;
 }
 
 .ideas-legend-row-err {
