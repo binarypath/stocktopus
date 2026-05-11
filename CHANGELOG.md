@@ -7,6 +7,18 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [1.3.0](https://github.com/binarypath/stocktopus/compare/v1.2.0...v1.3.0) (2026-05-11)
+
+
+### Features
+
+* **economics:** /economics page (FRED catalog + FMP calendar) + sketchpad economic kind + full-size graphs ([#57](https://github.com/binarypath/stocktopus/issues/57)) ([7b64c31](https://github.com/binarypath/stocktopus/commit/7b64c31e66900f1be7d72ac6f2b70f52b7ec3d2d))
+
+
+### Bug Fixes
+
+* **ideas:** unify sketch selection colour + stop server-picked palette giving every foreign-page :add the same orange line ([#55](https://github.com/binarypath/stocktopus/issues/55)) ([b041c5e](https://github.com/binarypath/stocktopus/commit/b041c5e0e731f8e159fe3ad499a5e8382469c4c2))
+
 ## [1.2.0](https://github.com/binarypath/stocktopus/compare/v1.1.0...v1.2.0) (2026-05-10)
 
 
