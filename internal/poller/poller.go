@@ -119,6 +119,13 @@ func (p *Poller) fetchAndPublish(ctx context.Context, symbols []string) {
 	}
 
 	for _, q := range quotes {
+		// Providers may return a nil entry when a requested symbol can't be
+		// resolved (e.g. typo'd "MICROSOFT"). Don't trust the slice — skip
+		// nils and let the symbol stay unpolled rather than panic the
+		// whole goroutine.
+		if q == nil {
+			continue
+		}
 		html, err := p.renderQuoteRow(q)
 		if err != nil {
 			p.logger.Error("render failed", "symbol", q.Symbol, "error", err)
