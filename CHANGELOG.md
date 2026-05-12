@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [1.3.1](https://github.com/binarypath/stocktopus/compare/v1.3.0...v1.3.1) (2026-05-12)
+
+
+### Bug Fixes
+
+* **watchlist:** autocomplete-or-reject + poller nil guard + ghost rows for stale symbols ([#58](https://github.com/binarypath/stocktopus/issues/58)) ([f575d64](https://github.com/binarypath/stocktopus/commit/f575d64ee690b69206510944e6ea9d20ba9ccf33))
+
 ## [1.3.0](https://github.com/binarypath/stocktopus/compare/v1.2.0...v1.3.0) (2026-05-11)
 
 
