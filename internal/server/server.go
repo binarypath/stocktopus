@@ -660,18 +660,51 @@ func (s *Server) handleAddToWatchlist(w http.ResponseWriter, r *http.Request) {
 		Symbol string `json:"symbol"`
 	}
 	json.NewDecoder(r.Body).Decode(&req)
-	if req.Symbol == "" {
+	symbol := strings.ToUpper(strings.TrimSpace(req.Symbol))
+	if symbol == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{"error": "symbol required"})
 		return
 	}
-	err := s.store.AddToWatchlist(id, req.Symbol)
-	if err != nil {
+
+	// Validate the symbol against FMP search before persisting — the
+	// downstream quote poller has no way to recover from a non-resolvable
+	// symbol like "MICROSOFT", and the provider returning a nil quote used
+	// to crash the goroutine. Require an exact symbol-match in the search
+	// results; partial / name-only matches (which is what "Microsoft"
+	// returns: MSFT, not MICROSOFT) are rejected so the client must resolve
+	// via the autocomplete picker.
+	if s.news != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		results, err := s.news.SearchSymbol(ctx, symbol, 10)
+		if err == nil {
+			matched := false
+			for _, hit := range results {
+				if strings.EqualFold(hit.Symbol, symbol) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error":  "unknown symbol — pick from the dropdown",
+					"symbol": symbol,
+				})
+				return
+			}
+		}
+		// Search errors fall through to the optimistic path — better to let
+		// a real symbol through than block the user when FMP is flaky.
+	}
+
+	if err := s.store.AddToWatchlist(id, symbol); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]string{"status": "added", "symbol": req.Symbol})
+	json.NewEncoder(w).Encode(map[string]string{"status": "added", "symbol": symbol})
 }
 
 func (s *Server) handleRemoveFromWatchlist(w http.ResponseWriter, r *http.Request) {

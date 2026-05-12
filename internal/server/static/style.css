@@ -631,6 +631,10 @@ body {
     text-decoration: underline;
 }
 
+.quote-row-ghost .sym-link { color: var(--text-secondary); }
+.quote-row-ghost .sym-link:hover { color: var(--text-primary); }
+.quote-na { color: var(--text-muted); font-style: italic; }
+
 .price-up { color: var(--green); }
 .price-down { color: var(--red); }
 .price-flat { color: var(--text-secondary); }
@@ -677,6 +681,17 @@ body {
 .add-security-form {
     display: flex;
     gap: 8px;
+    /* anchors the autocomplete dropdown — without this, the absolutely-
+       positioned .security-dropdown attaches to <body> and lands off-screen. */
+    position: relative;
+}
+
+/* Header's security selector anchors right (its input sits on the right);
+   the watchlist add-form sits on the left, so its dropdown should align
+   to the input's left edge for a natural visual line. */
+.add-security-form .security-dropdown {
+    left: 0;
+    right: auto;
 }
 
 .add-security-form input {

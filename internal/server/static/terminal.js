@@ -283,20 +283,7 @@ window.onerror = function (msg, src, line, col, err) {
 
     function initWatchlist() {
         const form = document.getElementById('add-security-form');
-        if (form) {
-            form.onsubmit = function (e) {
-                e.preventDefault();
-                const input = document.getElementById('wl-security-input');
-                const sec = input.value.trim().toUpperCase();
-                if (!sec) {
-                    input.value = '';
-                    return;
-                }
-                subscribeSecurity(sec);
-                addToWatchlist(getActiveWatchlistId(), sec);
-                input.value = '';
-            };
-        }
+        if (form) initWatchlistAddForm(form);
 
         // Re-render tabs (DOM is fresh on SPA navigation)
         renderWatchlistTabs();
@@ -305,7 +292,42 @@ window.onerror = function (msg, src, line, col, err) {
         fetchWatchlistQuotes();
     }
 
+    function ensureWatchlistRow(symbol) {
+        var tbody = document.getElementById('quote-body');
+        if (!tbody) return null;
+        var existing = document.getElementById('quote-' + symbol);
+        if (existing) return existing;
+        // Ghost row — emitted for symbols we have on disk but no quote data
+        // for (e.g. an FMP plan that doesn't cover this exchange). Keeps the
+        // row visible so the user can still `d` it from the watchlist.
+        var html = '<tr id="quote-' + escapeHtml(symbol) + '" class="quote-row-ghost">'
+            + '<td><span class="sym-link" data-symbol="' + escapeHtml(symbol) + '">' + escapeHtml(symbol) + '</span></td>'
+            + '<td class="quote-na">—</td>'
+            + '<td class="quote-na">—</td>'
+            + '<td class="quote-na">—</td>'
+            + '<td class="quote-na">no data</td>'
+            + '<td></td>'
+            + '</tr>';
+        tbody.insertAdjacentHTML('beforeend', html);
+        return document.getElementById('quote-' + symbol);
+    }
+
     function fetchWatchlistQuotes() {
+        // Seed ghost rows for every symbol in every watchlist before the
+        // quote response comes back. Real quotes replace these in-place;
+        // unreachable symbols simply stay as ghosts and remain deletable.
+        var tbody = document.getElementById('quote-body');
+        if (tbody) {
+            var seen = {};
+            (watchlistData || []).forEach(function (wl) {
+                (wl.symbols || []).forEach(function (sym) {
+                    if (!seen[sym]) { seen[sym] = true; ensureWatchlistRow(sym); }
+                });
+            });
+            var empty = document.getElementById('empty-state');
+            if (empty && Object.keys(seen).length > 0) empty.style.display = 'none';
+        }
+
         fetch('/api/watchlists/quotes')
             .then(function (r) { return r.json(); })
             .then(function (quotes) {
@@ -376,7 +398,7 @@ window.onerror = function (msg, src, line, col, err) {
     }
 
     function loadWatchlists() {
-        fetch('/api/watchlists')
+        return fetch('/api/watchlists')
             .then(function (r) { return r.json(); })
             .then(function (lists) {
                 watchlistData = lists || [];
@@ -483,13 +505,138 @@ window.onerror = function (msg, src, line, col, err) {
     }
 
     function addToWatchlist(watchlistId, symbol) {
-        fetch('/api/watchlists/' + (watchlistId || getActiveWatchlistId()) + '/symbols', {
+        return fetch('/api/watchlists/' + (watchlistId || getActiveWatchlistId()) + '/symbols', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ symbol: symbol }),
-        }).then(function () {
-            loadWatchlists(); // refresh
-        }).catch(function (err) { console.error('Watch error:', err); });
+        }).then(function (r) {
+            if (!r.ok) {
+                return r.json().then(function (body) {
+                    flashError(body.error || 'Could not add ' + symbol);
+                });
+            }
+            // Refresh tabs/picker first (so watchlistData is up to date),
+            // then re-render the quote table — without this second call the
+            // new symbol's row only appears on next page load.
+            return loadWatchlists().then(fetchWatchlistQuotes);
+        }).catch(function () { flashError('Add failed — server unreachable'); });
+    }
+
+    // initWatchlistAddForm wires the search-as-you-type dropdown on the
+    // /watchlist page's "Add security" input. Mirrors the global security
+    // selector pattern: typing shows matches, Enter / click commits, raw
+    // unresolved text is refused (server-side validation also enforces this).
+    function initWatchlistAddForm(form) {
+        var input = document.getElementById('wl-security-input');
+        var dropdown = document.getElementById('wl-security-dropdown');
+        if (!input || !dropdown) return;
+
+        var results = [];
+        var hoverIdx = -1;
+
+        function render() {
+            if (document.activeElement !== input || results.length === 0) {
+                dropdown.classList.add('hidden');
+                return;
+            }
+            dropdown.innerHTML = results.map(function (r, i) {
+                return '<div class="security-option' + (i === hoverIdx ? ' active' : '') + '"'
+                    + ' data-symbol="' + escapeHtml(r.symbol) + '">'
+                    + '<span class="sec-sym">' + escapeHtml(r.symbol) + '</span>'
+                    + '<span class="sec-name">' + escapeHtml(r.name || '') + '</span>'
+                    + '</div>';
+            }).join('');
+            dropdown.classList.remove('hidden');
+        }
+
+        function commit(symbol) {
+            if (!symbol) return;
+            subscribeSecurity(symbol);
+            addToWatchlist(getActiveWatchlistId(), symbol);
+            input.value = '';
+            results = [];
+            hoverIdx = -1;
+            dropdown.classList.add('hidden');
+        }
+
+        // Exchange preference — push primary US listings to the top so that
+        // Enter on "microsoft" doesn't accidentally pick a foreign listing
+        // the user's FMP plan can't quote (MSF.BR etc.). Order is intentional:
+        // NASDAQ + NYSE first, then BATS / AMEX / NMS, everything else last.
+        var EXCHANGE_RANK = { 'NASDAQ': 0, 'NYSE': 0, 'BATS': 1, 'AMEX': 1, 'NMS': 1, 'NCM': 1, 'NGM': 1 };
+        function rankResults(rows) {
+            return rows.slice().sort(function (a, b) {
+                var ra = EXCHANGE_RANK[a.exchange] != null ? EXCHANGE_RANK[a.exchange] : 9;
+                var rb = EXCHANGE_RANK[b.exchange] != null ? EXCHANGE_RANK[b.exchange] : 9;
+                return ra - rb;
+            });
+        }
+
+        input.addEventListener('input', function () {
+            var q = input.value.trim();
+            if (!q) { results = []; hoverIdx = -1; render(); return; }
+            searchSecurities(q, function (rows) {
+                results = rankResults(Array.isArray(rows) ? rows : []);
+                // No auto-highlight — accidental Enter on the input must NOT
+                // commit a result the user hasn't actively chosen. Arrow keys
+                // or click moves hoverIdx; raw Enter with no selection falls
+                // through to the exact-match check in onsubmit.
+                hoverIdx = -1;
+                render();
+            });
+        });
+
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'ArrowDown') {
+                if (results.length === 0) return;
+                e.preventDefault();
+                hoverIdx = Math.min(hoverIdx + 1, results.length - 1);
+                render();
+            } else if (e.key === 'ArrowUp') {
+                if (results.length === 0) return;
+                e.preventDefault();
+                hoverIdx = Math.max(hoverIdx - 1, 0);
+                render();
+            } else if (e.key === 'Escape') {
+                results = []; hoverIdx = -1; dropdown.classList.add('hidden');
+            }
+        });
+
+        // On submit (Enter or +), prefer the highlighted dropdown choice; if
+        // none, accept raw text only when it exactly matches one of the
+        // current results (covers typing "AAPL" and hitting Enter before
+        // moving the cursor onto a row). Anything else: refuse — the server
+        // would reject it anyway and the user should pick from the list.
+        form.onsubmit = function (e) {
+            e.preventDefault();
+            var picked = null;
+            if (hoverIdx >= 0 && hoverIdx < results.length) {
+                picked = results[hoverIdx].symbol;
+            } else {
+                var raw = input.value.trim().toUpperCase();
+                var exact = results.find(function (r) { return r.symbol.toUpperCase() === raw; });
+                if (exact) picked = exact.symbol;
+            }
+            if (!picked) {
+                flashError('Pick a match from the dropdown');
+                return;
+            }
+            commit(picked);
+        };
+
+        dropdown.addEventListener('mousedown', function (e) {
+            var opt = e.target.closest('.security-option');
+            if (opt && opt.dataset.symbol) {
+                e.preventDefault(); // keep input focused through the click
+                commit(opt.dataset.symbol);
+            }
+        });
+
+        input.addEventListener('blur', function () {
+            // Hide on blur but with a short delay so a mousedown on the
+            // dropdown still resolves the click before the dropdown vanishes.
+            setTimeout(function () { dropdown.classList.add('hidden'); }, 150);
+        });
     }
 
     function createWatchlist(name) {
