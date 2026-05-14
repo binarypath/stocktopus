@@ -566,6 +566,7 @@
     };
 
     window._ideasDeleteSelected = function () {
+        if (paneFocus === 'list') return deleteSelectedSketch();
         if (paneFocus !== 'chart') return false;
         var rows = getMetricRows();
         if (metricSelectedIdx < 0 || metricSelectedIdx >= rows.length) return false;
@@ -584,6 +585,54 @@
         }, 100);
         return true;
     };
+
+    // Delete the highlighted sketch from the sidebar. Skips the synthetic
+    // "Default" row (data-sketch-id="") — that's the scratchpad and can't be
+    // removed. Cursor stays on the same visual index after re-render so j/k
+    // continue without surprise.
+    function deleteSelectedSketch() {
+        var items = Array.from(document.querySelectorAll('#ideas-list .ideas-list-item'));
+        if (listSelectedIdx < 0 || listSelectedIdx >= items.length) return false;
+        var row = items[listSelectedIdx];
+        var sid = row.dataset.sketchId;
+        if (!sid) {
+            if (window._flash) window._flash('Default scratchpad can\'t be deleted');
+            return true;
+        }
+        var name = row.querySelector('.ideas-list-name');
+        var label = name ? name.textContent : sid;
+        var wasLoaded = currentSketch && currentSketch.id && String(currentSketch.id) === String(sid);
+        var keepIdx = listSelectedIdx;
+
+        fetch('/api/sketches/' + sid, { method: 'DELETE' })
+            .then(function (r) {
+                if (!r.ok) throw new Error('delete ' + r.status);
+                if (window._flash) window._flash('Deleted ' + label);
+                if (wasLoaded) {
+                    // The deleted sketch was the one on the chart — clear the
+                    // canvas and drop the persisted "last sketch" pointer so
+                    // we don't dead-end the next page load on a missing id.
+                    localStorage.removeItem('stocktopus-last-sketch');
+                    currentSketch = { id: 0, name: '', metrics: [] };
+                }
+                return loadSketches();
+            })
+            .then(function () {
+                // Re-select the row that took the deleted slot, or move up
+                // if the deleted row was the last.
+                var newItems = Array.from(document.querySelectorAll('#ideas-list .ideas-list-item'));
+                if (!newItems.length) return;
+                listSelectedIdx = Math.min(keepIdx, newItems.length - 1);
+                newItems.forEach(function (el, i) { el.classList.toggle('vim-selected', i === listSelectedIdx); });
+                // If the deleted sketch was loaded, navigate to whatever now
+                // sits at the cursor (could be Default if all customs are gone).
+                if (wasLoaded && newItems[listSelectedIdx]) {
+                    navigateToSketch(newItems[listSelectedIdx].dataset.sketchId);
+                }
+            })
+            .catch(function () { if (window._flash) window._flash('Delete failed for ' + label); });
+        return true;
+    }
 
     window._ideasGetPaneFocus = function () { return paneFocus; };
 
