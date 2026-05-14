@@ -268,10 +268,20 @@
             // 0 = baseline; +X% = improvement; -X% = decline. Works for any
             // sign — when base is negative (e.g. DJT operating income), a
             // larger loss correctly plots as more negative, not more positive.
-            var base = data[0].value;
-            if (!base) return;
+            //
+            // Pre-revenue companies (DJT 2021 = $0 revenue) and other series
+            // whose earliest reported value is zero used to vanish entirely
+            // because base=0 makes the divisor undefined. Walk forward to
+            // the first non-zero point and rebase from there; the leading
+            // zeros are dropped from the visible series.
+            var baseIdx = -1;
+            for (var bi = 0; bi < data.length; bi++) {
+                if (data[bi].value !== 0) { baseIdx = bi; break; }
+            }
+            if (baseIdx < 0 || baseIdx >= data.length - 1) return;
+            var base = data[baseIdx].value;
             var absBase = Math.abs(base);
-            var rebased = data.map(function (p) {
+            var rebased = data.slice(baseIdx).map(function (p) {
                 return { time: p.date, value: ((p.value - base) / absBase) * 100 };
             });
             var color = m.color || SERIES_COLORS[i % SERIES_COLORS.length];
