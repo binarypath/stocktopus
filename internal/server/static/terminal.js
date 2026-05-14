@@ -1783,6 +1783,17 @@ window.onerror = function (msg, src, line, col, err) {
         'accountsReceivables', 'accountsPayables', 'netCashUsedForInvestingActivities',
         'netCashUsedProvidedByFinancingActivities', 'debtRepayment', 'capitalExpenditure',
         'freeCashFlow', 'netChangeInCash', 'dividendsPaid', 'commonStockRepurchased',
+        // Non-statement fundamentals (key-metrics + ratios)
+        'peRatio', 'priceToSalesRatio', 'priceToBookRatio', 'enterpriseValue',
+        'evToSales', 'evToEBITDA', 'evToOperatingCashFlow', 'evToFreeCashFlow',
+        'returnOnEquity', 'returnOnAssets', 'returnOnCapitalEmployed',
+        'debtToEquity', 'debtToAssets', 'currentRatio', 'quickRatio',
+        'dividendYield', 'payoutRatio',
+        'grossProfitMargin', 'operatingProfitMargin', 'netProfitMargin',
+        // Daily history (own endpoint)
+        'marketCap',
+        // Computed: rolling 1Y daily beta vs SPY
+        'beta',
     ];
 
     function renderCmdFieldDropdown(symPart, fieldPrefix) {

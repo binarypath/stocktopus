@@ -228,6 +228,16 @@ func (s *Server) handleHistorical(w http.ResponseWriter, r *http.Request) {
 		}
 		sym := strings.ToUpper(rawSymbol[:dot])
 		field := rawSymbol[dot+1:] // preserve camelCase
+
+		// Non-statement fundamentals (peRatio, marketCap, beta, …) route
+		// through the fundamentals path which knows the right FMP endpoint
+		// per field. Statement fields (revenue, totalAssets, …) fall
+		// through to the income/balance/cashflow projection below.
+		if canonical, entry := lookupFundamentalField(field); entry != nil {
+			s.serveFundamentalField(w, r, sym, canonical, entry)
+			return
+		}
+
 		stmt := guessStatementType(field)
 		raw, err := s.news.GetFinancials(r.Context(), sym, stmt, 5)
 		if err != nil {

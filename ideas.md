@@ -291,4 +291,22 @@ Let's think about portfolio  management as a separate piece, i want to study wha
 * Extend `vimHandlers.ideas.deleteSelected` (it currently returns false on the sidebar pane and only handles the metric-row delete). Add a branch: if the focused pane is the sidebar, call the sketch-delete path; if it's the chart, keep the existing metric-delete behaviour.
 * Mirror the watchlist `d` pattern (idea #12) — same look + flash message style.
 
+### 19. Sector beta — compare a security's beta against its sector ETF
+
+**User Story:** As an analyst reasoning about whether a rising stock-vs-market beta is idiosyncratic or regime-wide, I want to overlay the rolling 1Y beta of the security against SPY *and* the rolling beta of its sector ETF against SPY on the same sketchpad chart, so I can tell whether the whole sector is repricing macro-sensitively or just this one name is.
+
+**Acceptance Criteria:**
+
+* [ ] `:add AAPL.beta` continues to plot security-vs-SPY beta (already shipped in #14).
+* [ ] `:add XLK.beta` (sector ETF) plots the sector's rolling beta vs SPY — works automatically if the same beta computation accepts any ticker.
+* [ ] New shorthand `:add AAPL.sectorBeta` or similar that resolves the security → sector ETF lookup (via FMP profile.sector → ETF map) and emits the sector's beta series, saving the user a manual lookup.
+* [ ] Optional: a third line — the *spread* between security-beta and sector-beta. When the spread is widening, the move is single-name; when shrinking, regime-wide.
+
+**Technical Notes:**
+
+* The beta math from #14 (`rollingBeta` in `internal/server/fundamentals.go`) is already symmetric — it accepts any target ticker and uses SPY as the benchmark. `:add XLK.beta` should just work today; verify and lock in with a test.
+* Sector ETF lookup table — small static map: `Technology → XLK`, `Health Care → XLV`, `Financials → XLF`, `Energy → XLE`, etc. (the 11 GICS sectors). Single helper `sectorETF(sector string) string`.
+* Spread series is computed entirely client-side from the two lines (subtract on aligned dates) — no new endpoint, just a sketch-layer transform like the rebase-to-% one we already use.
+* Stretch: pair this with the company-vs-sector volatility comparison from the existing sector tab so the user can see both raw vol and beta-via-correlation in one view.
+
 
