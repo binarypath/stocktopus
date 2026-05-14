@@ -306,11 +306,18 @@ func (c *Client) GetRatiosHistorical(ctx context.Context, symbol string, limit i
 	return c.fetchJSON(ctx, "/stable/ratios", params)
 }
 
-// GetHistoricalMarketCap returns daily market-cap history for a symbol.
-// Separate endpoint from key-metrics because it's daily, not annual — much
-// richer for charting.
-func (c *Client) GetHistoricalMarketCap(ctx context.Context, symbol string) (json.RawMessage, error) {
-	params := url.Values{"symbol": {symbol}, "limit": {"5000"}}
+// GetHistoricalMarketCap returns daily market-cap history for a symbol over
+// an explicit date range. FMP's default response on this endpoint is a
+// surprisingly narrow window (~3 months) regardless of the limit param —
+// callers must pass from/to to get a meaningful series.
+func (c *Client) GetHistoricalMarketCap(ctx context.Context, symbol, from, to string) (json.RawMessage, error) {
+	params := url.Values{"symbol": {symbol}}
+	if from != "" {
+		params.Set("from", from)
+	}
+	if to != "" {
+		params.Set("to", to)
+	}
 	return c.fetchJSON(ctx, "/stable/historical-market-capitalization", params)
 }
 

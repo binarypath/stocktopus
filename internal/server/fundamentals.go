@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // fieldEndpoint describes which FMP endpoint serves a given non-statement
@@ -122,9 +123,13 @@ func (s *Server) serveAnnualField(w http.ResponseWriter, r *http.Request, sym, f
 }
 
 // serveDailyMarketCap projects FMP's /historical-market-capitalization into
-// the chart layer's [{date, value}] shape.
+// the chart layer's [{date, value}] shape. Explicit 5-year window — FMP's
+// default response on this endpoint is ~3 months regardless of the limit
+// param, which leaves charts looking truncated against multi-year series.
 func (s *Server) serveDailyMarketCap(w http.ResponseWriter, r *http.Request, sym string) {
-	raw, err := s.news.GetHistoricalMarketCap(r.Context(), sym)
+	to := time.Now().UTC().Format("2006-01-02")
+	from := time.Now().UTC().AddDate(-5, 0, 0).Format("2006-01-02")
+	raw, err := s.news.GetHistoricalMarketCap(r.Context(), sym, from, to)
 	if err != nil {
 		http.Error(w, "fmp error", http.StatusBadGateway)
 		return
