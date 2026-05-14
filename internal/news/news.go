@@ -279,10 +279,39 @@ func (c *Client) GetKeyMetrics(ctx context.Context, symbol string) (json.RawMess
 	return c.fetchJSON(ctx, "/stable/key-metrics", params)
 }
 
+// GetKeyMetricsHistorical returns N years of annual key-metrics (peRatio,
+// enterpriseValue, returnOnEquity, etc.). Used by the sketchpad's :add
+// SYMBOL.field path for non-statement fundamental fields.
+func (c *Client) GetKeyMetricsHistorical(ctx context.Context, symbol string, limit int) (json.RawMessage, error) {
+	if limit <= 0 {
+		limit = 5
+	}
+	params := url.Values{"symbol": {symbol}, "period": {"annual"}, "limit": {strconv.Itoa(limit)}}
+	return c.fetchJSON(ctx, "/stable/key-metrics", params)
+}
+
 // GetRatiosTTM returns trailing twelve month ratios.
 func (c *Client) GetRatiosTTM(ctx context.Context, symbol string) (json.RawMessage, error) {
 	params := url.Values{"symbol": {symbol}}
 	return c.fetchJSON(ctx, "/stable/ratios-ttm", params)
+}
+
+// GetRatiosHistorical returns N years of annual ratios (dividendYield,
+// priceToBookRatio, payoutRatio, etc.).
+func (c *Client) GetRatiosHistorical(ctx context.Context, symbol string, limit int) (json.RawMessage, error) {
+	if limit <= 0 {
+		limit = 5
+	}
+	params := url.Values{"symbol": {symbol}, "period": {"annual"}, "limit": {strconv.Itoa(limit)}}
+	return c.fetchJSON(ctx, "/stable/ratios", params)
+}
+
+// GetHistoricalMarketCap returns daily market-cap history for a symbol.
+// Separate endpoint from key-metrics because it's daily, not annual — much
+// richer for charting.
+func (c *Client) GetHistoricalMarketCap(ctx context.Context, symbol string) (json.RawMessage, error) {
+	params := url.Values{"symbol": {symbol}, "limit": {"5000"}}
+	return c.fetchJSON(ctx, "/stable/historical-market-capitalization", params)
 }
 
 // GetIncomeStatement returns annual income statements.
