@@ -182,6 +182,9 @@ window.onerror = function (msg, src, line, col, err) {
             cmdInput.style.color = '';
         }, 2000);
     }
+    // Exposed for per-view scripts (ideas.js etc.) that need to surface a
+    // status string through the same cmd-bar flash without duplicating it.
+    window._flash = flashError;
 
     // ── View Lifecycle ──
 
