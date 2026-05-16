@@ -39,3 +39,33 @@ func TestRollingBeta_NotEnoughData(t *testing.T) {
 		t.Fatal("expected error for insufficient history, got nil")
 	}
 }
+
+func TestSectorETF(t *testing.T) {
+	cases := map[string]string{
+		"Technology":             "XLK",
+		"information technology": "XLK",
+		"Health Care":            "XLV",
+		"Healthcare":             "XLV",
+		"Financials":             "XLF",
+		"Financial Services":     "XLF",
+		"Consumer Cyclical":      "XLY",
+		"Consumer Discretionary": "XLY",
+		"Consumer Defensive":     "XLP",
+		"Consumer Staples":       "XLP",
+		"Energy":                 "XLE",
+		"Industrials":            "XLI",
+		"Utilities":              "XLU",
+		"Materials":              "XLB",
+		"Basic Materials":        "XLB",
+		"Real Estate":            "XLRE",
+		"Communication Services": "XLC",
+		"  Technology  ":         "XLK", // whitespace tolerance
+		"unknown sector":         "",    // graceful miss
+		"":                       "",
+	}
+	for sector, want := range cases {
+		if got := sectorETF(sector); got != want {
+			t.Errorf("sectorETF(%q) = %q, want %q", sector, got, want)
+		}
+	}
+}

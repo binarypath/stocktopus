@@ -16,7 +16,7 @@ import (
 // totalAssets, …) stay on the existing income/balance/cashflow path in
 // ideas.go and aren't listed here.
 type fieldEndpoint struct {
-	kind string // "keymetric" | "ratio" | "marketcap" | "beta"
+	kind string // "keymetric" | "ratio" | "marketcap" | "beta" | "sectorBeta"
 	// fmpField overrides the FMP JSON field name when it differs from the
 	// user-facing handle. Empty = use the map key. FMP's naming is wildly
 	// inconsistent — e.g. our friendly "peRatio" comes off /ratios as
@@ -57,8 +57,44 @@ var fundamentalFields = map[string]fieldEndpoint{
 	"netProfitMargin":       {kind: "ratio"},
 
 	// Specials
-	"marketCap": {kind: "marketcap"},
-	"beta":      {kind: "beta"},
+	"marketCap":  {kind: "marketcap"},
+	"beta":       {kind: "beta"},
+	"sectorBeta": {kind: "sectorBeta"},
+}
+
+// sectorETFs maps GICS sector names (and the variants FMP returns on
+// /stable/profile) to the State Street SPDR sector ETF symbol. Used by the
+// `sectorBeta` field to resolve a security to the ETF whose rolling beta
+// represents the sector's macro sensitivity.
+//
+// Keys are normalised to lower-case at lookup time so casing differences
+// between FMP's "Financial Services" and the canonical "Financials" don't
+// matter.
+var sectorETFs = map[string]string{
+	"technology":             "XLK",
+	"information technology": "XLK",
+	"health care":            "XLV",
+	"healthcare":             "XLV",
+	"financials":             "XLF",
+	"financial services":     "XLF",
+	"energy":                 "XLE",
+	"consumer discretionary": "XLY",
+	"consumer cyclical":      "XLY",
+	"consumer staples":       "XLP",
+	"consumer defensive":     "XLP",
+	"industrials":            "XLI",
+	"utilities":              "XLU",
+	"materials":              "XLB",
+	"basic materials":        "XLB",
+	"real estate":            "XLRE",
+	"communication services": "XLC",
+	"communications":         "XLC",
+}
+
+// sectorETF returns the SPDR sector ETF symbol for a sector name, or "" if
+// the sector is unknown. Case- and whitespace-insensitive.
+func sectorETF(sector string) string {
+	return sectorETFs[strings.ToLower(strings.TrimSpace(sector))]
 }
 
 // lookupFundamentalField returns the routing entry for a field name. Lookup
@@ -86,6 +122,8 @@ func (s *Server) serveFundamentalField(w http.ResponseWriter, r *http.Request, s
 		s.serveDailyMarketCap(w, r, sym)
 	case "beta":
 		s.serveRollingBeta(w, r, sym)
+	case "sectorBeta":
+		s.serveSectorBeta(w, r, sym)
 	case "keymetric":
 		s.serveAnnualField(w, r, sym, fmpFieldFor(field, ep), "keymetric")
 	case "ratio":
@@ -225,6 +263,34 @@ func (s *Server) serveRollingBeta(w http.ResponseWriter, r *http.Request, sym st
 		return
 	}
 	json.NewEncoder(w).Encode(series)
+}
+
+// serveSectorBeta resolves the security's sector via FMP /profile, maps it
+// to the SPDR sector ETF, and emits that ETF's rolling beta vs SPY. The
+// user-side use is the spread test: when sectorBeta and beta diverge, the
+// move is single-name; when they track, the whole sector is repricing.
+func (s *Server) serveSectorBeta(w http.ResponseWriter, r *http.Request, sym string) {
+	raw, err := s.news.GetProfile(r.Context(), sym)
+	if err != nil {
+		http.Error(w, "fmp profile error", http.StatusBadGateway)
+		return
+	}
+	// FMP returns an array even for a single-symbol profile lookup.
+	var rows []struct {
+		Sector string `json:"sector"`
+	}
+	if err := json.Unmarshal(raw, &rows); err != nil || len(rows) == 0 {
+		http.Error(w, "no profile data", http.StatusUnprocessableEntity)
+		return
+	}
+	etf := sectorETF(rows[0].Sector)
+	if etf == "" {
+		http.Error(w, "unknown sector: "+rows[0].Sector, http.StatusUnprocessableEntity)
+		return
+	}
+	// Reuse the same rolling-beta machinery the bare `.beta` field uses —
+	// the math is symmetric in the target, so we just hand it the ETF.
+	s.serveRollingBeta(w, r, etf)
 }
 
 // rollingBeta returns [{date, value}] daily beta for the trailing window
