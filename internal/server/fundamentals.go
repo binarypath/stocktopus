@@ -17,35 +17,44 @@ import (
 // ideas.go and aren't listed here.
 type fieldEndpoint struct {
 	kind string // "keymetric" | "ratio" | "marketcap" | "beta"
+	// fmpField overrides the FMP JSON field name when it differs from the
+	// user-facing handle. Empty = use the map key. FMP's naming is wildly
+	// inconsistent — e.g. our friendly "peRatio" comes off /ratios as
+	// "priceToEarningsRatio"; "debtToEquity" as "debtToEquityRatio".
+	fmpField string
 }
 
 // fundamentalFields is the map of non-statement field names → endpoint
-// routing. Used by handleHistorical's financial branch to pick the right
-// FMP call for fields like `peRatio` or `dividendYield`.
+// routing. User-facing keys (peRatio, debtToEquity, …) stay terse so
+// `:add AAPL.peRatio` is the natural thing to type; fmpField below
+// reconciles them to FMP's actual response keys.
+//
+// Verified against FMP /stable/key-metrics and /stable/ratios responses
+// — every routing here is exercised by tests/e2e/historical_test.go.
 var fundamentalFields = map[string]fieldEndpoint{
-	// /key-metrics (annual)
-	"peRatio":            {kind: "keymetric"},
-	"priceToSalesRatio":  {kind: "keymetric"},
-	"enterpriseValue":    {kind: "keymetric"},
-	"evToSales":          {kind: "keymetric"},
-	"evToEBITDA":         {kind: "keymetric"},
-	"evToOperatingCashFlow": {kind: "keymetric"},
-	"evToFreeCashFlow":   {kind: "keymetric"},
-	"returnOnEquity":     {kind: "keymetric"},
-	"returnOnAssets":     {kind: "keymetric"},
+	// /key-metrics (annual) — these field names land verbatim in the FMP response
+	"enterpriseValue":         {kind: "keymetric"},
+	"evToSales":               {kind: "keymetric"},
+	"evToEBITDA":              {kind: "keymetric"},
+	"evToOperatingCashFlow":   {kind: "keymetric"},
+	"evToFreeCashFlow":        {kind: "keymetric"},
+	"returnOnEquity":          {kind: "keymetric"},
+	"returnOnAssets":          {kind: "keymetric"},
 	"returnOnCapitalEmployed": {kind: "keymetric"},
-	"debtToEquity":       {kind: "keymetric"},
-	"debtToAssets":       {kind: "keymetric"},
-	"currentRatio":       {kind: "keymetric"},
-	"quickRatio":         {kind: "keymetric"},
+	"currentRatio":            {kind: "keymetric"}, // present on /ratios too — either works
 
-	// /ratios (annual)
-	"dividendYield":      {kind: "ratio"},
-	"priceToBookRatio":   {kind: "ratio"},
-	"payoutRatio":        {kind: "ratio"},
-	"grossProfitMargin":  {kind: "ratio"},
+	// /ratios (annual) — some need FMP-name overrides
+	"peRatio":               {kind: "ratio", fmpField: "priceToEarningsRatio"},
+	"priceToSalesRatio":     {kind: "ratio"},
+	"priceToBookRatio":      {kind: "ratio"},
+	"dividendYield":         {kind: "ratio"},
+	"payoutRatio":           {kind: "ratio", fmpField: "dividendPayoutRatio"},
+	"debtToEquity":          {kind: "ratio", fmpField: "debtToEquityRatio"},
+	"debtToAssets":          {kind: "ratio", fmpField: "debtToAssetsRatio"},
+	"quickRatio":            {kind: "ratio"},
+	"grossProfitMargin":     {kind: "ratio"},
 	"operatingProfitMargin": {kind: "ratio"},
-	"netProfitMargin":    {kind: "ratio"},
+	"netProfitMargin":       {kind: "ratio"},
 
 	// Specials
 	"marketCap": {kind: "marketcap"},
@@ -78,12 +87,21 @@ func (s *Server) serveFundamentalField(w http.ResponseWriter, r *http.Request, s
 	case "beta":
 		s.serveRollingBeta(w, r, sym)
 	case "keymetric":
-		s.serveAnnualField(w, r, sym, field, "keymetric")
+		s.serveAnnualField(w, r, sym, fmpFieldFor(field, ep), "keymetric")
 	case "ratio":
-		s.serveAnnualField(w, r, sym, field, "ratio")
+		s.serveAnnualField(w, r, sym, fmpFieldFor(field, ep), "ratio")
 	default:
 		http.Error(w, "unsupported field kind", http.StatusBadRequest)
 	}
+}
+
+// fmpFieldFor returns the FMP JSON field name for an entry. Uses the
+// catalog's override if set, otherwise the user-facing key as-is.
+func fmpFieldFor(userField string, ep *fieldEndpoint) string {
+	if ep != nil && ep.fmpField != "" {
+		return ep.fmpField
+	}
+	return userField
 }
 
 // serveAnnualField fetches the appropriate annual endpoint, projects out the

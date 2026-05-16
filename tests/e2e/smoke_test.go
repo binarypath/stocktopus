@@ -113,7 +113,11 @@ func TestSmoke_HealthEndpoint(t *testing.T) {
 }
 
 func TestSmoke_Pages(t *testing.T) {
-	pages := []string{"/watchlist", "/news", "/screener", "/debug", "/security/AAPL", "/stock/AAPL"}
+	pages := []string{
+		"/watchlist", "/news", "/screener", "/debug",
+		"/security/AAPL", "/stock/AAPL", "/graph/AAPL",
+		"/ideas", "/economics", "/indices", "/feed",
+	}
 	for _, path := range pages {
 		t.Run(path, func(t *testing.T) {
 			resp := get(t, path)
@@ -403,3 +407,24 @@ func assertContains(t *testing.T, resp *http.Response, substr string) {
 		t.Errorf("response body does not contain %q", substr)
 	}
 }
+
+// jsonRequest is the shared body of the four mutating helpers below. Resp body
+// is the caller's responsibility to close.
+func jsonRequest(t *testing.T, method, path, body string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(method, testServer.URL+path, strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("build %s %s: %v", method, path, err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("%s %s: %v", method, path, err)
+	}
+	return resp
+}
+
+func postJSON(t *testing.T, path, body string) *http.Response   { return jsonRequest(t, "POST", path, body) }
+func putJSON(t *testing.T, path, body string) *http.Response    { return jsonRequest(t, "PUT", path, body) }
+func patchJSON(t *testing.T, path, body string) *http.Response  { return jsonRequest(t, "PATCH", path, body) }
+func deleteReq(t *testing.T, path string) *http.Response        { return jsonRequest(t, "DELETE", path, "") }
