@@ -1294,6 +1294,12 @@
 
     function loadAI() {
         container.innerHTML = '<p class="empty-state">Loading AI analysis...</p>';
+        // Reset vim selection so the first j-into-content always lands on the
+        // Run Deep Analysis button, regardless of where the user left off on
+        // a previous visit to this tab. Without this, leaving the tab with an
+        // analyst card selected and coming back makes the next j skip past
+        // the button. Closes #68.
+        tradingPanelIdx = -1;
 
         // Fetch both existing intelligence and trading cost estimate in parallel
         Promise.all([
