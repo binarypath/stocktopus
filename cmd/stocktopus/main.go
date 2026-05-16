@@ -13,6 +13,7 @@ import (
 
 	"stocktopus/internal/agent"
 	"stocktopus/internal/agent/trading"
+	"stocktopus/internal/boe"
 	"stocktopus/internal/dbnomics"
 	"stocktopus/internal/econ"
 	"stocktopus/internal/fred"
@@ -201,7 +202,8 @@ func main() {
 	// uses the same fetcher to keep all curated series warm.
 	fredClient := fred.New(os.Getenv("FRED_API_KEY"))
 	dbnomicsClient := dbnomics.New()
-	econFetcher := econ.NewFetcher(fredClient, dbnomicsClient)
+	boeClient := boe.New()
+	econFetcher := econ.NewFetcher(fredClient, dbnomicsClient, boeClient)
 	if st != nil {
 		go econ.NewPrefetcher(econFetcher, st, logger, 30*time.Minute).Run(appCtx)
 	}

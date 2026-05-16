@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"stocktopus/internal/boe"
 	"stocktopus/internal/dbnomics"
 	"stocktopus/internal/fred"
 )
@@ -15,10 +16,11 @@ import (
 type Fetcher struct {
 	fred     *fred.Client
 	dbnomics *dbnomics.Client
+	boe      *boe.Client
 }
 
-func NewFetcher(fc *fred.Client, dc *dbnomics.Client) *Fetcher {
-	return &Fetcher{fred: fc, dbnomics: dc}
+func NewFetcher(fc *fred.Client, dc *dbnomics.Client, bc *boe.Client) *Fetcher {
+	return &Fetcher{fred: fc, dbnomics: dc, boe: bc}
 }
 
 // FetchEntry resolves the entry's Route and pulls the series. Returned
@@ -54,6 +56,16 @@ func (f *Fetcher) FetchEntry(ctx context.Context, e *CatalogEntry) (*Series, err
 			return nil, err
 		}
 		return dbnomicsToSeries(e, s), nil
+
+	case "boe":
+		if f.boe == nil {
+			return nil, errors.New("boe client not configured")
+		}
+		s, err := f.boe.GetSeries(ctx, opts)
+		if err != nil {
+			return nil, err
+		}
+		return boeToSeries(e, s), nil
 
 	default:
 		return nil, errors.New("unknown route source: " + source)
@@ -94,6 +106,25 @@ func fredToSeries(e *CatalogEntry, s *fred.Series) *Series {
 		Frequency:    freq,
 		Units:        units,
 		UpdatedAt:    s.Meta.LastUpdated,
+		Observations: obs,
+	}
+}
+
+func boeToSeries(e *CatalogEntry, s *boe.Series) *Series {
+	obs := make([]Observation, len(s.Observations))
+	for i, o := range s.Observations {
+		obs[i] = Observation{Date: o.Date, Value: o.Value}
+	}
+	title := s.Name
+	if title == "" {
+		title = e.Name
+	}
+	return &Series{
+		Identifier:   e.Identifier(),
+		Title:        title,
+		Category:     e.Category,
+		Frequency:    e.Frequency,
+		Units:        e.Units,
 		Observations: obs,
 	}
 }
