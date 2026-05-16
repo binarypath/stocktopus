@@ -22,7 +22,7 @@ import (
 
 	"stocktopus/internal/agent"
 	"stocktopus/internal/agent/trading"
-	"stocktopus/internal/fred"
+	"stocktopus/internal/econ"
 	"stocktopus/internal/hub"
 	"stocktopus/internal/news"
 	"stocktopus/internal/store"
@@ -59,14 +59,14 @@ type Server struct {
 	debug        *DebugBroadcaster
 	symbols      SymbolLister
 	news         *news.Client
-	fred         *fred.Client
+	econ         *econ.Fetcher
 	pipeline     *agent.Pipeline
 	trading      *trading.TradingPipeline
 	store        *store.Store
 	assetVersion string
 }
 
-func New(cfg Config, h *hub.Hub, debug *DebugBroadcaster, symbols SymbolLister, newsClient *news.Client, fredClient *fred.Client, pipeline *agent.Pipeline, tp *trading.TradingPipeline, st *store.Store, logger *slog.Logger) (*Server, error) {
+func New(cfg Config, h *hub.Hub, debug *DebugBroadcaster, symbols SymbolLister, newsClient *news.Client, econFetcher *econ.Fetcher, pipeline *agent.Pipeline, tp *trading.TradingPipeline, st *store.Store, logger *slog.Logger) (*Server, error) {
 	s := &Server{
 		config:       cfg,
 		logger:       logger,
@@ -77,7 +77,7 @@ func New(cfg Config, h *hub.Hub, debug *DebugBroadcaster, symbols SymbolLister, 
 		trading:      tp,
 		store:        st,
 		news:         newsClient,
-		fred:         fredClient,
+		econ:         econFetcher,
 		assetVersion: newAssetVersion(),
 	}
 
@@ -237,7 +237,7 @@ func (s *Server) handleStock(w http.ResponseWriter, r *http.Request) {
 	//   US.UNRATE       → catalog hit → economic graph
 	//   AAPL.revenue    → lowercase camelCase suffix → financial-field graph
 	//   BRK.A / GOOG.L  → uppercase ticker share class → stock graph
-	if entry := fred.LookupCatalog(strings.ToUpper(symbol)); entry != nil {
+	if entry := econ.LookupCatalog(strings.ToUpper(symbol)); entry != nil {
 		s.renderPage(w, r, "economic-graph.html", map[string]any{
 			"Title":     entry.Name,
 			"Active":    "graph",

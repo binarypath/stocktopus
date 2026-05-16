@@ -13,6 +13,8 @@ import (
 
 	"stocktopus/internal/agent"
 	"stocktopus/internal/agent/trading"
+	"stocktopus/internal/dbnomics"
+	"stocktopus/internal/econ"
 	"stocktopus/internal/fred"
 	"stocktopus/internal/hub"
 	"stocktopus/internal/news"
@@ -193,10 +195,15 @@ func main() {
 		go sp.Run(appCtx)
 	}
 
-	// FRED client + prefetcher. Disabled (gracefully) if FRED_API_KEY is unset.
+	// Economic providers (FRED for US, DBnomics for international) sit
+	// behind a unified econ.Fetcher so the server doesn't know about
+	// providers — it just hands the fetcher a catalog entry. Prefetcher
+	// uses the same fetcher to keep all curated series warm.
 	fredClient := fred.New(os.Getenv("FRED_API_KEY"))
+	dbnomicsClient := dbnomics.New()
+	econFetcher := econ.NewFetcher(fredClient, dbnomicsClient)
 	if st != nil {
-		go fred.NewPrefetcher(fredClient, st, logger, 30*time.Minute).Run(appCtx)
+		go econ.NewPrefetcher(econFetcher, st, logger, 30*time.Minute).Run(appCtx)
 	}
 
 	h.SetSubscriptionHandler(composite)
@@ -228,7 +235,7 @@ func main() {
 		slog.Info("trading pipeline ready", "model", analystModel)
 	}
 
-	srv, err := server.New(server.Config{Port: 8080, Host: "localhost"}, h, debug, poll, newsClient, fredClient, pipeline, tradingPipeline, st, logger)
+	srv, err := server.New(server.Config{Port: 8080, Host: "localhost"}, h, debug, poll, newsClient, econFetcher, pipeline, tradingPipeline, st, logger)
 	if err != nil {
 		slog.Error("failed to create server", "error", err)
 		os.Exit(1)

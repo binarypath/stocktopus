@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"stocktopus/internal/fred"
+	"stocktopus/internal/econ"
 	"stocktopus/internal/store"
 )
 
@@ -25,7 +25,7 @@ func (s *Server) handleEconomicsCatalog(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Content-Type", "application/json")
 
 	type row struct {
-		Identifier  string  `json:"identifier"` // "US.UNRATE" — the user-facing handle
+		Identifier  string  `json:"identifier"`
 		Country     string  `json:"country"`
 		Code        string  `json:"code"`
 		Name        string  `json:"name"`
@@ -38,9 +38,9 @@ func (s *Server) handleEconomicsCatalog(w http.ResponseWriter, r *http.Request) 
 	}
 
 	country := strings.ToUpper(r.URL.Query().Get("country"))
-	entries := fred.Catalog
+	entries := econ.Catalog
 	if country != "" {
-		entries = fred.IndicatorsByCountry(country)
+		entries = econ.IndicatorsByCountry(country)
 	}
 
 	out := make([]row, 0, len(entries))
@@ -78,18 +78,17 @@ func (s *Server) handleEconomicsCatalog(w http.ResponseWriter, r *http.Request) 
 // — the entry point for the catalog drill-down.
 func (s *Server) handleEconomicsCentralBanks(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(fred.CentralBanks())
+	json.NewEncoder(w).Encode(econ.CentralBanks())
 }
 
 // handleEconomicsSeries returns a single series — full observations, suitable
-// for chart rendering. Path param is the full identifier ("US.UNRATE"); the
-// older bare-code form is accepted for backwards-compat but resolves against
-// the first matching entry. Cache-through: serves from store if fresh, else
-// hits FRED and persists. 404 if not in the curated catalog.
+// for chart rendering. Path identifier is "COUNTRY.CODE" (e.g. US.UNRATE).
+// Cache-through: serves from store if fresh, else hits the appropriate
+// provider via the econ.Fetcher and persists. 404 if not in the catalog.
 func (s *Server) handleEconomicsSeries(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	identifier := strings.ToUpper(r.PathValue("identifier"))
-	entry := fred.LookupCatalog(identifier)
+	entry := econ.LookupCatalog(identifier)
 	if entry == nil {
 		http.Error(w, "unknown series", http.StatusNotFound)
 		return
@@ -106,10 +105,9 @@ func (s *Server) handleEconomicsSeries(w http.ResponseWriter, r *http.Request) {
 // serveEconomicSeriesObservations is the chart-layer projection — emits the
 // [{date, value}, ...] shape that the sketchpad historical handler expects,
 // so an `economic` metric kind interleaves with prices and financials cleanly.
-// Path identifier is "COUNTRY.CODE" (e.g. US.UNRATE).
 func (s *Server) serveEconomicSeriesObservations(w http.ResponseWriter, r *http.Request, rawIdentifier string) {
 	identifier := strings.ToUpper(rawIdentifier)
-	entry := fred.LookupCatalog(identifier)
+	entry := econ.LookupCatalog(identifier)
 	if entry == nil {
 		http.Error(w, "unknown economic series", http.StatusNotFound)
 		return
@@ -126,10 +124,10 @@ func (s *Server) serveEconomicSeriesObservations(w http.ResponseWriter, r *http.
 	json.NewEncoder(w).Encode(out)
 }
 
-// fetchOrLoadSeries returns the stored series if fresh, otherwise fetches from
-// FRED, persists, and returns the fresh copy. Cache key is the full
-// identifier (US.UNRATE); FRED itself is queried with the bare entry.Code.
-func (s *Server) fetchOrLoadSeries(r *http.Request, entry *fred.CatalogEntry) (*store.EconomicSeries, error) {
+// fetchOrLoadSeries returns the stored series if fresh, otherwise fetches via
+// the econ.Fetcher (which dispatches to FRED, DBnomics, …), persists, and
+// returns the fresh copy. Cache key is the full identifier (US.UNRATE).
+func (s *Server) fetchOrLoadSeries(r *http.Request, entry *econ.CatalogEntry) (*store.EconomicSeries, error) {
 	if s.store == nil {
 		return nil, httpErr("store unavailable")
 	}
@@ -140,32 +138,50 @@ func (s *Server) fetchOrLoadSeries(r *http.Request, entry *fred.CatalogEntry) (*
 	if cached != nil && cached.Frequency != "" {
 		freq = cached.Frequency
 	}
-	if cached != nil && s.store.IsEconomicFresh(id, fred.TTLForFrequency(freq)) {
+	if cached != nil && s.store.IsEconomicFresh(id, econ.TTLForFrequency(freq)) {
 		return cached, nil
 	}
 
-	if s.fred == nil || !s.fred.HasKey() {
+	if s.econ == nil {
 		if cached != nil {
 			return cached, nil
 		}
-		return nil, httpErr("FRED_API_KEY not configured")
+		return nil, httpErr("econ fetcher not configured")
 	}
 
-	ctx, cancel := contextWithTimeout(r, 20*time.Second)
+	ctx, cancel := contextWithTimeout(r, 30*time.Second)
 	defer cancel()
-	series, err := s.fred.GetSeries(ctx, entry.Code)
+	series, err := s.econ.FetchEntry(ctx, entry)
 	if err != nil {
 		if cached != nil {
-			return cached, nil // soft-fail to stale data
+			return cached, nil // soft-fail to stale cache
 		}
 		return nil, err
 	}
 
-	row := seriesToRow(id, entry, series)
+	row := econSeriesToStoreRow(series)
 	if err := s.store.PutEconomicSeries(row); err != nil {
 		s.logger.Warn("economic series put failed", "id", id, "error", err)
 	}
 	return row, nil
+}
+
+// econSeriesToStoreRow mirrors econ.seriesToStoreRow — duplicated here to
+// keep the prefetcher's helper unexported. Both shapes match field-for-field.
+func econSeriesToStoreRow(s *econ.Series) *store.EconomicSeries {
+	obs := make([]store.EconomicObservation, len(s.Observations))
+	for i, o := range s.Observations {
+		obs[i] = store.EconomicObservation{Date: o.Date, Value: o.Value}
+	}
+	return &store.EconomicSeries{
+		Code:            s.Identifier,
+		Title:           s.Title,
+		Category:        s.Category,
+		Frequency:       s.Frequency,
+		Units:           s.Units,
+		Observations:    obs,
+		SourceUpdatedAt: s.UpdatedAt,
+	}
 }
 
 // handleEconomicsCalendar proxies the FMP economic calendar for a date window.
