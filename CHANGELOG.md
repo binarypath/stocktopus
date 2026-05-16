@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [1.7.1](https://github.com/binarypath/stocktopus/compare/v1.7.0...v1.7.1) (2026-05-16)
+
+
+### Bug Fixes
+
+* **info:** vim flow into Run Deep Analysis button ([#92](https://github.com/binarypath/stocktopus/issues/92)) ([cc35279](https://github.com/binarypath/stocktopus/commit/cc35279756f8be0b9bee1e5e8ea5ea1c041ba92f)), closes [#68](https://github.com/binarypath/stocktopus/issues/68)
+
 ## [1.7.0](https://github.com/binarypath/stocktopus/compare/v1.6.0...v1.7.0) (2026-05-16)
 
 
