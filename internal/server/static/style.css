@@ -2232,6 +2232,14 @@ body {
     border-bottom-color: var(--orange);
 }
 
+/* When the trading-header is the vim selection, make the button itself
+ * pop so it's unambiguous that Enter will fire it. Reverses the hover
+ * styling so the affordance reads as "armed". (#68) */
+.trading-header.trading-panel-selected .trading-btn:not(:disabled) {
+    background: var(--orange);
+    color: var(--bg-primary);
+}
+
 /* Trading plan (debate result) */
 
 .trading-plan {
