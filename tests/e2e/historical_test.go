@@ -89,6 +89,49 @@ func TestSmoke_HistoricalBeta(t *testing.T) {
 	}
 }
 
+// :add XLK.beta — the rolling-beta math is symmetric in the target, so an
+// ETF should produce a valid series too. Locks in the behaviour relied on
+// by the sectorBeta resolver below.
+func TestSmoke_HistoricalBetaETF(t *testing.T) {
+	resp := get(t, "/api/historical/financial/XLK.beta")
+	defer resp.Body.Close()
+	assertStatus(t, resp, 200)
+	var rows []map[string]any
+	json.NewDecoder(resp.Body).Decode(&rows)
+	if len(rows) == 0 {
+		t.Fatal("expected XLK beta data points")
+	}
+	// Sector ETF betas hug 1.0 (by construction — they are subsets of SPY).
+	// XLK is the spiciest of the SPDRs but still well inside [0, 2].
+	first, ok := rows[0]["value"].(float64)
+	if !ok {
+		t.Fatalf("expected numeric beta value, got %T", rows[0]["value"])
+	}
+	if first < 0 || first > 2 {
+		t.Errorf("XLK beta outside expected range [0, 2]: %f", first)
+	}
+}
+
+// :add AAPL.sectorBeta — resolves AAPL → Technology → XLK and emits XLK's
+// rolling beta. Validates both the sector map and the resolver plumbing.
+func TestSmoke_HistoricalSectorBeta(t *testing.T) {
+	resp := get(t, "/api/historical/financial/AAPL.sectorBeta")
+	defer resp.Body.Close()
+	assertStatus(t, resp, 200)
+	var rows []map[string]any
+	json.NewDecoder(resp.Body).Decode(&rows)
+	if len(rows) == 0 {
+		t.Fatal("expected sectorBeta data points")
+	}
+	first, ok := rows[0]["value"].(float64)
+	if !ok {
+		t.Fatalf("expected numeric sectorBeta value, got %T", rows[0]["value"])
+	}
+	if first < 0 || first > 2 {
+		t.Errorf("sectorBeta outside expected range [0, 2]: %f", first)
+	}
+}
+
 func trim(b []byte) string {
 	s := string(b)
 	if len(s) > 200 {
