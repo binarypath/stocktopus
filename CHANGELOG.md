@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [1.5.0](https://github.com/binarypath/stocktopus/compare/v1.4.0...v1.5.0) (2026-05-16)
+
+
+### Features
+
+* **economics:** vertical slice for v2 — DBnomics client + unified econ catalog with ECB ([#83](https://github.com/binarypath/stocktopus/issues/83)) ([b377aae](https://github.com/binarypath/stocktopus/commit/b377aaebd82ad2303c091444238d6239db45989d))
+
 ## [1.4.0](https://github.com/binarypath/stocktopus/compare/v1.3.1...v1.4.0) (2026-05-14)
 
 
