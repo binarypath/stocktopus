@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [1.6.0](https://github.com/binarypath/stocktopus/compare/v1.5.0...v1.6.0) (2026-05-16)
+
+
+### Features
+
+* **econ:** UK economics via BoE direct + DBnomics/ONS hybrid ([#88](https://github.com/binarypath/stocktopus/issues/88)) ([8a5af9d](https://github.com/binarypath/stocktopus/commit/8a5af9dcffd0daa6e0537baa3862301cd355eb97)), closes [#87](https://github.com/binarypath/stocktopus/issues/87)
+
 ## [1.5.0](https://github.com/binarypath/stocktopus/compare/v1.4.0...v1.5.0) (2026-05-16)
 
 
