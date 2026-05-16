@@ -7,6 +7,14 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [1.4.0](https://github.com/binarypath/stocktopus/compare/v1.3.1...v1.4.0) (2026-05-14)
+
+
+### Features
+
+* **ideas:** :add non-statement fundamentals + rolling beta ([#62](https://github.com/binarypath/stocktopus/issues/62)) ([1dbffa0](https://github.com/binarypath/stocktopus/commit/1dbffa013c4775b3ca12442488fc909c3f4eaddb))
+* **ideas:** delete sketches from the sidebar with d (idea [#18](https://github.com/binarypath/stocktopus/issues/18)) ([#60](https://github.com/binarypath/stocktopus/issues/60)) ([44ed6f7](https://github.com/binarypath/stocktopus/commit/44ed6f794a75f7330433e8eb37fa8c0f07eded7f))
+
 ## [1.3.1](https://github.com/binarypath/stocktopus/compare/v1.3.0...v1.3.1) (2026-05-12)
 
 
