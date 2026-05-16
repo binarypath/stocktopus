@@ -44,6 +44,37 @@ func ezEntry(code, name, category, freq, units, dbPath string) CatalogEntry {
 	}
 }
 
+// ukBoEEntry routes a UK indicator through the BoE IADB CSV (monetary side:
+// Bank Rate, SONIA, gilt yields, M4). The central bank is attributed to BoE.
+func ukBoEEntry(code, name, category, freq, units, iadbCode string) CatalogEntry {
+	return CatalogEntry{
+		Country:     "UK",
+		Code:        code,
+		Name:        name,
+		Category:    category,
+		Frequency:   freq,
+		Units:       units,
+		CentralBank: "Bank of England",
+		Route:       "boe:" + iadbCode,
+	}
+}
+
+// ukONSEntry routes a UK indicator through DBnomics → ONS (inflation, labour,
+// GDP). Central bank is still BoE — the catalog groups by country, not by
+// data source.
+func ukONSEntry(code, name, category, freq, units, dbPath string) CatalogEntry {
+	return CatalogEntry{
+		Country:     "UK",
+		Code:        code,
+		Name:        name,
+		Category:    category,
+		Frequency:   freq,
+		Units:       units,
+		CentralBank: "Bank of England",
+		Route:       "dbnomics:" + dbPath,
+	}
+}
+
 var Catalog = []CatalogEntry{
 	// ── United States · Federal Reserve / FRED ──
 	// Rates & Monetary
@@ -102,6 +133,26 @@ var Catalog = []CatalogEntry{
 		"ECB/ICP/M.U2.N.000000.4.ANR"),
 	ezEntry("HICPCORE", "Euro Area Core HICP (Annual Rate)", "Inflation", "M", "%",
 		"ECB/ICP/M.U2.N.XEF000.4.ANR"),
+
+	// ── United Kingdom · Bank of England + ONS ──
+	// Rates & Monetary (BoE IADB)
+	ukBoEEntry("RATE", "Official Bank Rate", "Rates", "D", "%", "IUDBEDR"),
+	ukBoEEntry("SONIA", "Sterling Overnight Index Average", "Rates", "D", "%", "IUDSOIA"),
+	ukBoEEntry("10Y", "10-Year Gilt Nominal Par Yield", "Rates", "D", "%", "IUDMNPY"),
+	ukBoEEntry("M4", "M4 Money Supply (12-mo Growth, SA)", "Rates", "M", "%", "LPMVQJW"),
+	// Inflation (ONS MM23)
+	ukONSEntry("CPI", "UK CPI (Annual Rate, All Items)", "Inflation", "M", "%",
+		"ONS/MM23/D7G7.M"),
+	ukONSEntry("CPIH", "UK CPIH (Annual Rate, All Items)", "Inflation", "M", "%",
+		"ONS/MM23/L55O.M"),
+	ukONSEntry("COREPI", "UK Core CPI (excl. food/energy/alcohol/tobacco)", "Inflation", "M", "%",
+		"ONS/MM23/DKO8.M"),
+	// Labor (ONS LMS)
+	ukONSEntry("UNRATE", "UK Unemployment Rate (16+, SA)", "Labor", "M", "%",
+		"ONS/LMS/MGSX.M"),
+	// Growth (ONS PN2)
+	ukONSEntry("GDP", "UK GDP Growth (YoY, CVM SA)", "Growth", "Q", "%",
+		"ONS/PN2/IHYR.Q"),
 }
 
 // LookupCatalog returns the curated entry for an identifier. Accepts either

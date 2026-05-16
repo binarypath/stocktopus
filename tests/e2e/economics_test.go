@@ -9,9 +9,10 @@ import (
 	"testing"
 )
 
-// Catalog includes both FRED (US) and DBnomics (EZ) routed entries. Tests
-// the shape of the response + that both sources appear, but does NOT fetch
-// any series (the test scaffold has no econ.Fetcher wired).
+// Catalog includes FRED (US), DBnomics→ECB (EZ), BoE direct + DBnomics→ONS
+// (UK) routed entries. Tests the shape of the response + that all three
+// regions appear, but does NOT fetch any series (the test scaffold has no
+// econ.Fetcher wired).
 
 func TestSmoke_EconomicsCatalog(t *testing.T) {
 	resp := get(t, "/api/economics/catalog")
@@ -33,14 +34,19 @@ func TestSmoke_EconomicsCatalog(t *testing.T) {
 		t.Errorf("expected 30+ catalog entries, got %d", len(rows))
 	}
 
-	// Spot-check coverage of both sources.
-	foundUS, foundEZ := false, false
+	// Spot-check coverage of all three regions. UK.RATE (BoE direct) and
+	// UK.CPI (DBnomics→ONS) cover both UK source paths.
+	foundUS, foundEZ, foundUKBoE, foundUKONS := false, false, false, false
 	for _, r := range rows {
 		switch r.Identifier {
 		case "US.UNRATE":
 			foundUS = true
 		case "EZ.RATE":
 			foundEZ = true
+		case "UK.RATE":
+			foundUKBoE = true
+		case "UK.CPI":
+			foundUKONS = true
 		}
 		// All entries must carry the domain fields; provider details must
 		// not leak (Route is tagged json:"-").
@@ -53,6 +59,12 @@ func TestSmoke_EconomicsCatalog(t *testing.T) {
 	}
 	if !foundEZ {
 		t.Error("expected EZ.RATE in catalog")
+	}
+	if !foundUKBoE {
+		t.Error("expected UK.RATE (BoE direct) in catalog")
+	}
+	if !foundUKONS {
+		t.Error("expected UK.CPI (DBnomics→ONS) in catalog")
 	}
 }
 
@@ -75,6 +87,33 @@ func TestSmoke_EconomicsCatalogCountryFilter(t *testing.T) {
 	}
 }
 
+func TestSmoke_EconomicsCatalogUKFilter(t *testing.T) {
+	resp := get(t, "/api/economics/catalog?country=UK")
+	defer resp.Body.Close()
+	assertStatus(t, resp, 200)
+
+	var rows []struct {
+		Country string `json:"country"`
+		Code    string `json:"code"`
+	}
+	json.NewDecoder(resp.Body).Decode(&rows)
+	if len(rows) < 5 {
+		t.Fatalf("expected several UK catalog entries (BoE + ONS), got %d", len(rows))
+	}
+	codes := map[string]bool{}
+	for _, r := range rows {
+		if r.Country != "UK" {
+			t.Errorf("expected only UK entries, got %q", r.Country)
+		}
+		codes[r.Code] = true
+	}
+	for _, want := range []string{"RATE", "CPI", "UNRATE"} {
+		if !codes[want] {
+			t.Errorf("expected UK.%s in catalog", want)
+		}
+	}
+}
+
 func TestSmoke_EconomicsCentralBanks(t *testing.T) {
 	resp := get(t, "/api/economics/central-banks")
 	defer resp.Body.Close()
@@ -86,10 +125,10 @@ func TestSmoke_EconomicsCentralBanks(t *testing.T) {
 		Indicators int    `json:"indicators"`
 	}
 	json.NewDecoder(resp.Body).Decode(&cbs)
-	if len(cbs) < 2 {
-		t.Fatalf("expected at least 2 central banks (Fed + ECB), got %d", len(cbs))
+	if len(cbs) < 3 {
+		t.Fatalf("expected at least 3 central banks (Fed + ECB + BoE), got %d", len(cbs))
 	}
-	foundFed, foundECB := false, false
+	foundFed, foundECB, foundBoE := false, false, false
 	for _, cb := range cbs {
 		if cb.Country == "US" && cb.Indicators > 0 {
 			foundFed = true
@@ -97,12 +136,18 @@ func TestSmoke_EconomicsCentralBanks(t *testing.T) {
 		if cb.Country == "EZ" && cb.Indicators > 0 {
 			foundECB = true
 		}
+		if cb.Country == "UK" && cb.Indicators > 0 {
+			foundBoE = true
+		}
 	}
 	if !foundFed {
 		t.Error("expected Federal Reserve in central banks list")
 	}
 	if !foundECB {
 		t.Error("expected ECB in central banks list")
+	}
+	if !foundBoE {
+		t.Error("expected Bank of England in central banks list")
 	}
 }
 
