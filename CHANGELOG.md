@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [1.7.0](https://github.com/binarypath/stocktopus/compare/v1.6.0...v1.7.0) (2026-05-16)
+
+
+### Features
+
+* **fundamentals:** :add SYMBOL.sectorBeta for sector-ETF rolling beta ([#90](https://github.com/binarypath/stocktopus/issues/90)) ([3a6d0c4](https://github.com/binarypath/stocktopus/commit/3a6d0c4f1b8827c4b921929121b630918790be97)), closes [#78](https://github.com/binarypath/stocktopus/issues/78)
+
 ## [1.6.0](https://github.com/binarypath/stocktopus/compare/v1.5.0...v1.6.0) (2026-05-16)
 
 
