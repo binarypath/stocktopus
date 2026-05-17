@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [1.10.0](https://github.com/binarypath/stocktopus/compare/v1.9.0...v1.10.0) (2026-05-17)
+
+
+### Features
+
+* **etf:** ETF info page (holdings + sectors + AI) ([#108](https://github.com/binarypath/stocktopus/issues/108)) ([df3a54f](https://github.com/binarypath/stocktopus/commit/df3a54f1bf70846bad761156afeb1ae0fa057fa7)), closes [#100](https://github.com/binarypath/stocktopus/issues/100) [#97](https://github.com/binarypath/stocktopus/issues/97)
+
 ## [1.9.0](https://github.com/binarypath/stocktopus/compare/v1.8.0...v1.9.0) (2026-05-17)
 
 
