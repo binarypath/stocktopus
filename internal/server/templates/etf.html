@@ -5,10 +5,12 @@
 <div class="info-tabs" id="info-tabs">
     <button class="info-tab active" data-tab="overview"><span class="tab-key">1</span> Overview</button>
     <button class="info-tab" data-tab="holdings"><span class="tab-key">2</span> Holdings</button>
-    <button class="info-tab" data-tab="news"><span class="tab-key">3</span> News</button>
-    <button class="info-tab" data-tab="ai"><span class="tab-key">4</span> AI Analysis</button>
+    <button class="info-tab" data-tab="sectors"><span class="tab-key">3</span> Sectors</button>
+    <button class="info-tab" data-tab="news"><span class="tab-key">4</span> News</button>
+    <button class="info-tab" data-tab="ai"><span class="tab-key">5</span> AI Analysis</button>
 </div>
 <div id="info-content" class="info-content" data-symbol="{{.Symbol}}">
-    <p class="empty-state">ETF page coming soon. Tracked in #100.</p>
+    <p class="empty-state">Loading...</p>
 </div>
+<script src="/static/etf.js?v={{.AssetVersion}}"></script>
 {{end}}
