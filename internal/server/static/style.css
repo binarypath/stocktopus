@@ -1205,7 +1205,7 @@ body {
 }
 
 .ai-risks li::before {
-    content: "\25B2 ";
+    content: "\25BC ";
     color: var(--red);
     font-size: 8px;
 }
