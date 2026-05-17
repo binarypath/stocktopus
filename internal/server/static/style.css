@@ -2030,19 +2030,11 @@ body {
 
 /* ── Vim Selection ── */
 
+/* Soft orange fill (25% of #ff8800) — the whole element lights up
+ * when navigated to. No outline; the fill alone is the indicator.
+ * Works uniformly for tabs, sub-tabs, table rows, news cards, etc. */
 .vim-selected {
-    background: rgba(255, 140, 0, 0.12) !important;
-    outline: 2px solid var(--orange);
-    outline-offset: -1px;
-}
-
-/* Tab-strip selections benefit from a slightly thicker outline since
- * the buttons already have their own border baseline — without the
- * bump the selection visually fades into the tab's normal styling. */
-.info-tabs .vim-selected,
-.news-sub-tabs .vim-selected,
-.info-sub-tabs .vim-selected {
-    outline-width: 2px;
+    background: rgba(255, 136, 0, 0.25) !important;
 }
 
 /* ── Equity Indices ── */
