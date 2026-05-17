@@ -206,6 +206,12 @@ func (s *Store) migrate() error {
 			source_updated_at TEXT NOT NULL DEFAULT '', -- FRED's last_updated (string, parse on display)
 			fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
+
+		CREATE TABLE IF NOT EXISTS security_types (
+			symbol TEXT PRIMARY KEY,
+			type TEXT NOT NULL,           -- stock / crypto / forex / index / etf
+			fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
 	`)
 	if err != nil {
 		return err
@@ -1057,4 +1063,28 @@ func (s *Store) IsEconomicFresh(code string, ttl time.Duration) bool {
 		return false
 	}
 	return time.Since(t) < ttl
+}
+
+// GetSecurityType returns the cached asset class for a symbol ("stock" /
+// "crypto" / "forex" / "index" / "etf"). Empty string when not cached.
+func (s *Store) GetSecurityType(symbol string) string {
+	var typ string
+	if err := s.db.QueryRow(`SELECT type FROM security_types WHERE symbol = ?`, symbol).Scan(&typ); err != nil {
+		return ""
+	}
+	return typ
+}
+
+// PutSecurityType upserts a symbol's asset class. Used by the routing
+// layer so the /security/{sym} legacy redirect doesn't re-profile on
+// every hit.
+func (s *Store) PutSecurityType(symbol, typ string) error {
+	_, err := s.db.Exec(`
+		INSERT INTO security_types (symbol, type, fetched_at)
+		VALUES (?, ?, CURRENT_TIMESTAMP)
+		ON CONFLICT(symbol) DO UPDATE SET
+			type = excluded.type,
+			fetched_at = excluded.fetched_at
+	`, symbol, typ)
+	return err
 }
