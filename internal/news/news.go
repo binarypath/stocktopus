@@ -300,6 +300,33 @@ func (c *Client) GetETFInfo(ctx context.Context, symbol string) (json.RawMessage
 	return c.fetchJSON(ctx, "/stable/etf/info", params)
 }
 
+// GetIndexConstituents returns the component list for an equity index.
+// FMP serves these on per-index paths rather than a unified endpoint, so
+// we map the index symbol (^DJI / ^GSPC / ^IXIC) to the right path here.
+// Returns ([]any, nil) when the symbol isn't a known index.
+func (c *Client) GetIndexConstituents(ctx context.Context, symbol string) (json.RawMessage, error) {
+	endpoint := ""
+	switch strings.ToUpper(symbol) {
+	case "^DJI":
+		endpoint = "/stable/dowjones-constituent"
+	case "^GSPC":
+		endpoint = "/stable/sp500-constituent"
+	case "^IXIC":
+		endpoint = "/stable/nasdaq-constituent"
+	default:
+		return json.RawMessage("[]"), nil
+	}
+	return c.fetchJSON(ctx, endpoint, url.Values{})
+}
+
+// GetBatchQuote fetches realtime quotes for multiple symbols in one
+// call. FMP appears to cap the response at ~50 rows, so callers that
+// need more (e.g. S&P 500 movers) should chunk on the client.
+func (c *Client) GetBatchQuote(ctx context.Context, symbols []string) (json.RawMessage, error) {
+	params := url.Values{"symbols": {strings.Join(symbols, ",")}}
+	return c.fetchJSON(ctx, "/stable/batch-quote", params)
+}
+
 // GetKeyMetrics returns key financial metrics.
 func (c *Client) GetKeyMetrics(ctx context.Context, symbol string) (json.RawMessage, error) {
 	params := url.Values{"symbol": {symbol}, "limit": {"1"}}

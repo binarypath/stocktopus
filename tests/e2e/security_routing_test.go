@@ -160,6 +160,45 @@ func TestSmoke_ETFInfo(t *testing.T) {
 	}
 }
 
+// Same for the index page — index_page.js must be reachable.
+func TestSmoke_SecurityRouting_IndexStaticAsset(t *testing.T) {
+	resp := get(t, "/static/index_page.js")
+	defer resp.Body.Close()
+	assertStatus(t, resp, 200)
+	assertContains(t, resp, "index_page.js")
+}
+
+// /api/security/^DJI/index-constituents returns the 30 Dow components.
+// Each row carries `symbol`, `name`, `sector`, `subSector`.
+func TestSmoke_IndexConstituents(t *testing.T) {
+	resp := get(t, "/api/security/%5EDJI/index-constituents")
+	defer resp.Body.Close()
+	assertStatus(t, resp, 200)
+	body, _ := io.ReadAll(resp.Body)
+	s := string(body)
+	if !strings.HasPrefix(strings.TrimSpace(s), "[") {
+		t.Fatalf("expected JSON array, got: %.200s", s)
+	}
+	for _, want := range []string{`"symbol"`, `"sector"`} {
+		if !strings.Contains(s, want) {
+			t.Errorf("expected %s in constituents body, got: %.200s", want, s)
+		}
+	}
+}
+
+// /api/batch-quote fronts FMP's batch quote endpoint. Verify it returns
+// an array for a small set.
+func TestSmoke_BatchQuote(t *testing.T) {
+	resp := get(t, "/api/batch-quote?symbols=AAPL,MSFT")
+	defer resp.Body.Close()
+	assertStatus(t, resp, 200)
+	body, _ := io.ReadAll(resp.Body)
+	s := string(body)
+	if !strings.HasPrefix(strings.TrimSpace(s), "[") {
+		t.Fatalf("expected JSON array, got: %.200s", s)
+	}
+}
+
 // SPY is an ETF — /security/SPY should 301 to /etf/SPY once the type
 // resolver has seen isEtf=true on the profile.
 func TestSmoke_SecurityRouting_ETFRedirect(t *testing.T) {
