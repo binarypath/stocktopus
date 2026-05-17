@@ -122,6 +122,73 @@
         return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
+    // mdInline renders a tiny subset of markdown safely: **bold** → <strong>.
+    // The LLM frequently emits "**Trend Direction:** …" as bullet preamble;
+    // without rendering those asterisks land as literal text. We escape
+    // first, then promote escaped `**…**` runs to <strong>.
+    function mdInline(s) {
+        var out = esc(s || '').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        // The LLM is inconsistent — some bullets arrive as
+        // `**Title:** body` (caught above) and others as plain
+        // `Title: body`. Bold the leading short capitalised prefix
+        // when there's a colon-space delimiter, capped at 5 words
+        // so we don't accidentally bold a leading sentence.
+        if (out.indexOf('<strong>') !== 0) {
+            out = out.replace(
+                /^([A-Z][A-Za-z0-9'/()\-]*(?:\s+[A-Za-z0-9'/()\-]+){0,4}):(\s)/,
+                '<strong>$1:</strong>$2'
+            );
+        }
+        return out;
+    }
+
+    // mdBlock splits multi-line LLM prose into paragraphs and runs mdInline
+    // on each one. Use for fields the LLM emits as several `**Heading:**`
+    // paragraphs separated by newlines (analyst reasoning, plan rationale).
+    // Single-line input falls through as a single <p>.
+    function mdBlock(s) {
+        var parts = String(s || '').split(/\n+/).map(function (p) { return p.trim(); }).filter(Boolean);
+        if (parts.length === 0) return '';
+        return parts.map(function (p) { return '<p>' + mdInline(p) + '</p>'; }).join('');
+    }
+
+    // classifyKeyPoint scans a bullet's text for sentiment cues and returns
+    // 'bearish' / 'bullish' / 'neutral'. Used to re-bucket analyst key
+    // points at render time — the server-side pipeline categorises a whole
+    // analyst's points by overall score, so a mixed report ends up dumping
+    // bearish observations into the green Opportunities list. We score word
+    // hits per side and let the dominant cue win.
+    var BEARISH_RE = /\b(downtrend|bearish|weak(?:ness|ening|er)?|falling|fell|drop(?:ped|s|ping)?|decline|declining|declined|lower(?: high)?|breakdown|breaks? down|oversold|sell(?:ing)? pressure|headwind|capitulation|negative|deteriorat\w*|loss|losses|risk(?:s|y)?|below|short(?:ing)?|underperform\w*|miss(?:ed|es)?)\b/i;
+    var BULLISH_RE = /\b(uptrend|bullish|strong(?:er|est)?|strength(?:ening)?|rising|rises|rose|rally|rallied|rallying|gain(?:s|ed|ing)?|advance|advancing|breakout|breaks? out|overbought|buying pressure|tailwind|positive|improv\w*|opportunity|opportunities|above|long|outperform\w*|beat|beats|beaten)\b/i;
+    function classifyKeyPoint(text) {
+        var t = String(text || '');
+        var bear = (t.match(new RegExp(BEARISH_RE.source, 'gi')) || []).length;
+        var bull = (t.match(new RegExp(BULLISH_RE.source, 'gi')) || []).length;
+        if (bear > bull) return 'bearish';
+        if (bull > bear) return 'bullish';
+        return 'neutral';
+    }
+
+    // partitionKeyPoints takes the server's risks + opportunities arrays
+    // and re-buckets per-point based on textual sentiment. Anything neutral
+    // stays in whichever list the server placed it.
+    function partitionKeyPoints(risks, opps) {
+        risks = risks || [];
+        opps = opps || [];
+        var outRisks = [];
+        var outOpps = [];
+        var classifyInto = function (pt, origin) {
+            var cls = classifyKeyPoint(pt);
+            if (cls === 'bearish') outRisks.push(pt);
+            else if (cls === 'bullish') outOpps.push(pt);
+            else if (origin === 'risk') outRisks.push(pt);
+            else outOpps.push(pt);
+        };
+        risks.forEach(function (p) { classifyInto(p, 'risk'); });
+        opps.forEach(function (p) { classifyInto(p, 'opp'); });
+        return { risks: outRisks, opportunities: outOpps };
+    }
+
     // ── Tab Switching ──
 
     var tabs = document.getElementById('info-tabs');
@@ -1487,14 +1554,14 @@
 
                 html += '<div class="trading-analyst-body">';
                 if (report.summary) {
-                    html += '<p class="ai-text">' + esc(report.summary) + '</p>';
+                    html += '<p class="ai-text">' + mdInline(report.summary) + '</p>';
                 }
                 if (report.reasoning) {
-                    html += '<div class="trading-reasoning">' + esc(report.reasoning) + '</div>';
+                    html += '<div class="trading-reasoning">' + mdBlock(report.reasoning) + '</div>';
                 }
                 if (report.keyPoints && report.keyPoints.length > 0) {
                     html += '<ul class="ai-list">';
-                    report.keyPoints.forEach(function (p) { html += '<li>' + esc(p) + '</li>'; });
+                    report.keyPoints.forEach(function (p) { html += '<li>' + mdInline(p) + '</li>'; });
                     html += '</ul>';
                 }
                 if (report.sources && report.sources.length > 0) {
@@ -1528,14 +1595,14 @@
                     html += '<div class="trading-arg-col">';
                     html += '<span class="trading-arg-label price-up">Bull Case</span>';
                     html += '<ul class="ai-list">';
-                    plan.bullArguments.forEach(function (a) { html += '<li>' + esc(a) + '</li>'; });
+                    plan.bullArguments.forEach(function (a) { html += '<li>' + mdInline(a) + '</li>'; });
                     html += '</ul></div>';
                 }
                 if (hasBear) {
                     html += '<div class="trading-arg-col">';
                     html += '<span class="trading-arg-label price-down">Bear Case</span>';
                     html += '<ul class="ai-list">';
-                    plan.bearArguments.forEach(function (a) { html += '<li>' + esc(a) + '</li>'; });
+                    plan.bearArguments.forEach(function (a) { html += '<li>' + mdInline(a) + '</li>'; });
                     html += '</ul></div>';
                 }
                 html += '</div>';
@@ -1544,14 +1611,14 @@
             if (plan.keyActions && plan.keyActions.length > 0) {
                 html += '<div class="trading-actions"><span class="trading-arg-label">Key Actions</span>';
                 html += '<ul class="ai-list">';
-                plan.keyActions.forEach(function (a) { html += '<li>' + esc(a) + '</li>'; });
+                plan.keyActions.forEach(function (a) { html += '<li>' + mdInline(a) + '</li>'; });
                 html += '</ul></div>';
             }
 
             // Rationale — collapsible, skip if it looks like raw JSON
             if (plan.rationale && plan.rationale.charAt(0) !== '{' && plan.rationale.charAt(0) !== '[') {
                 html += '<details class="trading-rationale"><summary>Rationale</summary>';
-                html += '<p class="ai-text">' + esc(plan.rationale) + '</p>';
+                html += '<div class="ai-text">' + mdBlock(plan.rationale) + '</div>';
                 html += '</details>';
             }
 
@@ -1712,21 +1779,23 @@
         html += renderScore('Confidence', conf, 0, 100, '');
         html += '</div>';
 
-        // Key Risks
-        if (data.keyRisks && data.keyRisks.length > 0) {
+        // Key Risks / Opportunities — re-bucket per-point because the
+        // server tags by overall analyst score, so a mixed technical
+        // report dumps "downtrend"/"bearish" observations into the green
+        // Opportunities list (see partitionKeyPoints).
+        var buckets = partitionKeyPoints(data.keyRisks, data.opportunities);
+        if (buckets.risks.length > 0) {
             html += '<div class="ai-section">';
             html += '<div class="ai-section-title">Key Risks</div>';
             html += '<ul class="ai-list ai-risks">';
-            data.keyRisks.forEach(function (r) { html += '<li>' + esc(r) + '</li>'; });
+            buckets.risks.forEach(function (r) { html += '<li>' + mdInline(r) + '</li>'; });
             html += '</ul></div>';
         }
-
-        // Opportunities
-        if (data.opportunities && data.opportunities.length > 0) {
+        if (buckets.opportunities.length > 0) {
             html += '<div class="ai-section">';
             html += '<div class="ai-section-title">Opportunities</div>';
             html += '<ul class="ai-list ai-opps">';
-            data.opportunities.forEach(function (o) { html += '<li>' + esc(o) + '</li>'; });
+            buckets.opportunities.forEach(function (o) { html += '<li>' + mdInline(o) + '</li>'; });
             html += '</ul></div>';
         }
 

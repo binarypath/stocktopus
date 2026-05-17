@@ -1204,16 +1204,21 @@ body {
     border-bottom: none;
 }
 
+.ai-risks li::before,
+.ai-opps li::before {
+    font-size: 12px;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
 .ai-risks li::before {
-    content: "\25B2 ";
+    content: "\25BC";
     color: var(--red);
-    font-size: 8px;
 }
 
 .ai-opps li::before {
-    content: "\25B2 ";
+    content: "\25B2";
     color: var(--green);
-    font-size: 8px;
 }
 
 .ai-competitors {
@@ -2202,6 +2207,14 @@ body {
     background: var(--bg-secondary);
     border-left: 2px solid var(--orange);
     line-height: 1.5;
+}
+
+.trading-reasoning p {
+    margin: 0 0 6px 0;
+}
+
+.trading-reasoning p:last-child {
+    margin-bottom: 0;
 }
 
 .trading-sources {
