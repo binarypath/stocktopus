@@ -151,6 +151,8 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/security/{symbol}/quote", s.handleSecurityQuote)
 	mux.HandleFunc("GET /api/security/{symbol}/etf-holdings", s.handleETFHoldings)
 	mux.HandleFunc("GET /api/security/{symbol}/etf-info", s.handleETFInfo)
+	mux.HandleFunc("GET /api/security/{symbol}/index-constituents", s.handleIndexConstituents)
+	mux.HandleFunc("GET /api/batch-quote", s.handleBatchQuote)
 	mux.HandleFunc("GET /api/security/{symbol}/metrics", s.handleSecurityMetrics)
 	mux.HandleFunc("GET /api/security/{symbol}/financials", s.handleSecurityFinancials)
 	mux.HandleFunc("GET /api/security/{symbol}/estimates", s.handleSecurityEstimates)
@@ -497,6 +499,33 @@ func (s *Server) handleETFInfo(w http.ResponseWriter, r *http.Request) {
 	s.proxyFMP(w, r, func(sym string) (json.RawMessage, error) {
 		return s.news.GetETFInfo(r.Context(), sym)
 	})
+}
+
+// handleIndexConstituents returns the component list for ^DJI / ^GSPC /
+// ^IXIC. The index page's Components tab uses it; unknown index symbols
+// return an empty array (handled by GetIndexConstituents).
+func (s *Server) handleIndexConstituents(w http.ResponseWriter, r *http.Request) {
+	s.proxyFMP(w, r, func(sym string) (json.RawMessage, error) {
+		return s.news.GetIndexConstituents(r.Context(), sym)
+	})
+}
+
+// handleBatchQuote fronts /stable/batch-quote for client-side gainers/
+// losers derivation on the index page. Accepts ?symbols=A,B,C — clients
+// must chunk into ≤50 per call (FMP truncates beyond that).
+func (s *Server) handleBatchQuote(w http.ResponseWriter, r *http.Request) {
+	syms := r.URL.Query().Get("symbols")
+	if syms == "" {
+		http.Error(w, "missing symbols", http.StatusBadRequest)
+		return
+	}
+	raw, err := s.news.GetBatchQuote(r.Context(), strings.Split(syms, ","))
+	if err != nil {
+		http.Error(w, "fmp error", http.StatusBadGateway)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(raw)
 }
 
 func (s *Server) handleSecurityMetrics(w http.ResponseWriter, r *http.Request) {
