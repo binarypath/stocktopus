@@ -2032,9 +2032,29 @@ body {
 
 /* Soft orange fill (25% of #ff8800) — the whole element lights up
  * when navigated to. No outline; the fill alone is the indicator.
- * Works uniformly for tabs, sub-tabs, table rows, news cards, etc. */
+ * Works uniformly for tabs, table rows, news cards, etc. */
 .vim-selected {
     background: rgba(255, 136, 0, 0.25) !important;
+}
+
+/* Row-level cue: when any item inside a row container is selected,
+ * the whole row gets the same fill. For tab strips this means the
+ * entire nav row lights up, not just the focused tab. */
+[data-vim-row]:has(.vim-selected) {
+    background: rgba(255, 136, 0, 0.25);
+}
+
+/* Sub-tabs use blue instead of orange so they're visually
+ * distinguishable from the main tab row when the user is
+ * navigating between strips. Matches the .info-sub-tab.active
+ * blue accent. */
+.info-sub-tabs .vim-selected,
+.news-sub-tabs .vim-selected {
+    background: rgba(68, 153, 255, 0.25) !important;
+}
+.info-sub-tabs:has(.vim-selected),
+.news-sub-tabs:has(.vim-selected) {
+    background: rgba(68, 153, 255, 0.25);
 }
 
 /* ── Equity Indices ── */
