@@ -130,6 +130,16 @@
         return esc(s || '').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     }
 
+    // mdBlock splits multi-line LLM prose into paragraphs and runs mdInline
+    // on each one. Use for fields the LLM emits as several `**Heading:**`
+    // paragraphs separated by newlines (analyst reasoning, plan rationale).
+    // Single-line input falls through as a single <p>.
+    function mdBlock(s) {
+        var parts = String(s || '').split(/\n+/).map(function (p) { return p.trim(); }).filter(Boolean);
+        if (parts.length === 0) return '';
+        return parts.map(function (p) { return '<p>' + mdInline(p) + '</p>'; }).join('');
+    }
+
     // classifyKeyPoint scans a bullet's text for sentiment cues and returns
     // 'bearish' / 'bullish' / 'neutral'. Used to re-bucket analyst key
     // points at render time — the server-side pipeline categorises a whole
@@ -1532,14 +1542,14 @@
 
                 html += '<div class="trading-analyst-body">';
                 if (report.summary) {
-                    html += '<p class="ai-text">' + esc(report.summary) + '</p>';
+                    html += '<p class="ai-text">' + mdInline(report.summary) + '</p>';
                 }
                 if (report.reasoning) {
-                    html += '<div class="trading-reasoning">' + esc(report.reasoning) + '</div>';
+                    html += '<div class="trading-reasoning">' + mdBlock(report.reasoning) + '</div>';
                 }
                 if (report.keyPoints && report.keyPoints.length > 0) {
                     html += '<ul class="ai-list">';
-                    report.keyPoints.forEach(function (p) { html += '<li>' + esc(p) + '</li>'; });
+                    report.keyPoints.forEach(function (p) { html += '<li>' + mdInline(p) + '</li>'; });
                     html += '</ul>';
                 }
                 if (report.sources && report.sources.length > 0) {
@@ -1573,14 +1583,14 @@
                     html += '<div class="trading-arg-col">';
                     html += '<span class="trading-arg-label price-up">Bull Case</span>';
                     html += '<ul class="ai-list">';
-                    plan.bullArguments.forEach(function (a) { html += '<li>' + esc(a) + '</li>'; });
+                    plan.bullArguments.forEach(function (a) { html += '<li>' + mdInline(a) + '</li>'; });
                     html += '</ul></div>';
                 }
                 if (hasBear) {
                     html += '<div class="trading-arg-col">';
                     html += '<span class="trading-arg-label price-down">Bear Case</span>';
                     html += '<ul class="ai-list">';
-                    plan.bearArguments.forEach(function (a) { html += '<li>' + esc(a) + '</li>'; });
+                    plan.bearArguments.forEach(function (a) { html += '<li>' + mdInline(a) + '</li>'; });
                     html += '</ul></div>';
                 }
                 html += '</div>';
@@ -1589,14 +1599,14 @@
             if (plan.keyActions && plan.keyActions.length > 0) {
                 html += '<div class="trading-actions"><span class="trading-arg-label">Key Actions</span>';
                 html += '<ul class="ai-list">';
-                plan.keyActions.forEach(function (a) { html += '<li>' + esc(a) + '</li>'; });
+                plan.keyActions.forEach(function (a) { html += '<li>' + mdInline(a) + '</li>'; });
                 html += '</ul></div>';
             }
 
             // Rationale — collapsible, skip if it looks like raw JSON
             if (plan.rationale && plan.rationale.charAt(0) !== '{' && plan.rationale.charAt(0) !== '[') {
                 html += '<details class="trading-rationale"><summary>Rationale</summary>';
-                html += '<p class="ai-text">' + esc(plan.rationale) + '</p>';
+                html += '<div class="ai-text">' + mdBlock(plan.rationale) + '</div>';
                 html += '</details>';
             }
 
