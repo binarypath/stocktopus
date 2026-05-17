@@ -185,7 +185,6 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/sketches", s.handleCreateSketch)
 	mux.HandleFunc("GET /api/sketches/{id}", s.handleGetSketch)
 	mux.HandleFunc("PATCH /api/sketches/{id}", s.handleRenameSketch)
-	mux.HandleFunc("PUT /api/sketches/{id}/notes", s.handleSketchNotes)
 	mux.HandleFunc("DELETE /api/sketches/{id}", s.handleDeleteSketch)
 	mux.HandleFunc("POST /api/sketches/{id}/metrics", s.handleAddSketchMetric)
 	mux.HandleFunc("DELETE /api/sketches/{id}/metrics/{metricId}", s.handleRemoveSketchMetric)

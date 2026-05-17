@@ -63,14 +63,18 @@
             listEl.innerHTML = '<li class="empty-state">No saved sketches yet.</li>';
             return;
         }
-        var defaultRow = '<li class="ideas-list-item' + (currentSketch && !currentSketch.id ? ' active' : '') + '" data-sketch-id="">'
-            + '<span class="ideas-list-name">Default</span>'
+        // Per-sketch row: vim-item is the inner name span so Enter
+        // fires .click() which bubbles up to the <li>'s onclick →
+        // navigateToSketch. The row itself is the data-vim-row so
+        // each sketch is one navigable row in the grid.
+        var defaultRow = '<li class="ideas-list-item' + (currentSketch && !currentSketch.id ? ' active' : '') + '" data-sketch-id="" data-vim-row>'
+            + '<span class="ideas-list-name" data-vim-item data-vim-action="click">Default</span>'
             + '<span class="ideas-list-meta">scratchpad</span></li>';
         listEl.innerHTML = defaultRow + sketches.map(function (sk) {
             var active = currentSketch && currentSketch.id === sk.id ? ' active' : '';
             var when = sk.updatedAt ? new Date(sk.updatedAt).toLocaleDateString() : '';
-            return '<li class="ideas-list-item' + active + '" data-sketch-id="' + sk.id + '">'
-                + '<span class="ideas-list-name">' + esc(sk.name || '(untitled)') + '</span>'
+            return '<li class="ideas-list-item' + active + '" data-sketch-id="' + sk.id + '" data-vim-row>'
+                + '<span class="ideas-list-name" data-vim-item data-vim-action="click">' + esc(sk.name || '(untitled)') + '</span>'
                 + '<span class="ideas-list-meta">' + esc(when) + '</span>'
                 + '</li>';
         }).join('');
@@ -133,8 +137,6 @@
         hostEl.style.display = n ? 'block' : 'none';
         renderLegend();
         renderSidebar();
-        var notesEl = document.getElementById('ideas-notes-textarea');
-        if (notesEl) notesEl.value = (currentSketch && currentSketch.notes) || '';
     }
 
     function renderLegend() {
@@ -145,7 +147,7 @@
             var err = seriesErrors[m.id];
             var color = m.color || SERIES_COLORS[i % SERIES_COLORS.length];
             var labelHTML = '<span class="ideas-legend-swatch" style="background:' + esc(color) + '"></span>'
-                + '<span class="ideas-legend-label">' + esc(m.label || m.identifier) + '</span>';
+                + '<span class="ideas-legend-label" data-vim-item>' + esc(m.label || m.identifier) + '</span>';
             var rightHTML;
             if (err) {
                 rightHTML = '<span class="ideas-legend-err">' + esc(err) + '</span>';
@@ -162,7 +164,7 @@
                 rightHTML = '<span class="ideas-legend-val">' + esc(lastStr) + '</span>'
                     + '<span class="ideas-legend-pct ' + pctClass + '">' + pctStr + '</span>';
             }
-            return '<div class="ideas-legend-row' + (err ? ' ideas-legend-row-err' : '') + '" data-metric-id="' + m.id + '">'
+            return '<div class="ideas-legend-row' + (err ? ' ideas-legend-row-err' : '') + '" data-metric-id="' + m.id + '" data-vim-row>'
                 + labelHTML
                 + rightHTML
                 + '<button class="ideas-legend-del" data-metric-id="' + m.id + '" title="remove">×</button>'
@@ -489,13 +491,11 @@
         return (sketches || []).slice();
     };
 
-    // ── Three-pane vim navigation: list ↔ chart ↔ notes ──
+    // ── Two-pane vim navigation: list ↔ chart ──
     //
     // Pane state machine:
     //   focus = 'list'  → j/k navigate sketches sidebar; Enter loads
     //   focus = 'chart' → j/k navigate metrics in the legend; d removes
-    //   focus = 'notes' → l from chart focuses the textarea (insert mode);
-    //                     Esc returns to 'notes' state in normal mode
     //   h/l moves between panes; visual outline highlights the active one.
     var paneFocus = 'list';
     var metricSelectedIdx = -1;
@@ -503,8 +503,6 @@
     function highlightPane() {
         document.getElementById('ideas-sidebar').classList.toggle('pane-focused', paneFocus === 'list');
         document.getElementById('ideas-main').classList.toggle('pane-focused', paneFocus === 'chart');
-        var notesPanel = document.getElementById('ideas-notes-panel');
-        if (notesPanel) notesPanel.classList.toggle('pane-focused', paneFocus === 'notes');
     }
 
     function getMetricRows() {
@@ -524,7 +522,7 @@
     window._ideasMove = function (dir) {
         if (dir === 'h' || dir === 'l') {
             // Cross-pane move
-            var order = ['list', 'chart', 'notes'];
+            var order = ['list', 'chart'];
             var idx = order.indexOf(paneFocus);
             if (dir === 'l') idx = Math.min(idx + 1, order.length - 1);
             else idx = Math.max(idx - 1, 0);
@@ -537,10 +535,6 @@
                 else selectMetric(metricSelectedIdx);
             } else {
                 clearMetricSelection();
-            }
-            if (paneFocus === 'notes') {
-                var ta = document.getElementById('ideas-notes-textarea');
-                if (ta) ta.focus();
             }
             highlightPane();
             return;
@@ -559,8 +553,6 @@
                 var next = dir === 'j' ? metricSelectedIdx + 1 : metricSelectedIdx - 1;
                 selectMetric(next);
             }
-            // 'notes' pane intentionally ignores j/k — let the textarea handle keys
-            // when focused (insert mode), or do nothing in normal mode.
         }
     };
 
@@ -576,34 +568,33 @@
     };
 
     window._ideasDeleteSelected = function () {
-        if (paneFocus === 'list') return deleteSelectedSketch();
-        if (paneFocus !== 'chart') return false;
-        var rows = getMetricRows();
-        if (metricSelectedIdx < 0 || metricSelectedIdx >= rows.length) return false;
-        var metricId = parseInt(rows[metricSelectedIdx].dataset.metricId, 10);
-        if (!metricId) return false;
-        // Drop selection so the next render doesn't try to re-highlight a missing row
-        var keepIdx = metricSelectedIdx;
-        clearMetricSelection();
-        removeMetric(metricId);
-        // After re-render, snap selection to the row that took the deleted slot
-        // (or the new last row if the deleted one was last).
-        setTimeout(function () {
-            var newRows = getMetricRows();
-            if (!newRows.length) return;
-            selectMetric(Math.min(keepIdx, newRows.length - 1));
-        }, 100);
-        return true;
+        // Find the currently focused row via VimNav's .vim-selected class
+        // on a nested data-vim-item. Walk up to its data-vim-row container
+        // and dispatch by container type:
+        //   .ideas-list-item   → delete that sketch
+        //   .ideas-legend-row  → remove that metric from the sketch
+        var sel = document.querySelector('.vim-selected');
+        var row = sel ? sel.closest('[data-vim-row]') : null;
+        if (!row) return false;
+
+        if (row.classList.contains('ideas-list-item')) {
+            return deleteSelectedSketchRow(row);
+        }
+        if (row.classList.contains('ideas-legend-row')) {
+            var metricId = parseInt(row.dataset.metricId, 10);
+            if (!metricId) return false;
+            removeMetric(metricId);
+            return true;
+        }
+        return false;
     };
 
     // Delete the highlighted sketch from the sidebar. Skips the synthetic
     // "Default" row (data-sketch-id="") — that's the scratchpad and can't be
     // removed. Cursor stays on the same visual index after re-render so j/k
     // continue without surprise.
-    function deleteSelectedSketch() {
-        var items = Array.from(document.querySelectorAll('#ideas-list .ideas-list-item'));
-        if (listSelectedIdx < 0 || listSelectedIdx >= items.length) return false;
-        var row = items[listSelectedIdx];
+    function deleteSelectedSketchRow(row) {
+        if (!row) return false;
         var sid = row.dataset.sketchId;
         if (!sid) {
             if (window._flash) window._flash('Default scratchpad can\'t be deleted');
@@ -612,7 +603,6 @@
         var name = row.querySelector('.ideas-list-name');
         var label = name ? name.textContent : sid;
         var wasLoaded = currentSketch && currentSketch.id && String(currentSketch.id) === String(sid);
-        var keepIdx = listSelectedIdx;
 
         fetch('/api/sketches/' + sid, { method: 'DELETE' })
             .then(function (r) {
@@ -628,23 +618,18 @@
                 return loadSketches();
             })
             .then(function () {
-                // Re-select the row that took the deleted slot, or move up
-                // if the deleted row was the last.
-                var newItems = Array.from(document.querySelectorAll('#ideas-list .ideas-list-item'));
-                if (!newItems.length) return;
-                listSelectedIdx = Math.min(keepIdx, newItems.length - 1);
-                newItems.forEach(function (el, i) { el.classList.toggle('vim-selected', i === listSelectedIdx); });
-                // If the deleted sketch was loaded, navigate to whatever now
-                // sits at the cursor (could be Default if all customs are gone).
-                if (wasLoaded && newItems[listSelectedIdx]) {
-                    navigateToSketch(newItems[listSelectedIdx].dataset.sketchId);
+                // VimNav's MutationObserver re-scans the grid after
+                // loadSketches re-renders, restoring selection to a
+                // surviving element. If the deleted sketch was loaded,
+                // fall back to the Default scratchpad.
+                if (wasLoaded) {
+                    var defaultRow = document.querySelector('#ideas-list .ideas-list-item[data-sketch-id=""]');
+                    if (defaultRow) navigateToSketch('');
                 }
             })
             .catch(function () { if (window._flash) window._flash('Delete failed for ' + label); });
         return true;
     }
-
-    window._ideasGetPaneFocus = function () { return paneFocus; };
 
     window._ideasToggleHelp = function () {
         var el = document.getElementById('ideas-help');
@@ -674,24 +659,6 @@
     };
 
     // ── Init ──
-
-    // Notes textarea — debounced save to avoid hammering the server on each keystroke.
-    var notesSaveTimer = null;
-    var notesEl = document.getElementById('ideas-notes-textarea');
-    if (notesEl) {
-        notesEl.addEventListener('input', function () {
-            clearTimeout(notesSaveTimer);
-            notesSaveTimer = setTimeout(function () {
-                if (!currentSketch || !currentSketch.id) return; // can't persist on default scratchpad
-                fetch('/api/sketches/' + currentSketch.id + '/notes', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ notes: notesEl.value }),
-                });
-                if (currentSketch) currentSketch.notes = notesEl.value;
-            }, 600);
-        });
-    }
 
     var initPromise = loadSketches().then(function () {
         return loadSketch(initialSketchID);

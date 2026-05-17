@@ -22,7 +22,7 @@
         <div id="ideas-help" class="ideas-help hidden">
             <span class="ideas-help-row"><kbd>:add AAPL</kbd> · <kbd>:add AAPL.revenue</kbd> · <kbd>:add GCUSD</kbd> · <kbd>:add EURUSD</kbd> · <kbd>:add BTCUSD</kbd></span>
             <span class="ideas-help-row">Financials tab → <kbd>a</kbd> on a highlighted row prefills <kbd>:add SYMBOL.field</kbd></span>
-            <span class="ideas-help-row"><kbd>h</kbd>/<kbd>l</kbd> switch panes (list ↔ chart ↔ notes) · <kbd>j</kbd>/<kbd>k</kbd> within pane · <kbd>d</kbd> deletes the selected sketch (list) or metric (chart) · <kbd>\</kbd> drops a price line · <kbd>:cl</kbd> clears lines · <kbd>:save NAME</kbd></span>
+            <span class="ideas-help-row"><kbd>h</kbd>/<kbd>l</kbd> switch panes (list ↔ chart) · <kbd>j</kbd>/<kbd>k</kbd> within pane · <kbd>d</kbd> deletes the selected sketch (list) or metric (chart) · <kbd>\</kbd> drops a price line · <kbd>:cl</kbd> clears lines · <kbd>:save NAME</kbd></span>
         </div>
         <div id="ideas-chart-host" class="ideas-chart-host"></div>
         <div id="ideas-legend" class="ideas-legend"></div>
@@ -31,10 +31,6 @@
             <p class="empty-hint">Press <kbd>?</kbd> to see the keybindings.</p>
         </div>
     </section>
-    <aside class="ideas-notes" id="ideas-notes-panel">
-        <div class="ideas-notes-header">Notes</div>
-        <textarea id="ideas-notes-textarea" class="ideas-notes-textarea" placeholder="Free-form notes for this sketch — saved automatically."></textarea>
-    </aside>
 </div>
 <script src="/static/ideas.js?v={{.AssetVersion}}" data-sketch-id="{{.SketchID}}"></script>
 {{end}}
