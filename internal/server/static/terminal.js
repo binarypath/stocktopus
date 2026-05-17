@@ -2500,6 +2500,34 @@ window.onerror = function (msg, src, line, col, err) {
 
     // ── Global Keydown ──
 
+    // Pending 'g' for vim-style 'gg' detection. Single g fires the legacy
+    // graph-jump after 500ms; second g within the window jumps to top of
+    // page via VimNav.
+    var pendingGTimer = null;
+
+    // fireLegacyG runs the historical graph-jump dispatch — used both
+    // when no vim-nav grid is present and on gg timeout.
+    function fireLegacyG(handler) {
+        if (currentView === 'economics' && window._economicsSelectedIdentifier) {
+            var id = window._economicsSelectedIdentifier();
+            if (id) { navigate('graph', id, { skipSecurity: true }); return; }
+        }
+        if (handler && handler.isFinTab && handler.isFinTab()) {
+            var rows = window._finGetRows ? window._finGetRows() : [];
+            var idx = window._finGetSelectedRow ? window._finGetSelectedRow() : -1;
+            if (idx >= 0 && idx < rows.length && selectedSecurity) {
+                var row = rows[idx];
+                var key = row.dataset.finKey || '';
+                if (row.dataset.finFormat !== 'calc' && key && key.indexOf('/') < 0) {
+                    navigate('graph', selectedSecurity + '.' + key, { skipSecurity: true });
+                    return;
+                }
+            }
+        }
+        if (handler && handler.sectorNav) handler.sectorNav('graph');
+        else if (handler && handler.graph) handler.graph();
+    }
+
     // Use capture phase to intercept keys before browser extensions (e.g. Vimium)
     document.addEventListener('keydown', function (e) {
         var active = document.activeElement;
@@ -2546,6 +2574,22 @@ window.onerror = function (msg, src, line, col, err) {
         // ── Normal Mode Keys ──
 
         var handler = vimHandlers[currentView];
+
+        // Declarative vim-nav takes precedence whenever the page has any
+        // [data-vim-row] elements. It owns j/k/h/l/w/b/G/1-9/Enter and
+        // handles gg via a 500ms timer; legacy keys (g, a, d, y, p, etc.)
+        // fall through so per-view handlers keep firing.
+        //
+        // Reader/dropdown modal hijacks remain below this point — they
+        // take precedence over BOTH the new core and the legacy handlers.
+        if (window.VimNav) {
+            // Don't claim h/j/k/l when a modal hijacker would steal them
+            // anyway. Currently only the article reader does this.
+            var readerOpen = false;
+            var readerEl = document.getElementById('article-reader');
+            if (readerEl && !readerEl.classList.contains('hidden')) readerOpen = true;
+            if (!readerOpen && window.VimNav.handleKey(e.key, e)) return;
+        }
 
         switch (e.key) {
             case '/':
@@ -2599,35 +2643,31 @@ window.onerror = function (msg, src, line, col, err) {
                 if (handler && handler.activate) handler.activate();
                 return;
             case 'g':
-                // /economics catalog: navigate to the full graph for the
-                // selected indicator.
-                if (currentView === 'economics' && window._economicsSelectedIdentifier) {
-                    var id = window._economicsSelectedIdentifier();
-                    if (id) {
-                        e.preventDefault();
-                        navigate('graph', id, { skipSecurity: true });
+                // Two-key 'gg' jumps to the first navigable element when
+                // the page has a declarative vim-nav grid; otherwise (or
+                // on a non-g second key / timeout) the legacy g handler
+                // below fires. 500ms is vim's default.
+                e.preventDefault();
+                if (window.VimNav && window.VimNav.hasActiveGrid()) {
+                    if (pendingGTimer !== null) {
+                        clearTimeout(pendingGTimer);
+                        pendingGTimer = null;
+                        window.VimNav.selectFirst();
                         return;
                     }
+                    pendingGTimer = setTimeout(function () {
+                        pendingGTimer = null;
+                        fireLegacyG(handler);
+                    }, 500);
+                    return;
                 }
-                // Financials tab: navigate to /graph/SYMBOL.field for the
-                // selected row. Skip calc rows (margins) — they aren't a raw
-                // field the historical endpoint can fetch.
-                if (handler && handler.isFinTab && handler.isFinTab()) {
-                    var rows = window._finGetRows ? window._finGetRows() : [];
-                    var idx = window._finGetSelectedRow ? window._finGetSelectedRow() : -1;
-                    if (idx >= 0 && idx < rows.length && selectedSecurity) {
-                        var row = rows[idx];
-                        var key = row.dataset.finKey || '';
-                        if (row.dataset.finFormat !== 'calc' && key && key.indexOf('/') < 0) {
-                            e.preventDefault();
-                            navigate('graph', selectedSecurity + '.' + key, { skipSecurity: true });
-                            return;
-                        }
-                    }
-                }
+                fireLegacyG(handler);
+                return;
+            case 'G':
                 e.preventDefault();
-                if (handler && handler.sectorNav) handler.sectorNav('graph');
-                else if (handler && handler.graph) handler.graph();
+                if (window.VimNav && window.VimNav.hasActiveGrid()) {
+                    window.VimNav.selectLast();
+                }
                 return;
             case 'r':
                 e.preventDefault();

@@ -152,6 +152,7 @@
 
             container.innerHTML = html;
             renderOverviewChart(hist);
+            if (window.VimNav) window.VimNav.reset();
         }).catch(function (err) {
             console.error('ETF overview error:', err);
             container.innerHTML = '<p class="empty-state">Failed to load overview</p>';
@@ -234,12 +235,12 @@
                 html += '</tr></thead><tbody>';
                 top.forEach(function (h, i) {
                     var sym = h.asset || h.symbol || '';
-                    html += '<tr class="peer-row" data-symbol="' + esc(sym) + '">';
-                    html += '<td>' + (i + 1) + '</td>';
-                    html += '<td><span class="sym-link">' + esc(sym) + '</span></td>';
-                    html += '<td>' + esc(h.name || '') + '</td>';
-                    html += '<td>' + pct(h.weightPercentage) + '</td>';
-                    html += '<td>' + fmtBig(h.marketValue) + '</td>';
+                    html += '<tr class="peer-row" data-symbol="' + esc(sym) + '" data-vim-row data-vim-action="navigate" data-vim-href="/security/' + encodeURIComponent(sym) + '">';
+                    html += '<td data-vim-item>' + (i + 1) + '</td>';
+                    html += '<td data-vim-item><span class="sym-link">' + esc(sym) + '</span></td>';
+                    html += '<td data-vim-item>' + esc(h.name || '') + '</td>';
+                    html += '<td data-vim-item>' + pct(h.weightPercentage) + '</td>';
+                    html += '<td data-vim-item>' + fmtBig(h.marketValue) + '</td>';
                     html += '</tr>';
                 });
                 html += '</tbody></table>';
@@ -254,6 +255,7 @@
                         if (sym) window.location.href = '/security/' + sym;
                     };
                 });
+                if (window.VimNav) window.VimNav.reset();
             })
             .catch(function () {
                 container.innerHTML = '<p class="empty-state">Failed to load holdings</p>';
@@ -276,12 +278,14 @@
             html += '</tr></thead><tbody>';
             sectors.forEach(function (s) {
                 var w = s.exposure || 0;
-                html += '<tr><td>' + esc(s.industry) + '</td>';
-                html += '<td>' + pct(w) + '</td>';
-                html += '<td><div class="sector-bar"><div class="sector-bar-fill" style="width:' + Math.min(100, w * 2) + '%"></div></div></td></tr>';
+                html += '<tr data-vim-row>';
+                html += '<td data-vim-item>' + esc(s.industry) + '</td>';
+                html += '<td data-vim-item>' + pct(w) + '</td>';
+                html += '<td data-vim-item><div class="sector-bar"><div class="sector-bar-fill" style="width:' + Math.min(100, w * 2) + '%"></div></div></td></tr>';
             });
             html += '</tbody></table>';
             container.innerHTML = html;
+            if (window.VimNav) window.VimNav.reset();
         });
     }
 
@@ -295,9 +299,9 @@
     var activeNewsCat = 'stock';
 
     function loadNews() {
-        var html = '<div class="news-sub-tabs" id="news-sub-tabs">';
+        var html = '<div class="news-sub-tabs" id="news-sub-tabs" data-vim-row>';
         NEWS_CATS.forEach(function (c) {
-            html += '<button class="info-sub-tab' + (c.key === activeNewsCat ? ' active' : '') + '" data-cat="' + esc(c.key) + '">' + esc(c.label) + '</button>';
+            html += '<button class="info-sub-tab' + (c.key === activeNewsCat ? ' active' : '') + '" data-cat="' + esc(c.key) + '" data-vim-item>' + esc(c.label) + '</button>';
         });
         html += '</div><div id="news-cards" class="news-cards"><p class="empty-state">Loading...</p></div>';
         container.innerHTML = html;
@@ -336,21 +340,25 @@
         var listEl = document.getElementById('news-cards');
         if (!items || items.length === 0) {
             listEl.innerHTML = '<p class="empty-state">No news</p>';
+            if (window.VimNav) window.VimNav.reset();
             return;
         }
         var html = '';
         items.forEach(function (n) {
             var url = n.url || '#';
             var d = n.publishedDate ? new Date(n.publishedDate).toLocaleString() : '';
-            html += '<div class="news-card">';
+            var title = (n.title || '—').replace(/"/g, '&quot;');
+            html += '<div class="news-card" data-vim-row>';
+            html += '<div class="news-card-inner" data-vim-item data-vim-action="open-reader" data-vim-url="' + esc(url) + '" data-vim-title="' + esc(title) + '">';
             html += '<div class="news-card-title"><a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(n.title || '—') + '</a></div>';
             html += '<div class="news-card-meta"><span>' + esc(n.site || n.publisher || '') + '</span><span>' + esc(d) + '</span></div>';
             if (n.text || n.snippet) {
                 html += '<div class="news-card-snippet">' + esc((n.text || n.snippet).slice(0, 240)) + '…</div>';
             }
-            html += '</div>';
+            html += '</div></div>';
         });
         listEl.innerHTML = html;
+        if (window.VimNav) window.VimNav.reset();
     }
 
     // ── AI Analysis ──
@@ -363,7 +371,7 @@
             var costInfo = results[0];
             var tradingResult = results[1];
 
-            var html = '<div class="trading-header trading-vim-item" data-trading-vim="btn" tabindex="0">';
+            var html = '<div class="trading-header trading-vim-item" data-trading-vim="btn" data-vim-row>';
             html += '<span class="ai-section-title" style="margin:0">Deep Analysis — Multi-Agent Pipeline</span>';
             html += renderTradingButton(costInfo, tradingResult);
             html += '</div>';
@@ -376,6 +384,7 @@
             container.innerHTML = html;
             wireTradingButton();
             if (tradingResult && !isFinished(tradingResult)) pollTradingStatus();
+            if (window.VimNav) window.VimNav.reset();
         });
     }
 
@@ -388,10 +397,10 @@
         var costStr = costInfo && costInfo.available ? 'Est. $' + costInfo.estimatedCost.toFixed(3) : '';
         var html = '';
         if (isRunning) {
-            html += '<button class="trading-btn trading-btn-running" disabled>'
+            html += '<button class="trading-btn trading-btn-running" disabled data-vim-item>'
                 + '<span class="spinner" style="width:12px;height:12px;display:inline-block"></span> Running…</button>';
         } else {
-            html += '<button class="trading-btn" id="trading-analyze-btn">&#129302; Run Deep Analysis</button>';
+            html += '<button class="trading-btn" id="trading-analyze-btn" data-vim-item>&#129302; Run Deep Analysis</button>';
         }
         if (costStr) html += '<span class="trading-cost">' + esc(costStr) + '</span>';
         if (isFinished(tradingResult) && tradingResult.totalCostUsd !== undefined) {
@@ -436,7 +445,8 @@
         var html = '<div class="trading-analysts">';
         result.analystReports.forEach(function (r) {
             var outlookClass = r.outlook === 'bullish' ? 'price-up' : r.outlook === 'bearish' ? 'price-down' : '';
-            html += '<div class="trading-analyst-card trading-vim-item">';
+            html += '<div class="trading-analyst-card trading-vim-item" data-vim-row>';
+            html += '<div class="trading-analyst-card-inner" data-vim-item data-vim-action="toggle" data-vim-toggle-class="trading-panel-open">';
             html += '<div class="trading-analyst-header">';
             html += '<span class="trading-analyst-name">' + esc(r.analyst) + '</span>';
             html += '<span class="trading-analyst-outlook ' + outlookClass + '">' + esc(r.outlook || 'neutral') + '</span>';
@@ -448,7 +458,7 @@
                 r.keyPoints.forEach(function (p) { html += '<li>' + esc(p) + '</li>'; });
                 html += '</ul>';
             }
-            html += '</div></div>';
+            html += '</div></div></div>';
         });
         html += '</div>';
         return html;
