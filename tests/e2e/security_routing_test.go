@@ -168,6 +168,43 @@ func TestSmoke_SecurityRouting_IndexStaticAsset(t *testing.T) {
 	assertContains(t, resp, "index_page.js")
 }
 
+// Same for the forex page — forex.js must be reachable.
+func TestSmoke_SecurityRouting_ForexStaticAsset(t *testing.T) {
+	resp := get(t, "/static/forex.js")
+	defer resp.Body.Close()
+	assertStatus(t, resp, 200)
+	assertContains(t, resp, "forex.js")
+}
+
+// /security/USDGBP should 301 to /forex/USDGBP. The resolver picks up
+// exchange=FOREX via the /stable/quote fallback (profile is empty for
+// forex pairs).
+func TestSmoke_SecurityRouting_ForexRedirect(t *testing.T) {
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	var resp *http.Response
+	var err error
+	for i := 0; i < 2; i++ {
+		resp, err = client.Get(testServer.URL + "/security/USDGBP")
+		if err != nil {
+			t.Fatalf("GET /security/USDGBP: %v", err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusMovedPermanently {
+			break
+		}
+	}
+	if resp.StatusCode != http.StatusMovedPermanently {
+		t.Fatalf("expected 301 for /security/USDGBP, got %d", resp.StatusCode)
+	}
+	if loc := resp.Header.Get("Location"); !strings.HasSuffix(loc, "/forex/USDGBP") {
+		t.Errorf("expected redirect to /forex/USDGBP, got %q", loc)
+	}
+}
+
 // /api/security/^DJI/index-constituents returns the 30 Dow components.
 // Each row carries `symbol`, `name`, `sector`, `subSector`.
 func TestSmoke_IndexConstituents(t *testing.T) {
