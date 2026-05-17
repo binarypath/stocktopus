@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [1.12.0](https://github.com/binarypath/stocktopus/compare/v1.11.0...v1.12.0) (2026-05-17)
+
+
+### Features
+
+* **forex:** forex info page (rate + central banks + AI) ([#113](https://github.com/binarypath/stocktopus/issues/113))f ([e381cb1](https://github.com/binarypath/stocktopus/commit/e381cb17e91f4e6d45b7ef827d6ba8287039d16e)), closes [#102](https://github.com/binarypath/stocktopus/issues/102) [#97](https://github.com/binarypath/stocktopus/issues/97)
+
 ## [1.11.0](https://github.com/binarypath/stocktopus/compare/v1.10.0...v1.11.0) (2026-05-17)
 
 
