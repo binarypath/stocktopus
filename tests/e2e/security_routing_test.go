@@ -77,6 +77,7 @@ func TestSmoke_SecurityRouting_PerTypeRoutes(t *testing.T) {
 		{"/etf/SPY"},
 		{"/index/^DJI"},
 		{"/forex/USDGBP"},
+		{"/fund/BRHYX"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.path, func(t *testing.T) {
@@ -174,6 +175,42 @@ func TestSmoke_SecurityRouting_ForexStaticAsset(t *testing.T) {
 	defer resp.Body.Close()
 	assertStatus(t, resp, 200)
 	assertContains(t, resp, "forex.js")
+}
+
+// Same for the fund page — fund.js must be reachable.
+func TestSmoke_SecurityRouting_FundStaticAsset(t *testing.T) {
+	resp := get(t, "/static/fund.js")
+	defer resp.Body.Close()
+	assertStatus(t, resp, 200)
+	assertContains(t, resp, "fund.js")
+}
+
+// BRHYX is a mutual fund — /security/BRHYX should 301 to /fund/BRHYX
+// once the resolver picks up isFund=true from profile.
+func TestSmoke_SecurityRouting_FundRedirect(t *testing.T) {
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	var resp *http.Response
+	var err error
+	for i := 0; i < 2; i++ {
+		resp, err = client.Get(testServer.URL + "/security/BRHYX")
+		if err != nil {
+			t.Fatalf("GET /security/BRHYX: %v", err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusMovedPermanently {
+			break
+		}
+	}
+	if resp.StatusCode != http.StatusMovedPermanently {
+		t.Fatalf("expected 301 for /security/BRHYX, got %d", resp.StatusCode)
+	}
+	if loc := resp.Header.Get("Location"); !strings.HasSuffix(loc, "/fund/BRHYX") {
+		t.Errorf("expected redirect to /fund/BRHYX, got %q", loc)
+	}
 }
 
 // /security/USDGBP should 301 to /forex/USDGBP. The resolver picks up

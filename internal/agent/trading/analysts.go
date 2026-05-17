@@ -51,7 +51,7 @@ func (ar *AnalystRunner) skipSECForSymbol(symbol string) bool {
 		return false
 	}
 	switch ar.store.GetSecurityType(symbol) {
-	case "crypto", "forex", "index", "etf":
+	case "crypto", "forex", "index", "etf", "fund":
 		return true
 	}
 	return false

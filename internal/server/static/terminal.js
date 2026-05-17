@@ -55,6 +55,7 @@ window.onerror = function (msg, src, line, col, err) {
         forex:      { path: '/forex/{symbol}',   needsSecurity: true, usage: 'forex <PAIR>',         desc: 'forex pair info page', hidden: true },
         index:      { path: '/index/{symbol}',   needsSecurity: true, usage: 'index <SYMBOL>',       desc: 'index info page', hidden: true },
         etf:        { path: '/etf/{symbol}',     needsSecurity: true, usage: 'etf <SYMBOL>',         desc: 'ETF info page', hidden: true },
+        fund:       { path: '/fund/{symbol}',    needsSecurity: true, usage: 'fund <SYMBOL>',        desc: 'mutual fund info page', hidden: true },
         news:       { path: '/news',            needsSecurity: false, usage: 'news [SECURITY]',     desc: 'market news — optionally filter by security', optionalSecurity: true },
         ei:         { path: '/indices',          needsSecurity: false, usage: 'ei',                  desc: 'equity indices — global market overview' },
         ideas:      { path: '/ideas',           needsSecurity: false, usage: 'ideas',               desc: 'sketchpad — comparative graphs across metrics' },
@@ -1101,7 +1102,7 @@ window.onerror = function (msg, src, line, col, err) {
             var nextView = currentView;
             if (currentView === 'info' || currentView === 'crypto' ||
                 currentView === 'forex' || currentView === 'index' ||
-                currentView === 'etf') {
+                currentView === 'etf' || currentView === 'fund') {
                 nextView = viewForKnownSymbol(sec);
             }
             onViewLeave(currentView);
