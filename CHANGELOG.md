@@ -7,6 +7,14 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [1.13.0](https://github.com/binarypath/stocktopus/compare/v1.12.0...v1.13.0) (2026-05-17)
+
+
+### Features
+
+* **fund:** mutual fund info page ([#115](https://github.com/binarypath/stocktopus/issues/115)) ([3c6bb97](https://github.com/binarypath/stocktopus/commit/3c6bb975863622f8c28b309728fd0ac3d49fe010)), closes [#110](https://github.com/binarypath/stocktopus/issues/110) [#97](https://github.com/binarypath/stocktopus/issues/97)
+* **vim:** declarative navigable-elements core + 6-page migration ([#121](https://github.com/binarypath/stocktopus/issues/121)) ([6cd3d4c](https://github.com/binarypath/stocktopus/commit/6cd3d4c0173434d3a4dbd9437476b7710424382e)), closes [#104](https://github.com/binarypath/stocktopus/issues/104)
+
 ## [1.12.0](https://github.com/binarypath/stocktopus/compare/v1.11.0...v1.12.0) (2026-05-17)
 
 
