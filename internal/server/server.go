@@ -116,7 +116,7 @@ func (s *Server) loadTemplates() error {
 	layoutPath := filepath.Join(templatesDir(), "layout.html")
 	s.pages = make(map[string]*template.Template)
 
-	pageNames := []string{"watchlist", "stock", "security", "crypto", "etf", "index", "forex", "screener", "feed", "debug", "news", "indices", "ideas", "economics", "economic-graph", "financial-graph"}
+	pageNames := []string{"watchlist", "stock", "security", "crypto", "etf", "fund", "index", "forex", "screener", "feed", "debug", "news", "indices", "ideas", "economics", "economic-graph", "financial-graph"}
 	for _, page := range pageNames {
 		pagePath := filepath.Join(templatesDir(), page+".html")
 		t, err := template.ParseFiles(layoutPath, pagePath)
@@ -211,6 +211,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /forex/{symbol}", s.handleForex)
 	mux.HandleFunc("GET /index/{symbol}", s.handleIndexSecurity)
 	mux.HandleFunc("GET /etf/{symbol}", s.handleETF)
+	mux.HandleFunc("GET /fund/{symbol}", s.handleFund)
 	mux.HandleFunc("GET /screener", s.handleScreener)
 	mux.HandleFunc("GET /feed", s.handleFeed)
 	mux.HandleFunc("GET /news", s.handleNews)
@@ -332,6 +333,15 @@ func (s *Server) handleETF(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) handleFund(w http.ResponseWriter, r *http.Request) {
+	symbol := r.PathValue("symbol")
+	s.renderPage(w, r, "fund.html", map[string]any{
+		"Title":  symbol + " — Fund",
+		"Active": "info",
+		"Symbol": symbol,
+	})
+}
+
 // resolveSecurityType returns the cached or freshly-detected asset class
 // for a symbol. Returns "" only when both the cache lookup AND the
 // profile fetch fail; callers must treat empty as "unknown, fall through
@@ -372,9 +382,10 @@ func (s *Server) resolveSecurityType(r *http.Request, symbol string) string {
 			Symbol   string `json:"symbol"`
 			Exchange string `json:"exchange"`
 			IsEtf    bool   `json:"isEtf"`
+			IsFund   bool   `json:"isFund"`
 		}
 		if err := json.Unmarshal(raw, &rows); err == nil && len(rows) > 0 && rows[0].Symbol != "" {
-			typ := classifySecurityType(rows[0].Symbol, rows[0].Exchange, rows[0].IsEtf)
+			typ := classifySecurityType(rows[0].Symbol, rows[0].Exchange, rows[0].IsEtf, rows[0].IsFund)
 			if s.store != nil {
 				_ = s.store.PutSecurityType(symbol, typ)
 			}
@@ -387,7 +398,7 @@ func (s *Server) resolveSecurityType(r *http.Request, symbol string) string {
 			Exchange string `json:"exchange"`
 		}
 		if err := json.Unmarshal(raw, &rows); err == nil && len(rows) > 0 && rows[0].Symbol != "" {
-			typ := classifySecurityType(rows[0].Symbol, rows[0].Exchange, false)
+			typ := classifySecurityType(rows[0].Symbol, rows[0].Exchange, false, false)
 			if s.store != nil {
 				_ = s.store.PutSecurityType(symbol, typ)
 			}
@@ -399,7 +410,12 @@ func (s *Server) resolveSecurityType(r *http.Request, symbol string) string {
 
 // classifySecurityType is the pure-function side of resolveSecurityType
 // — extracted so unit tests don't need a store or network.
-func classifySecurityType(symbol, exchange string, isEtf bool) string {
+//
+// isFund is checked before isEtf because FMP marks mutual funds with
+// `isFund: true` and `isEtf: false`, but both flags share the same
+// "fund-like" shape on profile so an ETF that happened to also carry
+// isFund=true (none seen in the wild) should still resolve to "etf".
+func classifySecurityType(symbol, exchange string, isEtf, isFund bool) string {
 	ex := strings.ToUpper(exchange)
 	switch ex {
 	case "CRYPTO", "CCC":
@@ -412,6 +428,9 @@ func classifySecurityType(symbol, exchange string, isEtf bool) string {
 	}
 	if isEtf {
 		return "etf"
+	}
+	if isFund {
+		return "fund"
 	}
 	return "stock"
 }
