@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [1.9.0](https://github.com/binarypath/stocktopus/compare/v1.8.0...v1.9.0) (2026-05-17)
+
+
+### Features
+
+* **crypto:** crypto info page + SEC-skip for non-stocks ([#106](https://github.com/binarypath/stocktopus/issues/106)) ([071f67d](https://github.com/binarypath/stocktopus/commit/071f67d39775eb998650cfb1d30e07d9df3188ae)), closes [#99](https://github.com/binarypath/stocktopus/issues/99) [#97](https://github.com/binarypath/stocktopus/issues/97)
+
 ## [1.8.0](https://github.com/binarypath/stocktopus/compare/v1.7.2...v1.8.0) (2026-05-17)
 
 
