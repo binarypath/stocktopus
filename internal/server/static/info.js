@@ -127,7 +127,19 @@
     // without rendering those asterisks land as literal text. We escape
     // first, then promote escaped `**…**` runs to <strong>.
     function mdInline(s) {
-        return esc(s || '').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        var out = esc(s || '').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        // The LLM is inconsistent — some bullets arrive as
+        // `**Title:** body` (caught above) and others as plain
+        // `Title: body`. Bold the leading short capitalised prefix
+        // when there's a colon-space delimiter, capped at 5 words
+        // so we don't accidentally bold a leading sentence.
+        if (out.indexOf('<strong>') !== 0) {
+            out = out.replace(
+                /^([A-Z][A-Za-z0-9'/()\-]*(?:\s+[A-Za-z0-9'/()\-]+){0,4}):(\s)/,
+                '<strong>$1:</strong>$2'
+            );
+        }
+        return out;
     }
 
     // mdBlock splits multi-line LLM prose into paragraphs and runs mdInline
