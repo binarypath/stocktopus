@@ -129,10 +129,16 @@
             html += statCell('200-day Avg', q.priceAvg200 ? fmtPrice(q.priceAvg200) : '—');
             html += '</div>';
 
-            html += '<div id="index-chart-1y" class="crypto-chart"></div>';
+            // Graph row — per the user's vim spec, the chart is its own
+            // row-level element on the Overview tab. Pressing g on it
+            // jumps to /graph/{sym} via the legacy handler.
+            html += '<div class="index-graph-row" data-vim-row>';
+            html += '<div id="index-chart-1y" class="crypto-chart" data-vim-item data-vim-action="navigate" data-vim-href="/graph/' + encodeURIComponent(symbol) + '"></div>';
+            html += '</div>';
 
             container.innerHTML = html;
             renderOverviewChart(hist);
+            if (window.VimNav) window.VimNav.reset();
         }).catch(function (err) {
             console.error('Index overview error:', err);
             container.innerHTML = '<p class="empty-state">Failed to load overview</p>';
@@ -203,12 +209,15 @@
             html += '<th>Ticker</th><th>Name</th><th>Sector</th><th>Sub-Sector</th><th>Added</th>';
             html += '</tr></thead><tbody>';
             rows.forEach(function (r) {
-                html += '<tr class="peer-row" data-symbol="' + esc(r.symbol) + '">';
-                html += '<td><span class="sym-link">' + esc(r.symbol) + '</span></td>';
-                html += '<td>' + esc(r.name || '') + '</td>';
-                html += '<td>' + esc(r.sector || '') + '</td>';
-                html += '<td>' + esc(r.subSector || '') + '</td>';
-                html += '<td>' + esc(r.dateFirstAdded || '') + '</td>';
+                // Each table row is a vim-nav row container; td cells
+                // are the column items walked by w/b/h/l. Enter on any
+                // cell triggers the row's click → /security/{sym}.
+                html += '<tr class="peer-row" data-symbol="' + esc(r.symbol) + '" data-vim-row data-vim-action="navigate" data-vim-href="/security/' + encodeURIComponent(r.symbol) + '">';
+                html += '<td data-vim-item><span class="sym-link">' + esc(r.symbol) + '</span></td>';
+                html += '<td data-vim-item>' + esc(r.name || '') + '</td>';
+                html += '<td data-vim-item>' + esc(r.sector || '') + '</td>';
+                html += '<td data-vim-item>' + esc(r.subSector || '') + '</td>';
+                html += '<td data-vim-item>' + esc(r.dateFirstAdded || '') + '</td>';
                 html += '</tr>';
             });
             html += '</tbody></table>';
@@ -220,6 +229,7 @@
                     if (sym) window.location.href = '/security/' + sym;
                 };
             });
+            if (window.VimNav) window.VimNav.reset();
         });
     }
 
@@ -258,6 +268,7 @@
                         if (sym) window.location.href = '/security/' + sym;
                     };
                 });
+                if (window.VimNav) window.VimNav.reset();
             });
         });
     }
@@ -285,11 +296,11 @@
         html += '<th>Ticker</th><th>Name</th><th>Price</th><th>Change</th>';
         html += '</tr></thead><tbody>';
         rows.forEach(function (q) {
-            html += '<tr class="peer-row" data-symbol="' + esc(q.symbol) + '">';
-            html += '<td><span class="sym-link">' + esc(q.symbol) + '</span></td>';
-            html += '<td>' + esc(nameBySym[q.symbol] || q.name || '') + '</td>';
-            html += '<td>$' + fmtPrice(q.price) + '</td>';
-            html += '<td class="' + pctClass(q.changePercentage) + '">' + pct(q.changePercentage) + '</td>';
+            html += '<tr class="peer-row" data-symbol="' + esc(q.symbol) + '" data-vim-row data-vim-action="navigate" data-vim-href="/security/' + encodeURIComponent(q.symbol) + '">';
+            html += '<td data-vim-item><span class="sym-link">' + esc(q.symbol) + '</span></td>';
+            html += '<td data-vim-item>' + esc(nameBySym[q.symbol] || q.name || '') + '</td>';
+            html += '<td data-vim-item>$' + fmtPrice(q.price) + '</td>';
+            html += '<td data-vim-item class="' + pctClass(q.changePercentage) + '">' + pct(q.changePercentage) + '</td>';
             html += '</tr>';
         });
         html += '</tbody></table>';
@@ -306,9 +317,11 @@
     var activeNewsCat = 'general';
 
     function loadNews() {
-        var html = '<div class="news-sub-tabs" id="news-sub-tabs">';
+        // Sub-tab row: its own data-vim-row so j from main tabs lands here,
+        // and h/l (or w/b) walks across the categories.
+        var html = '<div class="news-sub-tabs" id="news-sub-tabs" data-vim-row>';
         NEWS_CATS.forEach(function (c) {
-            html += '<button class="info-sub-tab' + (c.key === activeNewsCat ? ' active' : '') + '" data-cat="' + esc(c.key) + '">' + esc(c.label) + '</button>';
+            html += '<button class="info-sub-tab' + (c.key === activeNewsCat ? ' active' : '') + '" data-cat="' + esc(c.key) + '" data-vim-item>' + esc(c.label) + '</button>';
         });
         html += '</div><div id="news-cards" class="news-cards"><p class="empty-state">Loading...</p></div>';
         container.innerHTML = html;
@@ -339,21 +352,29 @@
         var listEl = document.getElementById('news-cards');
         if (!items || items.length === 0) {
             listEl.innerHTML = '<p class="empty-state">No news</p>';
+            if (window.VimNav) window.VimNav.reset();
             return;
         }
         var html = '';
         items.forEach(function (n) {
             var url = n.url || '#';
             var d = n.publishedDate ? new Date(n.publishedDate).toLocaleString() : '';
-            html += '<div class="news-card">';
+            var title = (n.title || '—').replace(/"/g, '&quot;');
+            // Each article is its own data-vim-row containing a single
+            // data-vim-item — Enter on it opens the reader. The reader
+            // takes over all keys while open (terminal.js gates VimNav
+            // off when [data-vim-row] is visible AND reader is open).
+            html += '<div class="news-card" data-vim-row>';
+            html += '<div class="news-card-inner" data-vim-item data-vim-action="open-reader" data-vim-url="' + esc(url) + '" data-vim-title="' + esc(title) + '">';
             html += '<div class="news-card-title"><a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(n.title || '—') + '</a></div>';
             html += '<div class="news-card-meta"><span>' + esc(n.site || n.publisher || '') + '</span><span>' + esc(d) + '</span></div>';
             if (n.text || n.snippet) {
                 html += '<div class="news-card-snippet">' + esc((n.text || n.snippet).slice(0, 240)) + '…</div>';
             }
-            html += '</div>';
+            html += '</div></div>';
         });
         listEl.innerHTML = html;
+        if (window.VimNav) window.VimNav.reset();
     }
 
     // ── AI Analysis ──
@@ -366,7 +387,11 @@
             var costInfo = results[0];
             var tradingResult = results[1];
 
-            var html = '<div class="trading-header trading-vim-item" data-trading-vim="btn" tabindex="0">';
+            // Each card is a row of one item — j/k between cards, Enter
+            // triggers click (button) or toggle (analyst card with body).
+            // The trading-header row's vim-item is the Run button itself;
+            // renderTradingButton emits data-vim-item on the <button>.
+            var html = '<div class="trading-header trading-vim-item" data-trading-vim="btn" data-vim-row>';
             html += '<span class="ai-section-title" style="margin:0">Deep Analysis — Multi-Agent Pipeline</span>';
             html += renderTradingButton(costInfo, tradingResult);
             html += '</div>';
@@ -379,6 +404,7 @@
             container.innerHTML = html;
             wireTradingButton();
             if (tradingResult && !isFinished(tradingResult)) pollTradingStatus();
+            if (window.VimNav) window.VimNav.reset();
         });
     }
 
@@ -391,10 +417,10 @@
         var costStr = costInfo && costInfo.available ? 'Est. $' + costInfo.estimatedCost.toFixed(3) : '';
         var html = '';
         if (isRunning) {
-            html += '<button class="trading-btn trading-btn-running" disabled>'
+            html += '<button class="trading-btn trading-btn-running" disabled data-vim-item>'
                 + '<span class="spinner" style="width:12px;height:12px;display:inline-block"></span> Running…</button>';
         } else {
-            html += '<button class="trading-btn" id="trading-analyze-btn">&#129302; Run Deep Analysis</button>';
+            html += '<button class="trading-btn" id="trading-analyze-btn" data-vim-item>&#129302; Run Deep Analysis</button>';
         }
         if (costStr) html += '<span class="trading-cost">' + esc(costStr) + '</span>';
         if (isFinished(tradingResult) && tradingResult.totalCostUsd !== undefined) {
@@ -439,7 +465,11 @@
         var html = '<div class="trading-analysts">';
         result.analystReports.forEach(function (r) {
             var outlookClass = r.outlook === 'bullish' ? 'price-up' : r.outlook === 'bearish' ? 'price-down' : '';
-            html += '<div class="trading-analyst-card trading-vim-item">';
+            // Whole card is the navigable item AND the row. Enter toggles
+            // its expanded state via data-vim-toggle-class. Each card
+            // sits in its own row so j/k walks between them.
+            html += '<div class="trading-analyst-card trading-vim-item" data-vim-row>';
+            html += '<div class="trading-analyst-card-inner" data-vim-item data-vim-action="toggle" data-vim-toggle-class="trading-panel-open">';
             html += '<div class="trading-analyst-header">';
             html += '<span class="trading-analyst-name">' + esc(r.analyst) + '</span>';
             html += '<span class="trading-analyst-outlook ' + outlookClass + '">' + esc(r.outlook || 'neutral') + '</span>';
@@ -451,7 +481,7 @@
                 r.keyPoints.forEach(function (p) { html += '<li>' + esc(p) + '</li>'; });
                 html += '</ul>';
             }
-            html += '</div></div>';
+            html += '</div></div></div>';
         });
         html += '</div>';
         return html;

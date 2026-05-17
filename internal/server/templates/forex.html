@@ -2,11 +2,11 @@
 {{define "content"}}
 <div id="company-panel" class="company-panel"></div>
 <span id="help-indicator" class="help-indicator hidden">? help on</span>
-<div class="info-tabs" id="info-tabs">
-    <button class="info-tab active" data-tab="overview"><span class="tab-key">1</span> Overview</button>
-    <button class="info-tab" data-tab="news"><span class="tab-key">2</span> News</button>
-    <button class="info-tab" data-tab="ai"><span class="tab-key">3</span> AI Analysis</button>
-    <button class="info-tab" data-tab="central-banks"><span class="tab-key">4</span> Central Banks</button>
+<div class="info-tabs" id="info-tabs" data-vim-row>
+    <button class="info-tab active" data-tab="overview" data-vim-item><span class="tab-key">1</span> Overview</button>
+    <button class="info-tab" data-tab="news" data-vim-item><span class="tab-key">2</span> News</button>
+    <button class="info-tab" data-tab="ai" data-vim-item><span class="tab-key">3</span> AI Analysis</button>
+    <button class="info-tab" data-tab="central-banks" data-vim-item><span class="tab-key">4</span> Central Banks</button>
 </div>
 <div id="info-content" class="info-content" data-symbol="{{.Symbol}}">
     <p class="empty-state">Loading...</p>

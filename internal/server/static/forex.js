@@ -124,6 +124,7 @@
 
             container.innerHTML = html;
             renderOverviewChart(hist);
+            if (window.VimNav) window.VimNav.reset();
         }).catch(function (err) {
             console.error('Forex overview error:', err);
             container.innerHTML = '<p class="empty-state">Failed to load overview</p>';
@@ -206,20 +207,19 @@
                 return;
             }
             var m = row.meta;
-            html += '<tr class="peer-row" data-rate-id="' + esc(m.rateId) + '">';
-            html += '<td><span class="sym-link">' + esc(row.ccy) + '</span></td>';
-            html += '<td>' + esc(m.name) + '</td>';
-            html += '<td>' + esc(m.rateLabel) + '</td>';
-            html += '<td data-cell="latest">—</td>';
-            html += '<td data-cell="date">—</td>';
+            html += '<tr class="peer-row" data-rate-id="' + esc(m.rateId) + '" data-vim-row data-vim-action="navigate" data-vim-href="/graph/' + encodeURIComponent(m.rateId) + '">';
+            html += '<td data-vim-item><span class="sym-link">' + esc(row.ccy) + '</span></td>';
+            html += '<td data-vim-item>' + esc(m.name) + '</td>';
+            html += '<td data-vim-item>' + esc(m.rateLabel) + '</td>';
+            html += '<td data-cell="latest" data-vim-item>—</td>';
+            html += '<td data-cell="date" data-vim-item>—</td>';
             html += '</tr>';
         });
         html += '</tbody></table>';
-        html += '<p class="empty-state">Press <kbd>g</kbd> on a row, or click, to open the full series on /economics.</p>';
+        html += '<p class="empty-state">Press <kbd>Enter</kbd> on a row to open the full series on /graph.</p>';
         container.innerHTML = html;
 
-        // Click → /economics?country=... — same drill-down the /economics
-        // page already understands.
+        // Click → /graph/... — same drill-down the /economics page understands.
         container.querySelectorAll('.peer-row').forEach(function (row) {
             row.onclick = function () {
                 var rateId = row.dataset.rateId;
@@ -227,6 +227,7 @@
                 window.location.href = '/graph/' + encodeURIComponent(rateId);
             };
         });
+        if (window.VimNav) window.VimNav.reset();
 
         // Fill the rate values from the cached economics series.
         [fromMeta, toMeta].filter(Boolean).forEach(function (m) {
@@ -254,9 +255,9 @@
     var activeNewsCat = 'forex';
 
     function loadNews() {
-        var html = '<div class="news-sub-tabs" id="news-sub-tabs">';
+        var html = '<div class="news-sub-tabs" id="news-sub-tabs" data-vim-row>';
         NEWS_CATS.forEach(function (c) {
-            html += '<button class="info-sub-tab' + (c.key === activeNewsCat ? ' active' : '') + '" data-cat="' + esc(c.key) + '">' + esc(c.label) + '</button>';
+            html += '<button class="info-sub-tab' + (c.key === activeNewsCat ? ' active' : '') + '" data-cat="' + esc(c.key) + '" data-vim-item>' + esc(c.label) + '</button>';
         });
         html += '</div><div id="news-cards" class="news-cards"><p class="empty-state">Loading...</p></div>';
         container.innerHTML = html;
@@ -286,21 +287,25 @@
         var listEl = document.getElementById('news-cards');
         if (!items || items.length === 0) {
             listEl.innerHTML = '<p class="empty-state">No news</p>';
+            if (window.VimNav) window.VimNav.reset();
             return;
         }
         var html = '';
         items.forEach(function (n) {
             var url = n.url || '#';
             var d = n.publishedDate ? new Date(n.publishedDate).toLocaleString() : '';
-            html += '<div class="news-card">';
+            var title = (n.title || '—').replace(/"/g, '&quot;');
+            html += '<div class="news-card" data-vim-row>';
+            html += '<div class="news-card-inner" data-vim-item data-vim-action="open-reader" data-vim-url="' + esc(url) + '" data-vim-title="' + esc(title) + '">';
             html += '<div class="news-card-title"><a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(n.title || '—') + '</a></div>';
             html += '<div class="news-card-meta"><span>' + esc(n.site || n.publisher || '') + '</span><span>' + esc(d) + '</span></div>';
             if (n.text || n.snippet) {
                 html += '<div class="news-card-snippet">' + esc((n.text || n.snippet).slice(0, 240)) + '…</div>';
             }
-            html += '</div>';
+            html += '</div></div>';
         });
         listEl.innerHTML = html;
+        if (window.VimNav) window.VimNav.reset();
     }
 
     // ── AI Analysis ──
@@ -313,7 +318,7 @@
             var costInfo = results[0];
             var tradingResult = results[1];
 
-            var html = '<div class="trading-header trading-vim-item" data-trading-vim="btn" tabindex="0">';
+            var html = '<div class="trading-header trading-vim-item" data-trading-vim="btn" data-vim-row>';
             html += '<span class="ai-section-title" style="margin:0">Deep Analysis — Multi-Agent Pipeline</span>';
             html += renderTradingButton(costInfo, tradingResult);
             html += '</div>';
@@ -326,6 +331,7 @@
             container.innerHTML = html;
             wireTradingButton();
             if (tradingResult && !isFinished(tradingResult)) pollTradingStatus();
+            if (window.VimNav) window.VimNav.reset();
         });
     }
 
@@ -338,10 +344,10 @@
         var costStr = costInfo && costInfo.available ? 'Est. $' + costInfo.estimatedCost.toFixed(3) : '';
         var html = '';
         if (isRunning) {
-            html += '<button class="trading-btn trading-btn-running" disabled>'
+            html += '<button class="trading-btn trading-btn-running" disabled data-vim-item>'
                 + '<span class="spinner" style="width:12px;height:12px;display:inline-block"></span> Running…</button>';
         } else {
-            html += '<button class="trading-btn" id="trading-analyze-btn">&#129302; Run Deep Analysis</button>';
+            html += '<button class="trading-btn" id="trading-analyze-btn" data-vim-item>&#129302; Run Deep Analysis</button>';
         }
         if (costStr) html += '<span class="trading-cost">' + esc(costStr) + '</span>';
         if (isFinished(tradingResult) && tradingResult.totalCostUsd !== undefined) {
@@ -386,7 +392,8 @@
         var html = '<div class="trading-analysts">';
         result.analystReports.forEach(function (r) {
             var outlookClass = r.outlook === 'bullish' ? 'price-up' : r.outlook === 'bearish' ? 'price-down' : '';
-            html += '<div class="trading-analyst-card trading-vim-item">';
+            html += '<div class="trading-analyst-card trading-vim-item" data-vim-row>';
+            html += '<div class="trading-analyst-card-inner" data-vim-item data-vim-action="toggle" data-vim-toggle-class="trading-panel-open">';
             html += '<div class="trading-analyst-header">';
             html += '<span class="trading-analyst-name">' + esc(r.analyst) + '</span>';
             html += '<span class="trading-analyst-outlook ' + outlookClass + '">' + esc(r.outlook || 'neutral') + '</span>';
@@ -398,7 +405,7 @@
                 r.keyPoints.forEach(function (p) { html += '<li>' + esc(p) + '</li>'; });
                 html += '</ul>';
             }
-            html += '</div></div>';
+            html += '</div></div></div>';
         });
         html += '</div>';
         return html;
