@@ -208,11 +208,11 @@
             }
             var m = row.meta;
             html += '<tr class="peer-row" data-rate-id="' + esc(m.rateId) + '" data-vim-row data-vim-action="navigate" data-vim-href="/graph/' + encodeURIComponent(m.rateId) + '">';
-            html += '<td data-vim-item><span class="sym-link">' + esc(row.ccy) + '</span></td>';
-            html += '<td data-vim-item>' + esc(m.name) + '</td>';
-            html += '<td data-vim-item>' + esc(m.rateLabel) + '</td>';
-            html += '<td data-cell="latest" data-vim-item>—</td>';
-            html += '<td data-cell="date" data-vim-item>—</td>';
+            html += '<td><span class="sym-link">' + esc(row.ccy) + '</span></td>';
+            html += '<td>' + esc(m.name) + '</td>';
+            html += '<td>' + esc(m.rateLabel) + '</td>';
+            html += '<td data-cell="latest">—</td>';
+            html += '<td data-cell="date">—</td>';
             html += '</tr>';
         });
         html += '</tbody></table>';
@@ -295,14 +295,13 @@
             var url = n.url || '#';
             var d = n.publishedDate ? new Date(n.publishedDate).toLocaleString() : '';
             var title = (n.title || '—').replace(/"/g, '&quot;');
-            html += '<div class="news-card" data-vim-row>';
-            html += '<div class="news-card-inner" data-vim-item data-vim-action="open-reader" data-vim-url="' + esc(url) + '" data-vim-title="' + esc(title) + '">';
+            html += '<div class="news-card" data-vim-row data-vim-action="open-reader" data-vim-url="' + esc(url) + '" data-vim-title="' + esc(title) + '">';
             html += '<div class="news-card-title"><a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(n.title || '—') + '</a></div>';
             html += '<div class="news-card-meta"><span>' + esc(n.site || n.publisher || '') + '</span><span>' + esc(d) + '</span></div>';
             if (n.text || n.snippet) {
                 html += '<div class="news-card-snippet">' + esc((n.text || n.snippet).slice(0, 240)) + '…</div>';
             }
-            html += '</div></div>';
+            html += '</div>';
         });
         listEl.innerHTML = html;
         if (window.VimNav) window.VimNav.reset();
@@ -392,8 +391,7 @@
         var html = '<div class="trading-analysts">';
         result.analystReports.forEach(function (r) {
             var outlookClass = r.outlook === 'bullish' ? 'price-up' : r.outlook === 'bearish' ? 'price-down' : '';
-            html += '<div class="trading-analyst-card trading-vim-item" data-vim-row>';
-            html += '<div class="trading-analyst-card-inner" data-vim-item data-vim-action="toggle" data-vim-toggle-class="trading-panel-open">';
+            html += '<div class="trading-analyst-card trading-vim-item" data-vim-row data-vim-action="toggle" data-vim-toggle-class="trading-panel-open">';
             html += '<div class="trading-analyst-header">';
             html += '<span class="trading-analyst-name">' + esc(r.analyst) + '</span>';
             html += '<span class="trading-analyst-outlook ' + outlookClass + '">' + esc(r.outlook || 'neutral') + '</span>';
@@ -405,7 +403,7 @@
                 r.keyPoints.forEach(function (p) { html += '<li>' + esc(p) + '</li>'; });
                 html += '</ul>';
             }
-            html += '</div></div></div>';
+            html += '</div></div>';
         });
         html += '</div>';
         return html;

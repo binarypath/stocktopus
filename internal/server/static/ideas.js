@@ -63,18 +63,17 @@
             listEl.innerHTML = '<li class="empty-state">No saved sketches yet.</li>';
             return;
         }
-        // Per-sketch row: vim-item is the inner name span so Enter
-        // fires .click() which bubbles up to the <li>'s onclick →
-        // navigateToSketch. The row itself is the data-vim-row so
-        // each sketch is one navigable row in the grid.
-        var defaultRow = '<li class="ideas-list-item' + (currentSketch && !currentSketch.id ? ' active' : '') + '" data-sketch-id="" data-vim-row>'
-            + '<span class="ideas-list-name" data-vim-item data-vim-action="click">Default</span>'
+        // Per-sketch row: whole <li> is the navigable unit. Enter
+        // calls .click() on it which fires the onclick wired below
+        // → navigateToSketch.
+        var defaultRow = '<li class="ideas-list-item' + (currentSketch && !currentSketch.id ? ' active' : '') + '" data-sketch-id="" data-vim-row data-vim-action="click">'
+            + '<span class="ideas-list-name">Default</span>'
             + '<span class="ideas-list-meta">scratchpad</span></li>';
         listEl.innerHTML = defaultRow + sketches.map(function (sk) {
             var active = currentSketch && currentSketch.id === sk.id ? ' active' : '';
             var when = sk.updatedAt ? new Date(sk.updatedAt).toLocaleDateString() : '';
-            return '<li class="ideas-list-item' + active + '" data-sketch-id="' + sk.id + '" data-vim-row>'
-                + '<span class="ideas-list-name" data-vim-item data-vim-action="click">' + esc(sk.name || '(untitled)') + '</span>'
+            return '<li class="ideas-list-item' + active + '" data-sketch-id="' + sk.id + '" data-vim-row data-vim-action="click">'
+                + '<span class="ideas-list-name">' + esc(sk.name || '(untitled)') + '</span>'
                 + '<span class="ideas-list-meta">' + esc(when) + '</span>'
                 + '</li>';
         }).join('');
@@ -147,7 +146,7 @@
             var err = seriesErrors[m.id];
             var color = m.color || SERIES_COLORS[i % SERIES_COLORS.length];
             var labelHTML = '<span class="ideas-legend-swatch" style="background:' + esc(color) + '"></span>'
-                + '<span class="ideas-legend-label" data-vim-item>' + esc(m.label || m.identifier) + '</span>';
+                + '<span class="ideas-legend-label">' + esc(m.label || m.identifier) + '</span>';
             var rightHTML;
             if (err) {
                 rightHTML = '<span class="ideas-legend-err">' + esc(err) + '</span>';

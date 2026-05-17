@@ -821,6 +821,7 @@ body {
     color: var(--orange);
     border-color: var(--orange);
     background: var(--bg-tertiary);
+    box-shadow: inset 0 -2px 0 var(--orange);
 }
 
 .info-content {
@@ -910,6 +911,7 @@ body {
     color: var(--blue);
     border-color: var(--blue);
     background: var(--bg-tertiary);
+    box-shadow: inset 0 -2px 0 var(--blue);
 }
 
 .fin-table {
@@ -2029,9 +2031,18 @@ body {
 /* ── Vim Selection ── */
 
 .vim-selected {
-    background: var(--bg-tertiary) !important;
-    outline: 1px solid var(--orange);
+    background: rgba(255, 140, 0, 0.12) !important;
+    outline: 2px solid var(--orange);
     outline-offset: -1px;
+}
+
+/* Tab-strip selections benefit from a slightly thicker outline since
+ * the buttons already have their own border baseline — without the
+ * bump the selection visually fades into the tab's normal styling. */
+.info-tabs .vim-selected,
+.news-sub-tabs .vim-selected,
+.info-sub-tabs .vim-selected {
+    outline-width: 2px;
 }
 
 /* ── Equity Indices ── */
