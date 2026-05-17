@@ -50,7 +50,13 @@
             });
             var n;
             while ((n = walker.nextNode())) items.push(n);
-            if (items.length > 0) grid.push({ el: rowEl, items: items });
+            // A row with no inner items represents itself — the row IS
+            // the navigable unit (tabular rows in tables, where each
+            // <tr> is one record and h/l between cells isn't meaningful).
+            // This makes j/k highlight the whole row instead of the
+            // first cell.
+            if (items.length === 0) items = [rowEl];
+            grid.push({ el: rowEl, items: items });
         }
     }
 

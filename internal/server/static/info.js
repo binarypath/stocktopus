@@ -708,7 +708,7 @@
                     var format = row[2] || '';
                     var finKey = format === 'calc' ? row[3] + '/' + row[4] : (row[1] || '');
                     html += '<tr class="fin-row" data-fin-idx="' + rowIdx + '" data-fin-key="' + esc(finKey) + '" data-fin-label="' + esc(row[0]) + '" data-fin-format="' + format + '" data-vim-row>';
-                    html += '<td class="fin-label" data-vim-item>' + row[0] + tip + '</td>';
+                    html += '<td class="fin-label">' + row[0] + tip + '</td>';
                     data.forEach(function (d) {
                         var val;
                         if (format === 'calc') {
@@ -718,7 +718,7 @@
                         } else {
                             val = fmt(d[row[1]]);
                         }
-                        html += '<td data-vim-item>' + val + '</td>';
+                        html += '<td>' + val + '</td>';
                     });
                     html += '</tr>';
                 });
@@ -846,12 +846,11 @@
                         var plain = div.textContent || div.innerText || '';
                         if (plain.length > 220) plain = plain.substring(0, 220) + '…';
                         var title = (item.title || '').replace(/"/g, '&quot;');
-                        return '<div class="news-card news-unread" data-vim-row>'
-                            + '<div class="news-card-inner" data-vim-item data-vim-action="open-reader" data-vim-url="' + esc(item.url) + '" data-vim-title="' + esc(title) + '">'
+                        return '<div class="news-card news-unread" data-vim-row data-vim-action="open-reader" data-vim-url="' + esc(item.url) + '" data-vim-title="' + esc(title) + '">'
                             + '<div class="news-card-title"><a href="' + esc(item.url) + '" onclick="event.preventDefault();if(window._openReader)window._openReader(this.href,this.textContent)">' + esc(item.title) + '</a></div>'
                             + '<div class="news-card-meta"><span>' + esc(item.source || '') + '</span><span>' + date + '</span></div>'
                             + '<div class="news-card-text">' + esc(plain) + '</div>'
-                            + '</div></div>';
+                            + '</div>';
                     }).join('') + '</div>';
             })
             .catch(function () { host.innerHTML = '<p class="empty-state">Failed to load news</p>'; });
@@ -909,20 +908,20 @@
 
                 // Current company
                 html += '<tr class="peer-row peer-current" data-symbol="' + esc(symbol) + '" data-vim-row data-vim-action="navigate" data-vim-href="/security/' + encodeURIComponent(symbol) + '">'
-                    + '<td data-vim-item><span class="sym-link">' + esc(symbol) + '</span></td>'
-                    + '<td data-vim-item>' + esc(profile.companyName || '') + '</td>'
-                    + '<td data-vim-item>' + (profile.price ? profile.price.toFixed(2) : '—') + '</td>'
-                    + '<td data-vim-item>' + fmt(profile.marketCap) + '</td>'
-                    + '<td data-vim-item><div class="peer-spark" data-spark-sym="' + esc(symbol) + '"></div></td></tr>';
+                    + '<td><span class="sym-link">' + esc(symbol) + '</span></td>'
+                    + '<td>' + esc(profile.companyName || '') + '</td>'
+                    + '<td>' + (profile.price ? profile.price.toFixed(2) : '—') + '</td>'
+                    + '<td>' + fmt(profile.marketCap) + '</td>'
+                    + '<td><div class="peer-spark" data-spark-sym="' + esc(symbol) + '"></div></td></tr>';
 
                 peers.forEach(function (p) {
                     var cap = p.mktCap || p.marketCap || 0;
                     html += '<tr class="peer-row" data-symbol="' + esc(p.symbol) + '" data-vim-row data-vim-action="navigate" data-vim-href="/security/' + encodeURIComponent(p.symbol) + '">'
-                        + '<td data-vim-item><span class="sym-link">' + esc(p.symbol) + '</span></td>'
-                        + '<td data-vim-item>' + esc(p.companyName || '') + '</td>'
-                        + '<td data-vim-item>' + (p.price ? p.price.toFixed(2) : '—') + '</td>'
-                        + '<td data-vim-item>' + fmt(cap) + '</td>'
-                        + '<td data-vim-item><div class="peer-spark" data-spark-sym="' + esc(p.symbol) + '"></div></td></tr>';
+                        + '<td><span class="sym-link">' + esc(p.symbol) + '</span></td>'
+                        + '<td>' + esc(p.companyName || '') + '</td>'
+                        + '<td>' + (p.price ? p.price.toFixed(2) : '—') + '</td>'
+                        + '<td>' + fmt(cap) + '</td>'
+                        + '<td><div class="peer-spark" data-spark-sym="' + esc(p.symbol) + '"></div></td></tr>';
                 });
                 html += '</tbody></table>';
             }
@@ -1137,10 +1136,10 @@
                         var date = (f.filingDate || '').substring(0, 10);
                         var filingTitle = esc(t.title || f.formType);
                         html += '<tr class="sec-row" data-idx="' + idx + '" data-link="' + esc(f.link || f.finalLink || '') + '" data-vim-row data-vim-action="open-reader" data-vim-url="' + esc(f.link || f.finalLink || '') + '" data-vim-title="' + filingTitle + '">';
-                        html += '<td class="sec-date" data-vim-item>' + date + '</td>';
-                        html += '<td data-vim-item><span class="sec-badge ' + catClass + '">' + esc(f.formType) + '</span></td>';
-                        html += '<td class="sec-desc" data-vim-item>' + filingTitle + '</td>';
-                        html += '<td data-vim-item><a href="' + esc(f.link || f.finalLink || '') + '" target="_blank" rel="noopener" class="sec-link">&#8599;</a></td>';
+                        html += '<td class="sec-date">' + date + '</td>';
+                        html += '<td><span class="sec-badge ' + catClass + '">' + esc(f.formType) + '</span></td>';
+                        html += '<td class="sec-desc">' + filingTitle + '</td>';
+                        html += '<td><a href="' + esc(f.link || f.finalLink || '') + '" target="_blank" rel="noopener" class="sec-link">&#8599;</a></td>';
                         html += '</tr>';
                     });
                     html += '</tbody></table>';
@@ -1299,11 +1298,11 @@
                 var rowAttrs = ' data-vim-row';
                 if (p.source) rowAttrs += ' data-vim-action="open-reader" data-vim-url="' + srcUrl + '" data-vim-title="' + esc(p.name || '') + '"';
                 html += '<tr class="kp-row" data-idx="' + (rowIdx++) + '" data-link="' + srcUrl + '"' + rowAttrs + '>';
-                html += '<td class="kp-name" data-vim-item>' + esc(p.name || '—') + '</td>';
-                html += '<td class="kp-title" data-vim-item>' + esc(p.title || '') + '</td>';
-                html += '<td data-vim-item><span class="kp-event ' + roleClass + '">' + esc(p.eventType || 'officer') + '</span></td>';
-                html += '<td class="kp-date" data-vim-item>' + esc(asOf) + ' ' + form + '</td>';
-                html += '<td data-vim-item>';
+                html += '<td class="kp-name">' + esc(p.name || '—') + '</td>';
+                html += '<td class="kp-title">' + esc(p.title || '') + '</td>';
+                html += '<td><span class="kp-event ' + roleClass + '">' + esc(p.eventType || 'officer') + '</span></td>';
+                html += '<td class="kp-date">' + esc(asOf) + ' ' + form + '</td>';
+                html += '<td>';
                 if (p.source) {
                     html += '<a class="kp-link" href="' + esc(p.source) + '" target="_blank" rel="noopener">&#8599;</a>';
                 }
@@ -1323,12 +1322,12 @@
                 var rowAttrs = ' data-vim-row';
                 if (p.source) rowAttrs += ' data-vim-action="open-reader" data-vim-url="' + srcUrl + '" data-vim-title="' + esc(p.name || '') + '"';
                 html += '<li class="kp-row" data-idx="' + (rowIdx++) + '" data-link="' + srcUrl + '"' + rowAttrs + '>';
-                html += '<span class="kp-date" data-vim-item>' + esc(date) + '</span>';
-                html += '<span class="kp-event ' + evtClass + '" data-vim-item>' + esc(p.eventType || 'change') + '</span>';
-                html += '<span class="kp-name" data-vim-item>' + esc(p.name || '—') + '</span>';
-                html += '<span class="kp-title" data-vim-item>' + esc(p.title || '') + '</span>';
+                html += '<span class="kp-date">' + esc(date) + '</span>';
+                html += '<span class="kp-event ' + evtClass + '">' + esc(p.eventType || 'change') + '</span>';
+                html += '<span class="kp-name">' + esc(p.name || '—') + '</span>';
+                html += '<span class="kp-title">' + esc(p.title || '') + '</span>';
                 if (p.source) {
-                    html += '<a class="kp-link" data-vim-item href="' + esc(p.source) + '" target="_blank" rel="noopener">&#8599;</a>';
+                    html += '<a class="kp-link" href="' + esc(p.source) + '" target="_blank" rel="noopener">&#8599;</a>';
                 }
                 html += '</li>';
             });
@@ -1556,8 +1555,7 @@
                                    report.outlook === 'bearish' ? 'price-down' : '';
                 var scoreBar = report.score ? Math.round((report.score + 1) / 2 * 100) : 50;
 
-                html += '<div class="trading-analyst-card trading-vim-item" data-analyst-idx="' + idx + '" data-vim-row>';
-                html += '<div class="trading-analyst-card-inner" data-vim-item data-vim-action="toggle" data-vim-toggle-class="trading-panel-open">';
+                html += '<div class="trading-analyst-card trading-vim-item" data-analyst-idx="' + idx + '" data-vim-row data-vim-action="toggle" data-vim-toggle-class="trading-panel-open">';
                 html += '<div class="trading-analyst-header">';
                 html += '<span class="trading-analyst-name">' + esc(report.analyst) + '</span>';
                 html += '<span class="trading-analyst-outlook ' + outlookClass + '">' + esc(report.outlook || 'neutral') + '</span>';
@@ -1581,7 +1579,7 @@
                     report.sources.forEach(function (s) { html += '<span class="trading-source">' + esc(s) + '</span>'; });
                     html += '</div>';
                 }
-                html += '</div></div></div>';
+                html += '</div></div>';
             });
             html += '</div>';
         }
@@ -1590,8 +1588,7 @@
         if (result.investmentPlan && result.investmentPlan.rating) {
             var plan = result.investmentPlan;
             var ratingClass = 'rating-' + plan.rating.toLowerCase();
-            html += '<div class="trading-analyst-card trading-plan-card trading-vim-item" data-analyst-idx="plan" data-vim-row>';
-            html += '<div class="trading-analyst-card-inner" data-vim-item data-vim-action="toggle" data-vim-toggle-class="trading-panel-open">';
+            html += '<div class="trading-analyst-card trading-plan-card trading-vim-item" data-analyst-idx="plan" data-vim-row data-vim-action="toggle" data-vim-toggle-class="trading-panel-open">';
             html += '<div class="trading-analyst-header">';
             html += '<span class="trading-analyst-name">Research Verdict</span>';
             html += '<span class="trading-rating ' + ratingClass + '">' + esc(plan.rating) + '</span>';
@@ -1635,7 +1632,7 @@
                 html += '</details>';
             }
 
-            html += '</div></div></div>'; // close trading-analyst-body + card-inner + card
+            html += '</div></div>'; // close trading-analyst-body + card
         }
 
         // Footer — cost + timestamp

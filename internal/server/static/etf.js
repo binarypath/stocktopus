@@ -236,11 +236,11 @@
                 top.forEach(function (h, i) {
                     var sym = h.asset || h.symbol || '';
                     html += '<tr class="peer-row" data-symbol="' + esc(sym) + '" data-vim-row data-vim-action="navigate" data-vim-href="/security/' + encodeURIComponent(sym) + '">';
-                    html += '<td data-vim-item>' + (i + 1) + '</td>';
-                    html += '<td data-vim-item><span class="sym-link">' + esc(sym) + '</span></td>';
-                    html += '<td data-vim-item>' + esc(h.name || '') + '</td>';
-                    html += '<td data-vim-item>' + pct(h.weightPercentage) + '</td>';
-                    html += '<td data-vim-item>' + fmtBig(h.marketValue) + '</td>';
+                    html += '<td>' + (i + 1) + '</td>';
+                    html += '<td><span class="sym-link">' + esc(sym) + '</span></td>';
+                    html += '<td>' + esc(h.name || '') + '</td>';
+                    html += '<td>' + pct(h.weightPercentage) + '</td>';
+                    html += '<td>' + fmtBig(h.marketValue) + '</td>';
                     html += '</tr>';
                 });
                 html += '</tbody></table>';
@@ -279,9 +279,9 @@
             sectors.forEach(function (s) {
                 var w = s.exposure || 0;
                 html += '<tr data-vim-row>';
-                html += '<td data-vim-item>' + esc(s.industry) + '</td>';
-                html += '<td data-vim-item>' + pct(w) + '</td>';
-                html += '<td data-vim-item><div class="sector-bar"><div class="sector-bar-fill" style="width:' + Math.min(100, w * 2) + '%"></div></div></td></tr>';
+                html += '<td>' + esc(s.industry) + '</td>';
+                html += '<td>' + pct(w) + '</td>';
+                html += '<td><div class="sector-bar"><div class="sector-bar-fill" style="width:' + Math.min(100, w * 2) + '%"></div></div></td></tr>';
             });
             html += '</tbody></table>';
             container.innerHTML = html;
@@ -348,14 +348,13 @@
             var url = n.url || '#';
             var d = n.publishedDate ? new Date(n.publishedDate).toLocaleString() : '';
             var title = (n.title || '—').replace(/"/g, '&quot;');
-            html += '<div class="news-card" data-vim-row>';
-            html += '<div class="news-card-inner" data-vim-item data-vim-action="open-reader" data-vim-url="' + esc(url) + '" data-vim-title="' + esc(title) + '">';
+            html += '<div class="news-card" data-vim-row data-vim-action="open-reader" data-vim-url="' + esc(url) + '" data-vim-title="' + esc(title) + '">';
             html += '<div class="news-card-title"><a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(n.title || '—') + '</a></div>';
             html += '<div class="news-card-meta"><span>' + esc(n.site || n.publisher || '') + '</span><span>' + esc(d) + '</span></div>';
             if (n.text || n.snippet) {
                 html += '<div class="news-card-snippet">' + esc((n.text || n.snippet).slice(0, 240)) + '…</div>';
             }
-            html += '</div></div>';
+            html += '</div>';
         });
         listEl.innerHTML = html;
         if (window.VimNav) window.VimNav.reset();
@@ -445,8 +444,7 @@
         var html = '<div class="trading-analysts">';
         result.analystReports.forEach(function (r) {
             var outlookClass = r.outlook === 'bullish' ? 'price-up' : r.outlook === 'bearish' ? 'price-down' : '';
-            html += '<div class="trading-analyst-card trading-vim-item" data-vim-row>';
-            html += '<div class="trading-analyst-card-inner" data-vim-item data-vim-action="toggle" data-vim-toggle-class="trading-panel-open">';
+            html += '<div class="trading-analyst-card trading-vim-item" data-vim-row data-vim-action="toggle" data-vim-toggle-class="trading-panel-open">';
             html += '<div class="trading-analyst-header">';
             html += '<span class="trading-analyst-name">' + esc(r.analyst) + '</span>';
             html += '<span class="trading-analyst-outlook ' + outlookClass + '">' + esc(r.outlook || 'neutral') + '</span>';
@@ -458,7 +456,7 @@
                 r.keyPoints.forEach(function (p) { html += '<li>' + esc(p) + '</li>'; });
                 html += '</ul>';
             }
-            html += '</div></div></div>';
+            html += '</div></div>';
         });
         html += '</div>';
         return html;
