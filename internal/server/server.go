@@ -148,6 +148,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/article/entities", s.handleArticleEntities)
 	mux.HandleFunc("GET /api/chart/intraday/{interval}/{symbol}", s.handleChartIntraday)
 	mux.HandleFunc("GET /api/security/{symbol}/profile", s.handleSecurityProfile)
+	mux.HandleFunc("GET /api/security/{symbol}/quote", s.handleSecurityQuote)
 	mux.HandleFunc("GET /api/security/{symbol}/metrics", s.handleSecurityMetrics)
 	mux.HandleFunc("GET /api/security/{symbol}/financials", s.handleSecurityFinancials)
 	mux.HandleFunc("GET /api/security/{symbol}/estimates", s.handleSecurityEstimates)
@@ -466,6 +467,16 @@ func (s *Server) handleNewsAPI(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSecurityProfile(w http.ResponseWriter, r *http.Request) {
 	s.proxyFMP(w, r, func(sym string) (json.RawMessage, error) {
 		return s.news.GetProfile(r.Context(), sym)
+	})
+}
+
+// handleSecurityQuote exposes /stable/quote — the universal realtime
+// snapshot that works across stocks, ETFs, crypto, forex, indices. The
+// crypto / forex pages rely on it because /stable/profile returns empty
+// for those types.
+func (s *Server) handleSecurityQuote(w http.ResponseWriter, r *http.Request) {
+	s.proxyFMP(w, r, func(sym string) (json.RawMessage, error) {
+		return s.news.GetQuote(r.Context(), sym)
 	})
 }
 

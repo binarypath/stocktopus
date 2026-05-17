@@ -17,6 +17,7 @@ import (
 
 	"stocktopus/internal/model"
 	"stocktopus/internal/news"
+	"stocktopus/internal/store"
 )
 
 // AnalystRunner executes the 4 analyst agents in parallel using Ollama.
@@ -27,6 +28,33 @@ type AnalystRunner struct {
 	agentsDir   string
 	client      *http.Client
 	logger      *slog.Logger
+
+	// store is optional — when set, the runner consults the cached
+	// security_types row to skip SEC-filing fetches for non-stock
+	// symbols (crypto / forex / index / etf), saving an FMP roundtrip
+	// per analyst on every run.
+	store *store.Store
+}
+
+// SetStore wires an optional store on an already-constructed runner.
+// Used by the pipeline so SEC-skip lookups don't require a constructor
+// change. nil is allowed; a nil store means the runner falls back to
+// full-stock behaviour for every symbol.
+func (ar *AnalystRunner) SetStore(s *store.Store) { ar.store = s }
+
+// skipSECForSymbol returns true when the analyst should bypass FMP's
+// SEC filing fetch — crypto / forex / index / etf don't file with
+// the SEC. Falls back to false when the store hasn't seen the symbol
+// yet (worst case: one wasted FMP call, response is empty).
+func (ar *AnalystRunner) skipSECForSymbol(symbol string) bool {
+	if ar.store == nil {
+		return false
+	}
+	switch ar.store.GetSecurityType(symbol) {
+	case "crypto", "forex", "index", "etf":
+		return true
+	}
+	return false
 }
 
 func NewAnalystRunner(fmp *news.Client, ollamaHost, ollamaModel, agentsDir string, logger *slog.Logger) *AnalystRunner {
@@ -225,11 +253,16 @@ func (ar *AnalystRunner) runFundamentals(ctx context.Context, symbol string) (An
 		{"ratios", func() (json.RawMessage, error) { return ar.fmp.GetRatiosTTM(ctx, symbol) }},
 		{"estimates", func() (json.RawMessage, error) { return ar.fmp.GetAnalystEstimates(ctx, symbol, 3) }},
 		{"peers", func() (json.RawMessage, error) { return ar.fmp.GetPeers(ctx, symbol) }},
-		{"sec_filings", func() (json.RawMessage, error) {
+	}
+	if !ar.skipSECForSymbol(symbol) {
+		fetches = append(fetches, struct {
+			name string
+			fn   func() (json.RawMessage, error)
+		}{"sec_filings", func() (json.RawMessage, error) {
 			secFrom := time.Now().UTC().AddDate(-1, 0, 0).Format("2006-01-02")
 			secTo := time.Now().UTC().Format("2006-01-02")
 			return ar.fmp.GetSECFilings(ctx, symbol, secFrom, secTo)
-		}},
+		}})
 	}
 
 	results := make([]fetchResult, len(fetches))
@@ -304,14 +337,21 @@ func (ar *AnalystRunner) runNews(ctx context.Context, symbol string) (AnalystRep
 	to := time.Now().UTC().Format("2006-01-02")
 	from := time.Now().UTC().AddDate(0, 0, -14).Format("2006-01-02")
 
-	// Fetch company news, press releases, macro news, AND SEC filings in parallel
+	// Fetch company news, press releases, macro news, AND (for stocks
+	// only) SEC filings in parallel. Crypto / forex / index / etf skip
+	// the SEC fetch since they don't file.
 	var stockItems, pressItems, macroItems []model.NewsItem
 	var secData json.RawMessage
 	var stockErr error
 	var wg sync.WaitGroup
 	var profile string
 
-	wg.Add(5)
+	skipSEC := ar.skipSECForSymbol(symbol)
+	if skipSEC {
+		wg.Add(4)
+	} else {
+		wg.Add(5)
+	}
 	go func() {
 		defer wg.Done()
 		stockItems, stockErr = ar.fmp.GetNewsWithDates(ctx, news.Stock, symbol, 0, 20, from, to)
@@ -328,12 +368,14 @@ func (ar *AnalystRunner) runNews(ctx context.Context, symbol string) (AnalystRep
 		defer wg.Done()
 		profile = ar.fetchProfile(ctx, symbol)
 	}()
-	go func() {
-		defer wg.Done()
-		secFrom := time.Now().UTC().AddDate(0, -3, 0).Format("2006-01-02")
-		secTo := time.Now().UTC().Format("2006-01-02")
-		secData, _ = ar.fmp.GetSECFilings(ctx, symbol, secFrom, secTo)
-	}()
+	if !skipSEC {
+		go func() {
+			defer wg.Done()
+			secFrom := time.Now().UTC().AddDate(0, -3, 0).Format("2006-01-02")
+			secTo := time.Now().UTC().Format("2006-01-02")
+			secData, _ = ar.fmp.GetSECFilings(ctx, symbol, secFrom, secTo)
+		}()
+	}
 	wg.Wait()
 
 	if stockErr != nil {

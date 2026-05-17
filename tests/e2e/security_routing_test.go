@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -85,6 +86,38 @@ func TestSmoke_SecurityRouting_PerTypeRoutes(t *testing.T) {
 			assertContains(t, resp, "<html")
 		})
 	}
+}
+
+// /api/security/{sym}/quote serves the universal quote endpoint used by
+// the crypto page (and the routing type-resolver). Confirms the new
+// route + the FMP wrapper return a sane shape for a crypto symbol.
+func TestSmoke_SecurityQuote_Crypto(t *testing.T) {
+	resp := get(t, "/api/security/BTCUSD/quote")
+	defer resp.Body.Close()
+	assertStatus(t, resp, 200)
+	body, _ := io.ReadAll(resp.Body)
+	s := string(body)
+	if !strings.HasPrefix(strings.TrimSpace(s), "[") {
+		t.Fatalf("expected JSON array, got: %.200s", s)
+	}
+	if !strings.Contains(s, `"BTCUSD"`) {
+		t.Errorf("expected symbol BTCUSD in quote body, got: %.200s", s)
+	}
+	// FMP may emit `"exchange":"CRYPTO"` or `"exchange": "CRYPTO"`
+	// depending on the version — match either.
+	if !strings.Contains(s, `"CRYPTO"`) {
+		t.Errorf("expected exchange CRYPTO in quote body, got: %.200s", s)
+	}
+}
+
+// The crypto page template is wired to load /static/crypto.js — verify
+// the file is served by the static handler so the page actually has
+// behaviour, not just the HTML shell.
+func TestSmoke_SecurityRouting_CryptoStaticAsset(t *testing.T) {
+	resp := get(t, "/static/crypto.js")
+	defer resp.Body.Close()
+	assertStatus(t, resp, 200)
+	assertContains(t, resp, "crypto.js")
 }
 
 // Index symbols use '^' prefix — the resolver short-circuits without a

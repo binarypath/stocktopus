@@ -40,6 +40,7 @@ type TradingPipelineConfig struct {
 
 func NewTradingPipeline(cfg TradingPipelineConfig, fmp *news.Client, st *store.Store, logger *slog.Logger) *TradingPipeline {
 	analysts := NewAnalystRunner(fmp, cfg.OllamaHost, cfg.OllamaModel, cfg.AgentsDir, logger)
+	analysts.SetStore(st) // enables SEC-skip for crypto / forex / index / etf
 	debater := NewDebater(cfg.OllamaHost, cfg.OllamaModel, cfg.DebateRounds, logger)
 	people := NewPeopleExtractor(cfg.OllamaHost, cfg.OllamaModel, fmp, st, logger)
 

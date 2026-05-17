@@ -1048,6 +1048,80 @@ body {
     letter-spacing: 0.5px;
 }
 
+/* ── /crypto/{symbol} page ── */
+.crypto-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+.crypto-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.crypto-exchange {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+.crypto-price-row {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin: 8px 0 16px 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+}
+.crypto-price {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+}
+.crypto-change {
+    font-size: 12px;
+    font-family: var(--font-mono);
+}
+.crypto-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 6px;
+    margin-bottom: 16px;
+}
+.crypto-stat {
+    display: flex;
+    flex-direction: column;
+    padding: 6px 8px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+}
+.crypto-stat-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.crypto-stat-value {
+    font-size: 13px;
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+    margin-top: 2px;
+}
+.crypto-chart {
+    margin: 12px 0;
+    border: 1px solid var(--border);
+    background: var(--bg-secondary);
+}
+.crypto-desc {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
 .peer-table .sym-link {
     color: var(--blue);
     font-weight: 700;
