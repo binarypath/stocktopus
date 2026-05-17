@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [1.8.0](https://github.com/binarypath/stocktopus/compare/v1.7.2...v1.8.0) (2026-05-17)
+
+
+### Features
+
+* **security:** type-aware routes + foundation ([#103](https://github.com/binarypath/stocktopus/issues/103)) ([cd7434d](https://github.com/binarypath/stocktopus/commit/cd7434dacfda213ed8b0800eec0b933619468295)), closes [#98](https://github.com/binarypath/stocktopus/issues/98) [#97](https://github.com/binarypath/stocktopus/issues/97)
+
 ## [1.7.2](https://github.com/binarypath/stocktopus/compare/v1.7.1...v1.7.2) (2026-05-17)
 
 
