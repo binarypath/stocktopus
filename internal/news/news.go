@@ -283,6 +283,23 @@ func (c *Client) GetQuote(ctx context.Context, symbol string) (json.RawMessage, 
 	return c.fetchJSON(ctx, "/stable/quote", params)
 }
 
+// GetETFHoldings returns the full holdings list for an ETF — one row per
+// underlying with `asset` (ticker), `name`, `weightPercentage`, and
+// `marketValue`. SPY currently emits ~500 rows.
+func (c *Client) GetETFHoldings(ctx context.Context, symbol string) (json.RawMessage, error) {
+	params := url.Values{"symbol": {symbol}}
+	return c.fetchJSON(ctx, "/stable/etf/holdings", params)
+}
+
+// GetETFInfo returns fund-level metadata: name, description, issuer,
+// expense ratio, AUM, NAV, inception date, holdings count, plus an
+// inline `sectorsList[]` with GICS sector exposures — the ETF page
+// uses this in lieu of a separate sector-weightings call.
+func (c *Client) GetETFInfo(ctx context.Context, symbol string) (json.RawMessage, error) {
+	params := url.Values{"symbol": {symbol}}
+	return c.fetchJSON(ctx, "/stable/etf/info", params)
+}
+
 // GetKeyMetrics returns key financial metrics.
 func (c *Client) GetKeyMetrics(ctx context.Context, symbol string) (json.RawMessage, error) {
 	params := url.Values{"symbol": {symbol}, "limit": {"1"}}

@@ -120,6 +120,74 @@ func TestSmoke_SecurityRouting_CryptoStaticAsset(t *testing.T) {
 	assertContains(t, resp, "crypto.js")
 }
 
+// Same for the ETF page — etf.js must be reachable.
+func TestSmoke_SecurityRouting_ETFStaticAsset(t *testing.T) {
+	resp := get(t, "/static/etf.js")
+	defer resp.Body.Close()
+	assertStatus(t, resp, 200)
+	assertContains(t, resp, "etf.js")
+}
+
+// /api/security/{sym}/etf-holdings returns the holdings array for an
+// ETF. Each row carries `asset` (underlying ticker) + `weightPercentage`.
+func TestSmoke_ETFHoldings(t *testing.T) {
+	resp := get(t, "/api/security/SPY/etf-holdings")
+	defer resp.Body.Close()
+	assertStatus(t, resp, 200)
+	body, _ := io.ReadAll(resp.Body)
+	s := string(body)
+	if !strings.HasPrefix(strings.TrimSpace(s), "[") {
+		t.Fatalf("expected JSON array, got: %.200s", s)
+	}
+	for _, want := range []string{`"asset"`, `"weightPercentage"`} {
+		if !strings.Contains(s, want) {
+			t.Errorf("expected %s in holdings body, got: %.200s", want, s)
+		}
+	}
+}
+
+// /api/security/{sym}/etf-info returns fund metadata + sectorsList.
+func TestSmoke_ETFInfo(t *testing.T) {
+	resp := get(t, "/api/security/SPY/etf-info")
+	defer resp.Body.Close()
+	assertStatus(t, resp, 200)
+	body, _ := io.ReadAll(resp.Body)
+	s := string(body)
+	for _, want := range []string{`"expenseRatio"`, `"sectorsList"`, `"SPY"`} {
+		if !strings.Contains(s, want) {
+			t.Errorf("expected %s in info body, got: %.200s", want, s)
+		}
+	}
+}
+
+// SPY is an ETF — /security/SPY should 301 to /etf/SPY once the type
+// resolver has seen isEtf=true on the profile.
+func TestSmoke_SecurityRouting_ETFRedirect(t *testing.T) {
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	var resp *http.Response
+	var err error
+	for i := 0; i < 2; i++ {
+		resp, err = client.Get(testServer.URL + "/security/SPY")
+		if err != nil {
+			t.Fatalf("GET /security/SPY: %v", err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusMovedPermanently {
+			break
+		}
+	}
+	if resp.StatusCode != http.StatusMovedPermanently {
+		t.Fatalf("expected 301 for /security/SPY, got %d", resp.StatusCode)
+	}
+	if loc := resp.Header.Get("Location"); !strings.HasSuffix(loc, "/etf/SPY") {
+		t.Errorf("expected redirect to /etf/SPY, got %q", loc)
+	}
+}
+
 // Index symbols use '^' prefix — the resolver short-circuits without a
 // profile call. /security/^DJI should 301 → /index/^DJI even before any
 // FMP traffic. Verifies the syntactic short-circuit in resolveSecurityType.
