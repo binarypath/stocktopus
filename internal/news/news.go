@@ -273,6 +273,16 @@ func (c *Client) GetProfile(ctx context.Context, symbol string) (json.RawMessage
 	return c.fetchJSON(ctx, "/stable/profile", params)
 }
 
+// GetQuote returns the realtime quote for a symbol. Unlike /stable/profile
+// which is empty for crypto / forex, /stable/quote works uniformly across
+// stocks, ETFs, crypto, forex, and indices — and crucially carries the
+// `exchange` field (e.g. "CRYPTO", "FOREX", "AMEX") used by the type
+// resolver in internal/server/server.go.
+func (c *Client) GetQuote(ctx context.Context, symbol string) (json.RawMessage, error) {
+	params := url.Values{"symbol": {symbol}}
+	return c.fetchJSON(ctx, "/stable/quote", params)
+}
+
 // GetKeyMetrics returns key financial metrics.
 func (c *Client) GetKeyMetrics(ctx context.Context, symbol string) (json.RawMessage, error) {
 	params := url.Values{"symbol": {symbol}, "limit": {"1"}}

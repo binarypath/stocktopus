@@ -116,7 +116,7 @@ func (s *Server) loadTemplates() error {
 	layoutPath := filepath.Join(templatesDir(), "layout.html")
 	s.pages = make(map[string]*template.Template)
 
-	pageNames := []string{"watchlist", "stock", "security", "screener", "feed", "debug", "news", "indices", "ideas", "economics", "economic-graph", "financial-graph"}
+	pageNames := []string{"watchlist", "stock", "security", "crypto", "etf", "index", "forex", "screener", "feed", "debug", "news", "indices", "ideas", "economics", "economic-graph", "financial-graph"}
 	for _, page := range pageNames {
 		pagePath := filepath.Join(templatesDir(), page+".html")
 		t, err := template.ParseFiles(layoutPath, pagePath)
@@ -202,6 +202,10 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /graph/{symbol}", s.handleStock)
 	mux.HandleFunc("GET /stock/{symbol}", s.handleStock) // legacy redirect
 	mux.HandleFunc("GET /security/{symbol}", s.handleSecurity)
+	mux.HandleFunc("GET /crypto/{symbol}", s.handleCrypto)
+	mux.HandleFunc("GET /forex/{symbol}", s.handleForex)
+	mux.HandleFunc("GET /index/{symbol}", s.handleIndexSecurity)
+	mux.HandleFunc("GET /etf/{symbol}", s.handleETF)
 	mux.HandleFunc("GET /screener", s.handleScreener)
 	mux.HandleFunc("GET /feed", s.handleFeed)
 	mux.HandleFunc("GET /news", s.handleNews)
@@ -272,11 +276,139 @@ func (s *Server) handleStock(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSecurity(w http.ResponseWriter, r *http.Request) {
 	symbol := r.PathValue("symbol")
+	// Legacy compat: /security/{sym} keeps serving stocks, but if we
+	// know the symbol is a non-stock type (crypto/forex/index/etf) we
+	// 301 to the type-specific path. Result is cached in security_types
+	// so repeated hits don't profile-fetch.
+	if typ := s.resolveSecurityType(r, symbol); typ != "" && typ != "stock" {
+		http.Redirect(w, r, "/"+typ+"/"+symbol, http.StatusMovedPermanently)
+		return
+	}
 	s.renderPage(w, r, "security.html", map[string]any{
 		"Title":  symbol + " — Info",
 		"Active": "info",
 		"Symbol": symbol,
 	})
+}
+
+func (s *Server) handleCrypto(w http.ResponseWriter, r *http.Request) {
+	symbol := r.PathValue("symbol")
+	s.renderPage(w, r, "crypto.html", map[string]any{
+		"Title":  symbol + " — Crypto",
+		"Active": "info",
+		"Symbol": symbol,
+	})
+}
+
+func (s *Server) handleForex(w http.ResponseWriter, r *http.Request) {
+	symbol := r.PathValue("symbol")
+	s.renderPage(w, r, "forex.html", map[string]any{
+		"Title":  symbol + " — Forex",
+		"Active": "info",
+		"Symbol": symbol,
+	})
+}
+
+func (s *Server) handleIndexSecurity(w http.ResponseWriter, r *http.Request) {
+	symbol := r.PathValue("symbol")
+	s.renderPage(w, r, "index.html", map[string]any{
+		"Title":  symbol + " — Index",
+		"Active": "info",
+		"Symbol": symbol,
+	})
+}
+
+func (s *Server) handleETF(w http.ResponseWriter, r *http.Request) {
+	symbol := r.PathValue("symbol")
+	s.renderPage(w, r, "etf.html", map[string]any{
+		"Title":  symbol + " — ETF",
+		"Active": "info",
+		"Symbol": symbol,
+	})
+}
+
+// resolveSecurityType returns the cached or freshly-detected asset class
+// for a symbol. Returns "" only when both the cache lookup AND the
+// profile fetch fail; callers must treat empty as "unknown, fall through
+// to default stock rendering".
+//
+// The detection rules mirror the client-side detectSecurityType helper
+// in info.js so the routing is consistent across server- and client-
+// initiated navigation:
+//   - exchange ∈ {CRYPTO, CCC}            → crypto
+//   - exchange == FOREX                   → forex
+//   - symbol starts with '^'              → index
+//   - profile.isEtf                       → etf
+//   - default                             → stock
+func (s *Server) resolveSecurityType(r *http.Request, symbol string) string {
+	if s.store != nil {
+		if cached := s.store.GetSecurityType(symbol); cached != "" {
+			return cached
+		}
+	}
+	// Quick syntactic check before going to the network — '^' prefixed
+	// tickers are unambiguous indices on FMP's universe.
+	if strings.HasPrefix(symbol, "^") {
+		if s.store != nil {
+			_ = s.store.PutSecurityType(symbol, "index")
+		}
+		return "index"
+	}
+	if s.news == nil {
+		return ""
+	}
+	// /stable/profile returns ETF info (with isEtf=true), stock info, and
+	// is empty for crypto / forex. /stable/quote is the universal fallback
+	// — it returns a row for any tradable symbol and exposes the asset
+	// class via the `exchange` field. So we try profile first (the only
+	// path that yields isEtf), then fall back to quote.
+	if raw, err := s.news.GetProfile(r.Context(), symbol); err == nil && len(raw) > 0 {
+		var rows []struct {
+			Symbol   string `json:"symbol"`
+			Exchange string `json:"exchange"`
+			IsEtf    bool   `json:"isEtf"`
+		}
+		if err := json.Unmarshal(raw, &rows); err == nil && len(rows) > 0 && rows[0].Symbol != "" {
+			typ := classifySecurityType(rows[0].Symbol, rows[0].Exchange, rows[0].IsEtf)
+			if s.store != nil {
+				_ = s.store.PutSecurityType(symbol, typ)
+			}
+			return typ
+		}
+	}
+	if raw, err := s.news.GetQuote(r.Context(), symbol); err == nil && len(raw) > 0 {
+		var rows []struct {
+			Symbol   string `json:"symbol"`
+			Exchange string `json:"exchange"`
+		}
+		if err := json.Unmarshal(raw, &rows); err == nil && len(rows) > 0 && rows[0].Symbol != "" {
+			typ := classifySecurityType(rows[0].Symbol, rows[0].Exchange, false)
+			if s.store != nil {
+				_ = s.store.PutSecurityType(symbol, typ)
+			}
+			return typ
+		}
+	}
+	return ""
+}
+
+// classifySecurityType is the pure-function side of resolveSecurityType
+// — extracted so unit tests don't need a store or network.
+func classifySecurityType(symbol, exchange string, isEtf bool) string {
+	ex := strings.ToUpper(exchange)
+	switch ex {
+	case "CRYPTO", "CCC":
+		return "crypto"
+	case "FOREX":
+		return "forex"
+	}
+	if strings.HasPrefix(symbol, "^") {
+		return "index"
+	}
+	if isEtf {
+		return "etf"
+	}
+	return "stock"
 }
 
 func (s *Server) handleScreener(w http.ResponseWriter, r *http.Request) {

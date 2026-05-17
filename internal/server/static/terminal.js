@@ -51,6 +51,10 @@ window.onerror = function (msg, src, line, col, err) {
         watchlist:  { path: '/watchlist',       needsSecurity: false, usage: 'watchlist',           desc: 'real-time price table for tracked securities' },
         graph:      { path: '/graph/{symbol}',   needsSecurity: true,  usage: 'graph <SECURITY>',    desc: 'show price chart for any security' },
         info:       { path: '/security/{symbol}', needsSecurity: true, usage: 'info <SECURITY>',     desc: 'deep-dive company fundamentals for SECURITY' },
+        crypto:     { path: '/crypto/{symbol}',  needsSecurity: true, usage: 'crypto <SECURITY>',   desc: 'crypto coin info page', hidden: true },
+        forex:      { path: '/forex/{symbol}',   needsSecurity: true, usage: 'forex <PAIR>',         desc: 'forex pair info page', hidden: true },
+        index:      { path: '/index/{symbol}',   needsSecurity: true, usage: 'index <SYMBOL>',       desc: 'index info page', hidden: true },
+        etf:        { path: '/etf/{symbol}',     needsSecurity: true, usage: 'etf <SYMBOL>',         desc: 'ETF info page', hidden: true },
         news:       { path: '/news',            needsSecurity: false, usage: 'news [SECURITY]',     desc: 'market news — optionally filter by security', optionalSecurity: true },
         ei:         { path: '/indices',          needsSecurity: false, usage: 'ei',                  desc: 'equity indices — global market overview' },
         ideas:      { path: '/ideas',           needsSecurity: false, usage: 'ideas',               desc: 'sketchpad — comparative graphs across metrics' },
@@ -59,6 +63,36 @@ window.onerror = function (msg, src, line, col, err) {
         debug:      { path: '/debug',           needsSecurity: false, usage: 'debug',               desc: 'live server log console' },
         analyze:    { path: '/security/{symbol}#ai', needsSecurity: true, usage: 'analyze <SECURITY>',  desc: 'run deep multi-agent trading analysis', aliases: ['az'] },
     };
+
+    // ── Security-type routing ──
+    //
+    // Maps an FMP exchange code (+ symbol shape) to the right view name in
+    // COMMANDS. Mirrors detectSecurityType() in info.js so server- and
+    // client-initiated navigation pick the same path. Returns 'info' as a
+    // safe default — the server's handleSecurity will 301 if it knows
+    // better, so an unresolved type never strands the user.
+    function viewForSecurity(exchange, symbol) {
+        var ex = String(exchange || '').toUpperCase();
+        if (ex === 'CRYPTO' || ex === 'CCC') return 'crypto';
+        if (ex === 'FOREX') return 'forex';
+        if (String(symbol || '').charAt(0) === '^') return 'index';
+        return 'info';
+    }
+
+    // Cache of {symbol → view} seeded by every search result so subsequent
+    // `info <SYMBOL>` calls (from the command bar, watchlist clicks, ideas
+    // page, AI competitor cards, etc.) route through the correct view
+    // without re-hitting search. Falls back to 'info' on miss; the server
+    // 301 handles legacy URLs.
+    var symbolViewCache = {};
+    function rememberSymbolView(symbol, exchange) {
+        if (!symbol) return;
+        symbolViewCache[symbol.toUpperCase()] = viewForSecurity(exchange, symbol);
+    }
+    function viewForKnownSymbol(symbol) {
+        if (!symbol) return 'info';
+        return symbolViewCache[symbol.toUpperCase()] || 'info';
+    }
 
     function parseCommand(input) {
         const parts = input.trim().split(/\s+/);
@@ -1061,12 +1095,21 @@ window.onerror = function (msg, src, line, col, err) {
         // If on a security-dependent view, refresh it
         const cmd = COMMANDS[currentView];
         if (cmd && cmd.needsSecurity) {
+            // Stock-info-like views route by detected type so `s ETHUSD`
+            // from /security/AAPL goes to /crypto/ETHUSD, not /security/ETHUSD.
+            // Other typed views (graph, analyze) stay on their own path.
+            var nextView = currentView;
+            if (currentView === 'info' || currentView === 'crypto' ||
+                currentView === 'forex' || currentView === 'index' ||
+                currentView === 'etf') {
+                nextView = viewForKnownSymbol(sec);
+            }
             onViewLeave(currentView);
-            navigate(currentView, sec);
+            navigate(nextView, sec);
         } else {
-            // Default: navigate to info page for the security
+            // Default: navigate to the type-appropriate info page.
             onViewLeave(currentView);
-            navigate('info', sec);
+            navigate(viewForKnownSymbol(sec), sec);
         }
     }
 
@@ -1093,6 +1136,10 @@ window.onerror = function (msg, src, line, col, err) {
             dropdown.classList.add('hidden');
             return;
         }
+        // Seed the type cache from search results so subsequent navigations
+        // (Enter on a result, or :info on the same symbol later) route to
+        // the type-specific page without re-hitting search.
+        results.forEach(function (r) { rememberSymbolView(r.symbol, r.exchange); });
         dropdown.innerHTML = results.map(function (r) {
             return '<div class="security-option" data-symbol="' + escapeHtml(r.symbol) + '">'
                 + '<span class="sec-sym">' + escapeHtml(r.symbol) + '</span>'
