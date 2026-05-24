@@ -2037,8 +2037,10 @@ window.onerror = function (msg, src, line, col, err) {
             },
         },
         economics: {
-            move: function (dir) { if (window._economicsMove) window._economicsMove(dir); },
-            activate: function () { if (window._economicsActivate) window._economicsActivate(); },
+            // Directional nav owned by vim-nav.js (see economics.html for the
+            // data-vim-row markup). Per-view handler retains only the legacy
+            // keys that fall through the core: `/` to focus filter, plus the
+            // p/g/a handlers wired below via window._economicsOpenPreview etc.
             focusFilter: function () { if (window._economicsFocusFilter) window._economicsFocusFilter(); },
         },
         watchlist: {
