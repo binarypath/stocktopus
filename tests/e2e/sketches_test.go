@@ -32,7 +32,6 @@ func TestSmoke_SketchesCRUD(t *testing.T) {
 	var sk struct {
 		ID      int64  `json:"id"`
 		Name    string `json:"name"`
-		Notes   string `json:"notes"`
 		Metrics []any  `json:"metrics"`
 	}
 	if err := json.NewDecoder(got.Body).Decode(&sk); err != nil {
@@ -68,11 +67,6 @@ func TestSmoke_SketchesCRUD(t *testing.T) {
 	assertStatus(t, ren, 204)
 	ren.Body.Close()
 
-	// Notes
-	notes := putJSON(t, fmt.Sprintf("/api/sketches/%d/notes", id), `{"notes":"hello notes"}`)
-	assertStatus(t, notes, 204)
-	notes.Body.Close()
-
 	// Add metric
 	addM := postJSON(t, fmt.Sprintf("/api/sketches/%d/metrics", id), `{"kind":"price","identifier":"AAPL","label":"AAPL"}`)
 	assertStatus(t, addM, 200)
@@ -85,12 +79,11 @@ func TestSmoke_SketchesCRUD(t *testing.T) {
 		t.Fatal("expected non-zero metric id")
 	}
 
-	// Verify rename + notes + metric land on subsequent GET
+	// Verify rename + metric land on subsequent GET
 	got2 := get(t, fmt.Sprintf("/api/sketches/%d", id))
 	assertStatus(t, got2, 200)
 	var sk2 struct {
 		Name    string `json:"name"`
-		Notes   string `json:"notes"`
 		Metrics []struct {
 			ID         int64  `json:"id"`
 			Kind       string `json:"kind"`
@@ -101,9 +94,6 @@ func TestSmoke_SketchesCRUD(t *testing.T) {
 	got2.Body.Close()
 	if sk2.Name != "renamed" {
 		t.Errorf("expected rename to stick, got %q", sk2.Name)
-	}
-	if sk2.Notes != "hello notes" {
-		t.Errorf("expected notes to persist, got %q", sk2.Notes)
 	}
 	if len(sk2.Metrics) != 1 || sk2.Metrics[0].Identifier != "AAPL" || sk2.Metrics[0].Kind != "price" {
 		t.Errorf("expected one AAPL price metric, got %+v", sk2.Metrics)

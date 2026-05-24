@@ -40,6 +40,9 @@ func TestSmoke_VimNav_TabRowMarkup(t *testing.T) {
 		{"/index/^DJI"},
 		{"/forex/USDGBP"},
 		{"/fund/BRHYX"},
+		// /ideas not listed here — its data-vim-row markers are
+		// JS-rendered after loadSketches; static HTML smoke isn't
+		// the right tool. Manual browser verification covers it.
 	}
 	for _, tc := range cases {
 		t.Run(tc.path, func(t *testing.T) {

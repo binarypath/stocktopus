@@ -130,11 +130,9 @@
             html += '</div>';
 
             // Graph row — per the user's vim spec, the chart is its own
-            // row-level element on the Overview tab. Pressing g on it
-            // jumps to /graph/{sym} via the legacy handler.
-            html += '<div class="index-graph-row" data-vim-row>';
-            html += '<div id="index-chart-1y" class="crypto-chart" data-vim-item data-vim-action="navigate" data-vim-href="/graph/' + encodeURIComponent(symbol) + '"></div>';
-            html += '</div>';
+            // row-level element on the Overview tab. Pressing Enter on
+            // it jumps to /graph/{sym}.
+            html += '<div id="index-chart-1y" class="crypto-chart" data-vim-row data-vim-action="navigate" data-vim-href="/graph/' + encodeURIComponent(symbol) + '"></div>';
 
             container.innerHTML = html;
             renderOverviewChart(hist);
@@ -213,11 +211,11 @@
                 // are the column items walked by w/b/h/l. Enter on any
                 // cell triggers the row's click → /security/{sym}.
                 html += '<tr class="peer-row" data-symbol="' + esc(r.symbol) + '" data-vim-row data-vim-action="navigate" data-vim-href="/security/' + encodeURIComponent(r.symbol) + '">';
-                html += '<td data-vim-item><span class="sym-link">' + esc(r.symbol) + '</span></td>';
-                html += '<td data-vim-item>' + esc(r.name || '') + '</td>';
-                html += '<td data-vim-item>' + esc(r.sector || '') + '</td>';
-                html += '<td data-vim-item>' + esc(r.subSector || '') + '</td>';
-                html += '<td data-vim-item>' + esc(r.dateFirstAdded || '') + '</td>';
+                html += '<td><span class="sym-link">' + esc(r.symbol) + '</span></td>';
+                html += '<td>' + esc(r.name || '') + '</td>';
+                html += '<td>' + esc(r.sector || '') + '</td>';
+                html += '<td>' + esc(r.subSector || '') + '</td>';
+                html += '<td>' + esc(r.dateFirstAdded || '') + '</td>';
                 html += '</tr>';
             });
             html += '</tbody></table>';
@@ -297,10 +295,10 @@
         html += '</tr></thead><tbody>';
         rows.forEach(function (q) {
             html += '<tr class="peer-row" data-symbol="' + esc(q.symbol) + '" data-vim-row data-vim-action="navigate" data-vim-href="/security/' + encodeURIComponent(q.symbol) + '">';
-            html += '<td data-vim-item><span class="sym-link">' + esc(q.symbol) + '</span></td>';
-            html += '<td data-vim-item>' + esc(nameBySym[q.symbol] || q.name || '') + '</td>';
-            html += '<td data-vim-item>$' + fmtPrice(q.price) + '</td>';
-            html += '<td data-vim-item class="' + pctClass(q.changePercentage) + '">' + pct(q.changePercentage) + '</td>';
+            html += '<td><span class="sym-link">' + esc(q.symbol) + '</span></td>';
+            html += '<td>' + esc(nameBySym[q.symbol] || q.name || '') + '</td>';
+            html += '<td>$' + fmtPrice(q.price) + '</td>';
+            html += '<td class="' + pctClass(q.changePercentage) + '">' + pct(q.changePercentage) + '</td>';
             html += '</tr>';
         });
         html += '</tbody></table>';
@@ -360,18 +358,16 @@
             var url = n.url || '#';
             var d = n.publishedDate ? new Date(n.publishedDate).toLocaleString() : '';
             var title = (n.title || '—').replace(/"/g, '&quot;');
-            // Each article is its own data-vim-row containing a single
-            // data-vim-item — Enter on it opens the reader. The reader
-            // takes over all keys while open (terminal.js gates VimNav
-            // off when [data-vim-row] is visible AND reader is open).
-            html += '<div class="news-card" data-vim-row>';
-            html += '<div class="news-card-inner" data-vim-item data-vim-action="open-reader" data-vim-url="' + esc(url) + '" data-vim-title="' + esc(title) + '">';
+            // Each article is its own self-navigable row — Enter opens
+            // the reader. The reader takes over all keys while open
+            // (terminal.js gates VimNav off when the reader is open).
+            html += '<div class="news-card" data-vim-row data-vim-action="open-reader" data-vim-url="' + esc(url) + '" data-vim-title="' + esc(title) + '">';
             html += '<div class="news-card-title"><a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(n.title || '—') + '</a></div>';
             html += '<div class="news-card-meta"><span>' + esc(n.site || n.publisher || '') + '</span><span>' + esc(d) + '</span></div>';
             if (n.text || n.snippet) {
                 html += '<div class="news-card-snippet">' + esc((n.text || n.snippet).slice(0, 240)) + '…</div>';
             }
-            html += '</div></div>';
+            html += '</div>';
         });
         listEl.innerHTML = html;
         if (window.VimNav) window.VimNav.reset();
@@ -468,8 +464,7 @@
             // Whole card is the navigable item AND the row. Enter toggles
             // its expanded state via data-vim-toggle-class. Each card
             // sits in its own row so j/k walks between them.
-            html += '<div class="trading-analyst-card trading-vim-item" data-vim-row>';
-            html += '<div class="trading-analyst-card-inner" data-vim-item data-vim-action="toggle" data-vim-toggle-class="trading-panel-open">';
+            html += '<div class="trading-analyst-card trading-vim-item" data-vim-row data-vim-action="toggle" data-vim-toggle-class="trading-panel-open">';
             html += '<div class="trading-analyst-header">';
             html += '<span class="trading-analyst-name">' + esc(r.analyst) + '</span>';
             html += '<span class="trading-analyst-outlook ' + outlookClass + '">' + esc(r.outlook || 'neutral') + '</span>';
@@ -481,7 +476,7 @@
                 r.keyPoints.forEach(function (p) { html += '<li>' + esc(p) + '</li>'; });
                 html += '</ul>';
             }
-            html += '</div></div></div>';
+            html += '</div></div>';
         });
         html += '</div>';
         return html;
