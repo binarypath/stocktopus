@@ -136,7 +136,96 @@
         hostEl.style.display = n ? 'block' : 'none';
         renderLegend();
         renderSidebar();
+        refreshInfoPanels();
     }
+
+    // ── Company info panels ──
+    //
+    // One card per unique equity company on the sketch. The backend groups
+    // metrics by company prefix (price/financial only) and returns enriched
+    // quote + news data per group. Cards re-fetch on every renderSketch()
+    // call (so they update after add/remove) and on a 15s background poll.
+
+    var infoPanelsEl = document.getElementById('ideas-info-panels');
+    var infoPanelsTimer = null;
+    var lastInfoPanels = [];
+
+    function refreshInfoPanels() {
+        if (!currentSketch || !currentSketch.id) {
+            infoPanelsEl.hidden = true;
+            return;
+        }
+        var sketchID = currentSketch.id;
+        fetch('/api/sketches/' + sketchID + '/info-panels')
+            .then(function (r) { return r.ok ? r.json() : []; })
+            .then(function (panels) {
+                // Drop the response if the user switched sketch while we were waiting.
+                if (!currentSketch || currentSketch.id !== sketchID) return;
+                lastInfoPanels = Array.isArray(panels) ? panels : [];
+                renderInfoPanels();
+            })
+            .catch(function () { /* swallow — UI keeps last good render */ });
+    }
+
+    function renderInfoPanels() {
+        if (!lastInfoPanels.length) {
+            infoPanelsEl.hidden = true;
+            infoPanelsEl.innerHTML = '';
+            return;
+        }
+        infoPanelsEl.hidden = false;
+        infoPanelsEl.innerHTML = lastInfoPanels.map(function (p) {
+            var pctClass = p.changePercentage >= 0 ? 'price-up' : 'price-down';
+            var pctStr = (p.changePercentage >= 0 ? '+' : '') + (p.changePercentage || 0).toFixed(2) + '%';
+            var newsBadge = p.newsCount24h > 0
+                ? '<span class="ideas-info-news-badge" title="news items last 24h">' + p.newsCount24h + ' news</span>'
+                : '';
+            var chips = (p.pinnedMetrics || []).map(function (id) {
+                // Strip the symbol prefix from financial chip labels for readability.
+                var label = id.indexOf('.') >= 0 ? id.split('.').slice(1).join('.') : id;
+                return '<span class="ideas-info-chip">' + esc(label) + '</span>';
+            }).join('');
+            return '<div class="ideas-info-card" data-vim-item data-vim-action="navigate" data-vim-href="/security/' + encodeURIComponent(p.symbol) + '">'
+                +    '<div class="ideas-info-head">'
+                +      '<a class="ideas-info-symbol" href="/security/' + encodeURIComponent(p.symbol) + '">' + esc(p.symbol) + '</a>'
+                +      (p.companyName ? '<span class="ideas-info-name">' + esc(p.companyName) + '</span>' : '')
+                +      newsBadge
+                +    '</div>'
+                +    '<div class="ideas-info-quote">'
+                +      '<span class="ideas-info-price">' + fmtPrice(p.price) + '</span>'
+                +      '<span class="ideas-info-pct ' + pctClass + '">' + pctStr + '</span>'
+                +    '</div>'
+                +    '<div class="ideas-info-stats">'
+                +      '<span><label>Open</label>' + fmtPrice(p.open) + '</span>'
+                +      '<span><label>Day H</label>' + fmtPrice(p.dayHigh) + '</span>'
+                +      '<span><label>Day L</label>' + fmtPrice(p.dayLow) + '</span>'
+                +      '<span><label>Vol</label>' + fmtVolume(p.volume) + '</span>'
+                +    '</div>'
+                +    (chips ? '<div class="ideas-info-chips">' + chips + '</div>' : '')
+                +  '</div>';
+        }).join('');
+    }
+
+    function fmtPrice(n) {
+        if (n == null || isNaN(n)) return '—';
+        return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function fmtVolume(n) {
+        if (n == null || isNaN(n) || n === 0) return '—';
+        var abs = Math.abs(n);
+        if (abs >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+        if (abs >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+        if (abs >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+        return String(n);
+    }
+
+    // 15s poll matches the watchlist poller cadence — keeps perception
+    // of "live" without hammering FMP.
+    function startInfoPanelsPoll() {
+        if (infoPanelsTimer) clearInterval(infoPanelsTimer);
+        infoPanelsTimer = setInterval(refreshInfoPanels, 15000);
+    }
+    startInfoPanelsPoll();
 
     function renderLegend() {
         var metrics = (currentSketch && currentSketch.metrics) || [];

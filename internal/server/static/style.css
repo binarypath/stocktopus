@@ -3845,3 +3845,131 @@ a, [tabindex] {
     font-style: italic;
 }
 
+/* ============================================================
+   Ideas — company info panels (grid below the chart)
+   ============================================================ */
+
+.ideas-info-panels {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 10px;
+    padding: 12px 0 4px;
+    margin-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.ideas-info-panels[hidden] { display: none; }
+
+.ideas-info-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 10px 12px;
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    cursor: pointer;
+    transition: border-color 0.1s;
+}
+
+.ideas-info-card:hover {
+    border-color: var(--orange);
+}
+
+.ideas-info-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.ideas-info-symbol {
+    color: var(--orange);
+    font-weight: 700;
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.ideas-info-symbol:hover {
+    text-decoration: underline;
+}
+
+.ideas-info-name {
+    color: var(--text-secondary);
+    font-size: 11px;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ideas-info-news-badge {
+    background: var(--bg-tertiary);
+    color: var(--yellow);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 2px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.ideas-info-quote {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-variant-numeric: tabular-nums;
+}
+
+.ideas-info-price {
+    color: var(--text-primary);
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.ideas-info-pct {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.ideas-info-pct.price-up { color: var(--green); }
+.ideas-info-pct.price-down { color: var(--red); }
+
+.ideas-info-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+}
+
+.ideas-info-stats > span {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.ideas-info-stats label {
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-size: 9px;
+}
+
+.ideas-info-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    padding-top: 4px;
+    border-top: 1px solid var(--bg-tertiary);
+}
+
+.ideas-info-chip {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    padding: 1px 5px;
+    font-size: 10px;
+    border-radius: 2px;
+}
+

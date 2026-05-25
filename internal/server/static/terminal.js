@@ -2895,6 +2895,28 @@ window.onerror = function (msg, src, line, col, err) {
                         ci.setSelectionRange(ci.value.length, ci.value.length);
                     }
                 }
+                // 'a' on /screener result row prefills :add SYMBOL so the user
+                // can confirm with Enter and pin it to the current sketch.
+                // Only fires when focus is on the results list (not the filter pane).
+                if (currentView === 'screener' && handler && handler._focus === 'results') {
+                    var sRows = handler.getResults ? handler.getResults() : [];
+                    var sRow = sRows[handler._resultIdx];
+                    if (sRow) {
+                        var link = sRow.querySelector('a[href]');
+                        if (link) {
+                            // Extract symbol from /security/{SYM} link path.
+                            var href = link.getAttribute('href') || '';
+                            var sym = href.replace(/^\/security\//, '').toUpperCase();
+                            if (sym) {
+                                e.preventDefault();
+                                var sci = document.getElementById('cmd-input');
+                                sci.value = ':add ' + sym;
+                                sci.focus();
+                                sci.setSelectionRange(sci.value.length, sci.value.length);
+                            }
+                        }
+                    }
+                }
                 return;
             case '1': case '2': case '3': case '4': case '5': case '6': case '7':
                 if (handler && handler.jumpToTab) {

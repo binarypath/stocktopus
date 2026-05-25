@@ -188,6 +188,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/sketches/{id}", s.handleDeleteSketch)
 	mux.HandleFunc("POST /api/sketches/{id}/metrics", s.handleAddSketchMetric)
 	mux.HandleFunc("DELETE /api/sketches/{id}/metrics/{metricId}", s.handleRemoveSketchMetric)
+	mux.HandleFunc("GET /api/sketches/{id}/info-panels", s.handleSketchInfoPanels)
 	mux.HandleFunc("GET /api/historical/{kind}/{symbol}", s.handleHistorical)
 
 	// Economics

@@ -118,6 +118,34 @@ func (s *Server) handleDeleteSketch(w http.ResponseWriter, r *http.Request) {
 // distinct without making the client do the bookkeeping.
 var seriesPalette = []string{"#ff8800", "#4499ff", "#00cc66", "#bb88ff", "#ccaa00"}
 
+// companyPrefix returns the equity symbol that a metric belongs to, or "" if
+// the metric isn't equity-derived (commodities, forex, crypto, indices each
+// stand alone). Used for the implicit "group metrics by company" rule.
+//
+//	("price",     "AAPL")          → "AAPL"
+//	("financial", "AAPL.revenue")  → "AAPL"
+//	("financial", "BRK.A.revenue") → "BRK.A"      (rightmost dot is the field)
+//	("commodity", "GCUSD")         → ""
+//	("forex",     "EURUSD")        → ""
+func companyPrefix(kind, identifier string) string {
+	if kind != "price" && kind != "financial" {
+		return ""
+	}
+	id := strings.ToUpper(strings.TrimSpace(identifier))
+	if id == "" {
+		return ""
+	}
+	if kind == "price" {
+		return id
+	}
+	// financial — split on the rightmost dot; everything before is the symbol.
+	dot := strings.LastIndex(id, ".")
+	if dot <= 0 || dot >= len(id)-1 {
+		return ""
+	}
+	return id[:dot]
+}
+
 func pickUnusedColor(existing []store.SketchMetric) string {
 	used := make(map[string]bool, len(existing))
 	for _, m := range existing {
@@ -158,6 +186,23 @@ func (s *Server) handleAddSketchMetric(w http.ResponseWriter, r *http.Request) {
 	if m.Kind == "" || m.Identifier == "" {
 		http.Error(w, "kind and identifier required", http.StatusBadRequest)
 		return
+	}
+	// Enforce 4-metric cap per company on the sketch. Only equity-derived
+	// kinds participate (price/financial) — commodities, forex, crypto, indices
+	// each render as their own panel and aren't grouped.
+	if prefix := companyPrefix(m.Kind, m.Identifier); prefix != "" {
+		if existing, gerr := s.store.GetSketch(id); gerr == nil && existing != nil {
+			n := 0
+			for _, em := range existing.Metrics {
+				if companyPrefix(em.Kind, em.Identifier) == prefix {
+					n++
+				}
+			}
+			if n >= 4 {
+				http.Error(w, fmt.Sprintf("max 4 metrics per company (%s); remove one first", prefix), http.StatusBadRequest)
+				return
+			}
+		}
 	}
 	mid, err := s.store.AddSketchMetric(m)
 	if err != nil {
