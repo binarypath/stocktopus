@@ -212,6 +212,55 @@ func (s *Store) migrate() error {
 			type TEXT NOT NULL,           -- stock / crypto / forex / index / etf
 			fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
+
+		CREATE TABLE IF NOT EXISTS paper_accounts (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			base_currency TEXT NOT NULL DEFAULT 'USD',
+			starting_balance REAL NOT NULL,
+			cash_balance REAL NOT NULL,
+			risk_pct REAL NOT NULL DEFAULT 0.02,
+			settled INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+
+		CREATE TABLE IF NOT EXISTS paper_trades (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			account_id INTEGER NOT NULL,
+			sketch_id INTEGER,
+			symbol TEXT NOT NULL,
+			instrument_type TEXT NOT NULL,
+			multiplier REAL NOT NULL DEFAULT 1.0,
+			side TEXT NOT NULL,
+			entry_price REAL NOT NULL,
+			stop_price REAL NOT NULL,
+			target_price REAL,
+			size REAL NOT NULL,
+			risk_pct_at_entry REAL NOT NULL,
+			risk_amount REAL NOT NULL,
+			status TEXT NOT NULL DEFAULT 'open',
+			opened_at DATETIME NOT NULL,
+			closed_at DATETIME,
+			exit_price REAL,
+			realized_pnl REAL,
+			thesis TEXT NOT NULL DEFAULT '',
+			notes TEXT NOT NULL DEFAULT '',
+			FOREIGN KEY (account_id) REFERENCES paper_accounts(id),
+			FOREIGN KEY (sketch_id) REFERENCES sketches(id) ON DELETE SET NULL
+		);
+		CREATE INDEX IF NOT EXISTS idx_paper_trades_account ON paper_trades(account_id);
+		CREATE INDEX IF NOT EXISTS idx_paper_trades_status ON paper_trades(status);
+
+		CREATE TABLE IF NOT EXISTS paper_trade_events (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			trade_id INTEGER NOT NULL,
+			event_type TEXT NOT NULL,
+			payload TEXT NOT NULL DEFAULT '{}',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (trade_id) REFERENCES paper_trades(id) ON DELETE CASCADE
+		);
+		CREATE INDEX IF NOT EXISTS idx_paper_trade_events_trade ON paper_trade_events(trade_id);
 	`)
 	if err != nil {
 		return err

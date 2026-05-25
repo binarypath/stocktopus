@@ -1,0 +1,98 @@
+{{template "layout" .}}
+{{define "content"}}
+<div class="paper-layout">
+    <aside class="paper-sidebar">
+        <div class="paper-sidebar-header">
+            <span>Paper Accounts</span>
+            <button id="paper-new-account" class="paper-btn-sm">+ New</button>
+        </div>
+        <ul class="paper-account-list" id="paper-account-list">
+            <li class="empty-state">Loading…</li>
+        </ul>
+        <div class="paper-account-summary" id="paper-account-summary"></div>
+    </aside>
+
+    <section class="paper-main">
+        <div class="paper-section">
+            <h2>Trade Ticket</h2>
+            <form id="paper-ticket-form" class="paper-ticket">
+                <div class="paper-field">
+                    <label>Security</label>
+                    <input type="text" id="paper-symbol" placeholder="AAPL" autocomplete="off" required>
+                </div>
+                <div class="paper-field">
+                    <label>Instrument</label>
+                    <select id="paper-instrument">
+                        <option value="equity">Equity</option>
+                        <option value="future">Future</option>
+                        <option value="option">Option (long)</option>
+                        <option value="cfd">CFD</option>
+                        <option value="forex">Forex</option>
+                    </select>
+                </div>
+                <div class="paper-field" id="paper-multiplier-row" style="display:none">
+                    <label>Multiplier</label>
+                    <input type="number" id="paper-multiplier" step="any" value="1">
+                </div>
+                <div class="paper-field">
+                    <label>Side</label>
+                    <select id="paper-side">
+                        <option value="long">Long</option>
+                        <option value="short">Short</option>
+                    </select>
+                </div>
+                <div class="paper-field">
+                    <label>Entry</label>
+                    <input type="number" id="paper-entry" step="any" required>
+                </div>
+                <div class="paper-field">
+                    <label>Stop</label>
+                    <input type="number" id="paper-stop" step="any" required>
+                </div>
+                <div class="paper-field">
+                    <label>Target (optional)</label>
+                    <input type="number" id="paper-target" step="any">
+                </div>
+                <div class="paper-field paper-thesis">
+                    <label>Thesis</label>
+                    <textarea id="paper-thesis" rows="2" placeholder="Why this trade?"></textarea>
+                </div>
+                <div class="paper-sizing-preview" id="paper-sizing-preview">
+                    <span class="paper-sizing-label">Size:</span> <span id="paper-size-display">—</span>
+                    <span class="paper-sizing-label">Risk:</span> <span id="paper-risk-display">—</span>
+                    <span class="paper-sizing-label">Stop dist:</span> <span id="paper-stopdist-display">—</span>
+                    <span class="paper-sizing-error" id="paper-sizing-error"></span>
+                </div>
+                <div class="paper-ticket-actions">
+                    <button type="submit" id="paper-submit" disabled>Open Paper Trade</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="paper-section">
+            <h2>Open Positions</h2>
+            <table class="paper-table" id="paper-open-table">
+                <thead>
+                    <tr>
+                        <th>Security</th><th>Side</th><th>Size</th><th>Entry</th><th>Stop</th><th>Target</th><th>Risk</th><th>Opened</th><th></th>
+                    </tr>
+                </thead>
+                <tbody><tr><td colspan="9" class="empty-state">No open positions.</td></tr></tbody>
+            </table>
+        </div>
+
+        <div class="paper-section">
+            <h2>Journal</h2>
+            <table class="paper-table" id="paper-journal-table">
+                <thead>
+                    <tr>
+                        <th>Closed</th><th>Security</th><th>Side</th><th>Size</th><th>Entry</th><th>Exit</th><th>P&L</th><th>R</th><th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody><tr><td colspan="9" class="empty-state">No closed trades yet.</td></tr></tbody>
+            </table>
+        </div>
+    </section>
+</div>
+<script src="/static/paper.js?v={{.AssetVersion}}"></script>
+{{end}}

@@ -273,6 +273,15 @@ func (c *Client) GetProfile(ctx context.Context, symbol string) (json.RawMessage
 	return c.fetchJSON(ctx, "/stable/profile", params)
 }
 
+// GetCompanyScreener runs FMP's /stable/company-screener with the supplied
+// filter params. Caller is responsible for assembling the url.Values from
+// validated query params; we pass them through verbatim. Returned shape is a
+// JSON array of candidate companies (symbol, companyName, marketCap, sector,
+// industry, beta, price, volume, exchange, country, isEtf/isFund/...).
+func (c *Client) GetCompanyScreener(ctx context.Context, params url.Values) (json.RawMessage, error) {
+	return c.fetchJSON(ctx, "/stable/company-screener", params)
+}
+
 // GetQuote returns the realtime quote for a symbol. Unlike /stable/profile
 // which is empty for crypto / forex, /stable/quote works uniformly across
 // stocks, ETFs, crypto, forex, and indices — and crucially carries the

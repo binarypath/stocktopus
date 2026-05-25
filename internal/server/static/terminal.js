@@ -61,6 +61,7 @@ window.onerror = function (msg, src, line, col, err) {
         ideas:      { path: '/ideas',           needsSecurity: false, usage: 'ideas',               desc: 'sketchpad — comparative graphs across metrics' },
         economics:  { path: '/economics',       needsSecurity: false, usage: 'economics',           desc: 'economic calendar + indicator catalog (FRED + FMP)', aliases: ['eco', 'econ'] },
         screener:   { path: '/screener',        needsSecurity: false, usage: 'screener',            desc: 'filter and scan stocks by criteria' },
+        paper:      { path: '/paper',           needsSecurity: false, usage: 'paper',               desc: 'paper trading — ticket, positions, journal', aliases: ['pa', 'trade'] },
         debug:      { path: '/debug',           needsSecurity: false, usage: 'debug',               desc: 'live server log console' },
         analyze:    { path: '/security/{symbol}#ai', needsSecurity: true, usage: 'analyze <SECURITY>',  desc: 'run deep multi-agent trading analysis', aliases: ['az'] },
     };
@@ -2497,6 +2498,105 @@ window.onerror = function (msg, src, line, col, err) {
                 else if (dir === 'k') console.scrollTop -= 60;
             },
             activate: function () {}
+        },
+        screener: {
+            // Two-pane navigation: filters (left) and results (right).
+            // j/k moves within the focused pane; h/l flips focus between them.
+            // Enter focuses an input (filters) or opens /security/{sym} (results).
+            // 'r' triggers the Run Screen button — refresh semantics.
+            _focus: 'filters',
+            _filterIdx: 0,
+            _resultIdx: 0,
+            getFilters: function () {
+                return Array.from(document.querySelectorAll(
+                    '#screener-form input:not([type=hidden]), #screener-form select, #screener-form button'
+                ));
+            },
+            getResults: function () {
+                return Array.from(document.querySelectorAll('#screener-table tbody tr'))
+                    .filter(function (row) {
+                        // Skip the empty-state placeholder row.
+                        return !row.querySelector('.empty-state');
+                    });
+            },
+            move: function (dir) {
+                if (dir === 'h') {
+                    this._focus = 'filters';
+                    if (this._filterIdx < 0) this._filterIdx = 0;
+                    this._applyFocus();
+                    return;
+                }
+                if (dir === 'l') {
+                    // Only move to results if there ARE results — otherwise
+                    // h/l would silently do nothing and confuse the user.
+                    if (this.getResults().length > 0) {
+                        this._focus = 'results';
+                        if (this._resultIdx < 0) this._resultIdx = 0;
+                        this._applyFocus();
+                    }
+                    return;
+                }
+                if (this._focus === 'filters') {
+                    var items = this.getFilters();
+                    if (items.length === 0) return;
+                    if (this._filterIdx < 0) this._filterIdx = 0;
+                    if (dir === 'j') this._filterIdx = Math.min(this._filterIdx + 1, items.length - 1);
+                    else if (dir === 'k') this._filterIdx = Math.max(this._filterIdx - 1, 0);
+                } else {
+                    var rows = this.getResults();
+                    if (rows.length === 0) {
+                        // Results emptied (e.g. reset) — fall back to filters.
+                        this._focus = 'filters';
+                        this._applyFocus();
+                        return;
+                    }
+                    if (this._resultIdx < 0) this._resultIdx = 0;
+                    if (dir === 'j') this._resultIdx = Math.min(this._resultIdx + 1, rows.length - 1);
+                    else if (dir === 'k') this._resultIdx = Math.max(this._resultIdx - 1, 0);
+                }
+                this._applyFocus();
+            },
+            activate: function () {
+                if (this._focus === 'filters') {
+                    var items = this.getFilters();
+                    var el = items[this._filterIdx];
+                    if (!el) return;
+                    if (el.tagName === 'BUTTON') {
+                        el.click();
+                    } else {
+                        // Focus the input — user is now in insert mode editing
+                        // the value. Escape returns to normal.
+                        el.focus();
+                        if (el.select) el.select();
+                    }
+                } else {
+                    var rows = this.getResults();
+                    var row = rows[this._resultIdx];
+                    if (!row) return;
+                    var link = row.querySelector('a[href]');
+                    if (link) window.location.href = link.href;
+                }
+            },
+            refresh: function () {
+                // 'r' re-runs the screener.
+                var btn = document.getElementById('screener-run');
+                if (btn) btn.click();
+            },
+            _applyFocus: function () {
+                document.querySelectorAll('.vim-selected').forEach(function (e) {
+                    e.classList.remove('vim-selected');
+                });
+                var el;
+                if (this._focus === 'filters') {
+                    el = this.getFilters()[this._filterIdx];
+                } else {
+                    el = this.getResults()[this._resultIdx];
+                }
+                if (el) {
+                    el.classList.add('vim-selected');
+                    el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                }
+            },
         }
     };
 
@@ -2514,18 +2614,9 @@ window.onerror = function (msg, src, line, col, err) {
             var id = window._economicsSelectedIdentifier();
             if (id) { navigate('graph', id, { skipSecurity: true }); return; }
         }
-        if (handler && handler.isFinTab && handler.isFinTab()) {
-            var rows = window._finGetRows ? window._finGetRows() : [];
-            var idx = window._finGetSelectedRow ? window._finGetSelectedRow() : -1;
-            if (idx >= 0 && idx < rows.length && selectedSecurity) {
-                var row = rows[idx];
-                var key = row.dataset.finKey || '';
-                if (row.dataset.finFormat !== 'calc' && key && key.indexOf('/') < 0) {
-                    navigate('graph', selectedSecurity + '.' + key, { skipSecurity: true });
-                    return;
-                }
-            }
-        }
+        // Financials row → chart is now bound to 'c' (see case 'c' below).
+        // 'g' on financials no longer triggers it — was confusing muscle-memory
+        // alongside the page-level 'g' for graph-jump on other views.
         if (handler && handler.sectorNav) handler.sectorNav('graph');
         else if (handler && handler.graph) handler.graph();
     }
@@ -2702,6 +2793,23 @@ window.onerror = function (msg, src, line, col, err) {
                 if (handler && handler.jumpToSubTab) { e.preventDefault(); handler.jumpToSubTab(1); }
                 return;
             case 'c':
+                // Financials tab: 'c' on a highlighted metric opens the full
+                // chart page for that metric (was historically 'g', moved here
+                // so the key matches the action — 'c' for chart).
+                if (handler && handler.isFinTab && handler.isFinTab()) {
+                    var finRows = window._finGetRows ? window._finGetRows() : [];
+                    var finIdx = window._finGetSelectedRow ? window._finGetSelectedRow() : -1;
+                    if (finIdx >= 0 && finIdx < finRows.length && selectedSecurity) {
+                        var finRow = finRows[finIdx];
+                        var finKey = finRow.dataset.finKey || '';
+                        if (finRow.dataset.finFormat !== 'calc' && finKey && finKey.indexOf('/') < 0) {
+                            e.preventDefault();
+                            navigate('graph', selectedSecurity + '.' + finKey, { skipSecurity: true });
+                            return;
+                        }
+                    }
+                }
+                // Otherwise: 'c' jumps to sub-tab index 2 (existing behaviour).
                 if (handler && handler.jumpToSubTab) { e.preventDefault(); handler.jumpToSubTab(2); }
                 return;
             case 'f':
@@ -2723,6 +2831,15 @@ window.onerror = function (msg, src, line, col, err) {
                     } else if (window._finOpenChart) {
                         window._finOpenChart();
                     }
+                    return;
+                }
+                // /news: open the article reader (slide-in preview) on the
+                // highlighted card. Same effect as Enter, mapped to 'p' for
+                // muscle-memory parity with the 'p = preview' convention used
+                // on economics + financials.
+                if (currentView === 'news' && handler && handler.activate) {
+                    e.preventDefault();
+                    handler.activate();
                     return;
                 }
                 // Watchlist: move (paste) selected symbol to another list (idea #12).
