@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [1.14.0](https://github.com/binarypath/stocktopus/compare/v1.13.0...v1.14.0) (2026-05-25)
+
+
+### Features
+
+* paper trading + FMP screener + vim keybindings ([#125](https://github.com/binarypath/stocktopus/issues/125)) ([80396a6](https://github.com/binarypath/stocktopus/commit/80396a65bc7a3d47faa82bd7d5a731551c0f6e90))
+
 ## [1.13.0](https://github.com/binarypath/stocktopus/compare/v1.12.0...v1.13.0) (2026-05-25)
 
 
