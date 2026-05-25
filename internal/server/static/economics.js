@@ -17,19 +17,20 @@
     var calendarFiltered = [];
     var calendarFilter = '';
     var calendarImpact = 'all';
-    var calendarIdx = -1;
 
     // Catalog drill-down state.
     //   level: 'cb' (central-bank list) | 'indicators' (one CB's indicator list)
     var catalogLevel = 'cb';
     var catalogCBs = [];
-    var catalogCBIdx = -1;
     var catalogCountry = '';
 
     var catalogRows = [];
     var catalogFiltered = [];
     var catalogFilter = '';
-    var catalogIdx = -1;
+
+    // Selection is owned by vim-nav.js via the .vim-selected class on a
+    // [data-vim-row] element. Page-specific hooks read the selected row
+    // through helpers below; no per-list integer indices kept here.
 
     function $(id) { return document.getElementById(id); }
     function escapeHTML(s) {
@@ -56,7 +57,6 @@
         });
         $('economics-calendar-panel').classList.toggle('hidden', name !== 'calendar');
         $('economics-catalog-panel').classList.toggle('hidden', name !== 'catalog');
-        applyVimSelection();
     }
 
     // ── Calendar filter directive parsing ──
@@ -150,7 +150,7 @@
                 surpriseClass = d > 0 ? 'pos' : (d < 0 ? 'neg' : '');
             }
             var impactClass = 'impact-' + (r.impact || 'Low').toLowerCase();
-            html += '<tr class="economics-row" data-idx="' + i + '">'
+            html += '<tr class="economics-row" data-vim-row data-idx="' + i + '">'
                 + '<td class="economics-date">' + escapeHTML(r.date || '') + '</td>'
                 + '<td class="economics-country">' + escapeHTML(r.country || '') + '</td>'
                 + '<td class="economics-event">' + escapeHTML(r.event || '') + '</td>'
@@ -162,8 +162,6 @@
                 + '</tr>';
         }
         tbody.innerHTML = html;
-        calendarIdx = -1;
-        applyVimSelection();
     }
 
     // ── Catalog tab — level 1: central bank list ──
@@ -189,7 +187,9 @@
         // and reads as "pick a central bank" rather than "row 1 of N".
         var html = '<div class="economics-cb-tiles">';
         catalogCBs.forEach(function (cb, i) {
-            html += '<button type="button" class="economics-cb-tile economics-row" data-idx="' + i + '" data-country="' + escapeHTML(cb.country) + '">'
+            html += '<button type="button" class="economics-cb-tile economics-row" '
+                + 'data-vim-row data-vim-action="click" data-idx="' + i + '" '
+                + 'data-country="' + escapeHTML(cb.country) + '">'
                 + '<span class="cb-tile-country">' + escapeHTML(cb.country) + '</span>'
                 + '<span class="cb-tile-name">' + escapeHTML(cb.name) + '</span>'
                 + '<span class="cb-tile-count">' + cb.indicators + ' indicators</span>'
@@ -197,7 +197,6 @@
         });
         html += '</div>';
         $('economics-cb-list').innerHTML = html;
-        catalogCBIdx = -1;
     }
 
     function enterCentralBank(country, displayName) {
@@ -208,7 +207,6 @@
         $('economics-cb-title').textContent = displayName + ' — ' + country;
         catalogFilter = '';
         $('economics-catalog-filter').value = '';
-        catalogIdx = -1;
         loadCatalog(country);
     }
 
@@ -217,7 +215,6 @@
         catalogCountry = '';
         $('economics-cb-list').classList.remove('hidden');
         $('economics-cb-detail').classList.add('hidden');
-        applyVimSelection();
     }
 
     // ── Catalog tab — level 2: indicator list for one CB ──
@@ -264,7 +261,8 @@
                 var cat = order[i];
                 html += '<tr class="economics-cat-row"><td colspan="5">' + escapeHTML(cat) + '</td></tr>';
                 groups[cat].forEach(function (r) {
-                    html += '<tr class="economics-row economics-catalog-row" data-idx="' + r._idx + '"'
+                    html += '<tr class="economics-row economics-catalog-row" '
+                        + 'data-vim-row data-idx="' + r._idx + '"'
                         + ' data-identifier="' + escapeHTML(r.identifier) + '"'
                         + ' data-code="' + escapeHTML(r.code) + '">'
                         + '<td class="economics-code">' + escapeHTML(r.identifier) + '</td>'
@@ -278,8 +276,6 @@
             html += '</tbody></table>';
         }
         $('economics-catalog-host').innerHTML = html;
-        catalogIdx = -1;
-        applyVimSelection();
     }
 
     // ── Slide-in chart preview (article-reader pane) ──
@@ -392,70 +388,23 @@
         return true;
     }
 
-    // ── Vim selection / cursor ──
-
-    function currentRowSet() {
-        if (activeTab === 'calendar') {
-            return { items: calendarFiltered, container: $('economics-calendar-body'), idx: calendarIdx };
-        }
-        if (catalogLevel === 'cb') {
-            return { items: catalogCBs, container: $('economics-cb-list'), idx: catalogCBIdx };
-        }
-        return { items: catalogFiltered, container: $('economics-catalog-host'), idx: catalogIdx };
-    }
-
-    function applyVimSelection() {
-        document.querySelectorAll('.economics-row.vim-selected').forEach(function (el) {
-            el.classList.remove('vim-selected');
-        });
-        var st = currentRowSet();
-        if (st.idx < 0 || !st.container) return;
-        var row = st.container.querySelector('.economics-row[data-idx="' + st.idx + '"]');
-        if (row) {
-            row.classList.add('vim-selected');
-            row.scrollIntoView({ block: 'nearest' });
-        }
-    }
-
     // ── Public vim hooks ──
+    //
+    // Selection is managed declaratively by vim-nav.js — it applies
+    // .vim-selected to the active [data-vim-row]. These hooks just read
+    // the selected row's data attributes; no per-list state lives here.
 
-    window._economicsMove = function (dir) {
-        if (dir === 'h' || dir === 'l') {
-            if (activeTab === 'catalog' && catalogLevel === 'indicators' && dir === 'h') {
-                backToCentralBanks();
-                return;
-            }
-            var next = activeTab === 'calendar' ? 'catalog' : 'calendar';
-            if ((dir === 'h' && activeTab === 'catalog') || (dir === 'l' && activeTab === 'calendar')) {
-                switchTab(next);
-            }
-            return;
-        }
-        var st = currentRowSet();
-        if (st.items.length === 0) return;
-        var idx = st.idx;
-        if (dir === 'j') idx = Math.min(idx + 1, st.items.length - 1);
-        else if (dir === 'k') idx = Math.max(idx - 1, 0);
-        if (activeTab === 'calendar') calendarIdx = idx;
-        else if (catalogLevel === 'cb') catalogCBIdx = idx;
-        else catalogIdx = idx;
-        applyVimSelection();
-    };
-
-    window._economicsActivate = function () {
-        // Reserved for a future drill-in. Today only the CB-list level uses
-        // Enter — to descend into a CB's indicators.
-        if (activeTab !== 'catalog' || catalogLevel !== 'cb') return;
-        if (catalogCBIdx < 0 || catalogCBIdx >= catalogCBs.length) return;
-        var cb = catalogCBs[catalogCBIdx];
-        enterCentralBank(cb.country, cb.name);
-    };
+    function selectedCatalogRow() {
+        var sel = document.querySelector('.economics-catalog-row.vim-selected');
+        return sel || null;
+    }
 
     window._economicsAddCmd = function () {
         if (activeTab !== 'catalog' || catalogLevel !== 'indicators') return null;
-        if (catalogIdx < 0 || catalogIdx >= catalogFiltered.length) return null;
-        var r = catalogFiltered[catalogIdx];
-        return ':add ' + r.identifier;
+        var row = selectedCatalogRow();
+        if (!row) return null;
+        var identifier = row.getAttribute('data-identifier');
+        return identifier ? ':add ' + identifier : null;
     };
 
     // Toggle behavior: if the eco-chart slide-in is already open for the same
@@ -464,9 +413,11 @@
     var lastPreviewKey = null;
     window._economicsOpenPreview = function (rangeKey) {
         if (activeTab !== 'catalog' || catalogLevel !== 'indicators') return false;
-        if (catalogIdx < 0 || catalogIdx >= catalogFiltered.length) return false;
-        var r = catalogFiltered[catalogIdx];
-        var key = r.identifier + ':' + (rangeKey || '5y');
+        var row = selectedCatalogRow();
+        if (!row) return false;
+        var identifier = row.getAttribute('data-identifier');
+        if (!identifier) return false;
+        var key = identifier + ':' + (rangeKey || '5y');
         var reader = $('article-reader');
         var openOnSame = reader && !reader.classList.contains('hidden')
             && reader.dataset.mode === 'eco-chart'
@@ -477,7 +428,7 @@
             return true;
         }
         lastPreviewKey = key;
-        openPreviewForIdentifier(r.identifier, rangeKey !== 'full');
+        openPreviewForIdentifier(identifier, rangeKey !== 'full');
         return true;
     };
 
@@ -490,8 +441,8 @@
     // Selected-row identifier exposed for the `g` keybinding's navigation hop.
     window._economicsSelectedIdentifier = function () {
         if (activeTab !== 'catalog' || catalogLevel !== 'indicators') return null;
-        if (catalogIdx < 0 || catalogIdx >= catalogFiltered.length) return null;
-        return catalogFiltered[catalogIdx].identifier;
+        var row = selectedCatalogRow();
+        return row ? row.getAttribute('data-identifier') : null;
     };
 
     // ── Wiring ──
@@ -532,7 +483,9 @@
         $('economics-calendar-filter').addEventListener('keydown', exitFilter);
         $('economics-catalog-filter').addEventListener('keydown', exitFilter);
 
-        // Click handlers — CB tile, indicator row, back button
+        // Click handlers — CB tile (mouse path; keyboard goes through
+        // vim-nav's data-vim-action="click" which fires the same handler).
+        // Catalog-row clicks are no-op now: vim-nav owns row selection.
         $('economics-cb-list').addEventListener('click', function (e) {
             var tile = e.target.closest('.economics-cb-tile');
             if (tile) {
@@ -541,15 +494,6 @@
             }
         });
         $('economics-cb-back').addEventListener('click', backToCentralBanks);
-        $('economics-catalog-host').addEventListener('click', function (e) {
-            var row = e.target.closest('.economics-catalog-row');
-            if (!row) return;
-            var idx = parseInt(row.dataset.idx, 10);
-            if (!isNaN(idx)) {
-                catalogIdx = idx;
-                applyVimSelection();
-            }
-        });
 
         loadCalendar();
         loadCentralBanks();
