@@ -1,9 +1,96 @@
 {{template "layout" .}}
 {{define "content"}}
-<div class="page-header">
-    <h1>Screener</h1>
+<div class="screener-layout">
+    <aside class="screener-filters">
+        <div class="screener-filters-header">Filters</div>
+        <form id="screener-form" class="screener-form">
+            <div class="screener-group">
+                <h4>Fundamentals</h4>
+                <label>Market cap ≥<input type="number" name="marketCapMoreThan" step="any" placeholder="e.g. 1000000000"></label>
+                <label>Market cap ≤<input type="number" name="marketCapLowerThan" step="any"></label>
+                <label>Price ≥<input type="number" name="priceMoreThan" step="any"></label>
+                <label>Price ≤<input type="number" name="priceLowerThan" step="any"></label>
+                <label>Beta ≥<input type="number" name="betaMoreThan" step="any"></label>
+                <label>Beta ≤<input type="number" name="betaLowerThan" step="any"></label>
+                <label>Volume ≥<input type="number" name="volumeMoreThan" step="any"></label>
+                <label>Dividend ≥<input type="number" name="dividendMoreThan" step="any"></label>
+            </div>
+
+            <div class="screener-group">
+                <h4>Sector / Exchange</h4>
+                <label>Sector
+                    <select name="sector">
+                        <option value="">(any)</option>
+                        <option>Technology</option>
+                        <option>Healthcare</option>
+                        <option>Financial Services</option>
+                        <option>Communication Services</option>
+                        <option>Consumer Cyclical</option>
+                        <option>Consumer Defensive</option>
+                        <option>Energy</option>
+                        <option>Industrials</option>
+                        <option>Basic Materials</option>
+                        <option>Utilities</option>
+                        <option>Real Estate</option>
+                    </select>
+                </label>
+                <label>Country<input type="text" name="country" placeholder="e.g. US" maxlength="2"></label>
+                <label>Exchange<input type="text" name="exchange" placeholder="e.g. NASDAQ"></label>
+                <label class="screener-checkbox">
+                    <input type="checkbox" name="isActivelyTrading" value="true" checked>
+                    Actively trading only
+                </label>
+            </div>
+
+            <div class="screener-group">
+                <h4>Intraday change</h4>
+                <label>Δ from open ≥ %<input type="number" name="changeFromOpenMin" step="any" placeholder="e.g. 2"></label>
+                <label>Δ from open ≤ %<input type="number" name="changeFromOpenMax" step="any"></label>
+                <label>Δ from prev close ≥ %<input type="number" name="changeFromPrevDayMin" step="any"></label>
+                <label>Δ from prev close ≤ %<input type="number" name="changeFromPrevDayMax" step="any"></label>
+                <label>Δ vs market (SPY) ≥ pp<input type="number" name="changeVsMarketMin" step="any" placeholder="e.g. 1"></label>
+                <label>Δ vs market (SPY) ≤ pp<input type="number" name="changeVsMarketMax" step="any"></label>
+            </div>
+
+            <div class="screener-group">
+                <h4>Output</h4>
+                <label>Show top<input type="number" name="displayLimit" step="1" min="1" max="250" value="50"></label>
+            </div>
+
+            <div class="screener-actions">
+                <button type="submit" id="screener-run">Run Screen</button>
+                <button type="button" id="screener-reset">Reset</button>
+            </div>
+        </form>
+    </aside>
+
+    <section class="screener-results">
+        <div class="screener-results-header">
+            <h2>Results</h2>
+            <span class="screener-results-meta" id="screener-results-meta">no screen run yet</span>
+        </div>
+        <div class="screener-table-wrap">
+            <table class="screener-table" id="screener-table">
+                <thead>
+                    <tr>
+                        <th>Security</th>
+                        <th>Company</th>
+                        <th>Sector</th>
+                        <th class="num">Price</th>
+                        <th class="num">Δ open %</th>
+                        <th class="num">Δ prev %</th>
+                        <th class="num">Δ vs SPY pp</th>
+                        <th class="num">Volume</th>
+                        <th class="num">Mkt cap</th>
+                        <th class="num">Beta</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="10" class="empty-state">Fill in filters on the left and press <kbd>Run Screen</kbd>.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
 </div>
-<div class="screener">
-    <p class="empty-state">Screener coming in Iteration 4</p>
-</div>
+<script src="/static/screener.js?v={{.AssetVersion}}"></script>
 {{end}}

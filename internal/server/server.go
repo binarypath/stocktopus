@@ -116,7 +116,7 @@ func (s *Server) loadTemplates() error {
 	layoutPath := filepath.Join(templatesDir(), "layout.html")
 	s.pages = make(map[string]*template.Template)
 
-	pageNames := []string{"watchlist", "stock", "security", "crypto", "etf", "fund", "index", "forex", "screener", "feed", "debug", "news", "indices", "ideas", "economics", "economic-graph", "financial-graph"}
+	pageNames := []string{"watchlist", "stock", "security", "crypto", "etf", "fund", "index", "forex", "screener", "feed", "debug", "news", "indices", "ideas", "economics", "economic-graph", "financial-graph", "paper"}
 	for _, page := range pageNames {
 		pagePath := filepath.Join(templatesDir(), page+".html")
 		t, err := template.ParseFiles(layoutPath, pagePath)
@@ -219,6 +219,20 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ideas/{id}", s.handleIdeas)
 	mux.HandleFunc("GET /economics", s.handleEconomics)
 	mux.HandleFunc("GET /debug", s.handleDebug)
+	mux.HandleFunc("GET /paper", s.handlePaperPage)
+
+	// Screener
+	mux.HandleFunc("GET /api/screener", s.handleScreenerAPI)
+
+	// Paper trading
+	mux.HandleFunc("GET /api/paper/accounts", s.handleListPaperAccounts)
+	mux.HandleFunc("POST /api/paper/accounts", s.handleCreatePaperAccount)
+	mux.HandleFunc("POST /api/paper/accounts/{id}/settled", s.handleSetPaperAccountSettled)
+	mux.HandleFunc("POST /api/paper/sizing/preview", s.handlePaperSizingPreview)
+	mux.HandleFunc("POST /api/paper/trades", s.handleOpenPaperTrade)
+	mux.HandleFunc("GET /api/paper/trades/open", s.handleListOpenPaperTrades)
+	mux.HandleFunc("GET /api/paper/trades/closed", s.handleListClosedPaperTrades)
+	mux.HandleFunc("POST /api/paper/trades/{id}/close", s.handleClosePaperTrade)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
