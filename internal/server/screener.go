@@ -60,6 +60,7 @@ type screenerResult struct {
 // batchQuoteRow mirrors the relevant subset of FMP's /stable/batch-quote item.
 type batchQuoteRow struct {
 	Symbol           string  `json:"symbol"`
+	Name             string  `json:"name"`
 	Price            float64 `json:"price"`
 	ChangePercentage float64 `json:"changePercentage"`
 	Volume           float64 `json:"volume"`
