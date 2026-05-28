@@ -15,6 +15,12 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@v4
         with:
+          # Manifest mode: release-type + package-name live in
+          # release-please-config.json (alongside changelog-sections etc).
+          # Passing them inline here would tip v4 over with an empty
+          # "release-please failed:" error — `package-name` is no longer
+          # a recognised input in v4.
+          #
           # Conventional commits drive bumps:
           #   feat: …  → minor   (X.Y+1.0)
           #   fix: …   → patch   (X.Y.Z+1)
@@ -25,5 +31,5 @@ jobs:
           # release-please opens (and continually updates) a "chore: release vX.Y.Z"
           # PR that bumps .release-please-manifest.json + CHANGELOG.md. Merging
           # that PR cuts the actual git tag and GitHub release.
-          release-type: go
-          package-name: stocktopus
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
