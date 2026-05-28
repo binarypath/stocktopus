@@ -1,0 +1,15 @@
+{
+  "name": "stocktopus-bdd",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Gherkin/Playwright BDD harness for stocktopus",
+  "scripts": {
+    "bddgen": "bddgen",
+    "test": "bddgen && playwright test",
+    "test:headed": "bddgen && playwright test --headed"
+  },
+  "dependencies": {
+    "@playwright/test": "latest",
+    "playwright-bdd": "latest"
+  }
+}
