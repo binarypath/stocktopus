@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [1.15.0](https://github.com/binarypath/stocktopus/compare/v1.14.0...v1.15.0) (2026-05-28)
+
+
+### Features
+
+* **ideas:** company info panels with implicit metric grouping ([#130](https://github.com/binarypath/stocktopus/issues/130)) ([aaed11e](https://github.com/binarypath/stocktopus/commit/aaed11ec354e0406b517d424d26f19f3cd325e2a))
+
 ## [1.14.0](https://github.com/binarypath/stocktopus/compare/v1.13.0...v1.14.0) (2026-05-25)
 
 
