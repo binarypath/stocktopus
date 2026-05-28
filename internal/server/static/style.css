@@ -788,8 +788,36 @@ body {
 
 .cpanel-spark a[href*="tradingview"],
 .chart-container a[href*="tradingview"],
-#fin-chart-host a[href*="tradingview"] {
+#fin-chart-host a[href*="tradingview"],
+.wl-spark a[href*="tradingview"] {
     display: none !important;
+}
+
+/* Watchlist sparkline cell — inline mini chart + colour-matched 6M label. */
+.wl-spark-cell {
+    white-space: nowrap;
+}
+
+.wl-spark {
+    display: inline-block;
+    width: 90px;
+    height: 28px;
+    vertical-align: middle;
+}
+
+.wl-spark-label {
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+/* The static-but-derived watchlist cells (1W / 6M change) start blank
+   while their EOD fetch is pending. Dim placeholder colour so an empty
+   cell reads as 'loading' rather than 'no data'. */
+.wl-static:empty::before {
+    content: '·';
+    color: var(--text-tertiary, #555);
 }
 
 

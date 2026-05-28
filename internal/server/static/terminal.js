@@ -339,11 +339,15 @@ window.onerror = function (msg, src, line, col, err) {
         // Ghost row — emitted for symbols we have on disk but no quote data
         // for (e.g. an FMP plan that doesn't cover this exchange). Keeps the
         // row visible so the user can still `d` it from the watchlist.
-        var html = '<tr id="quote-' + escapeHtml(symbol) + '" class="quote-row-ghost">'
-            + '<td><span class="sym-link" data-symbol="' + escapeHtml(symbol) + '">' + escapeHtml(symbol) + '</span></td>'
-            + '<td class="quote-na">—</td>'
-            + '<td class="quote-na">—</td>'
-            + '<td class="quote-na">—</td>'
+        var safe = escapeHtml(symbol);
+        var html = '<tr id="quote-' + safe + '" class="quote-row-ghost">'
+            + '<td><span class="sym-link" data-symbol="' + safe + '">' + safe + '</span></td>'
+            + '<td id="quote-' + safe + '-price" class="quote-na">—</td>'
+            + '<td id="quote-' + safe + '-change" class="quote-na">—</td>'
+            + '<td id="quote-' + safe + '-changepct" class="quote-na">—</td>'
+            + '<td id="quote-' + safe + '-change1w" class="quote-na">—</td>'
+            + '<td id="quote-' + safe + '-changepct1w" class="quote-na">—</td>'
+            + '<td id="quote-' + safe + '-change6m" class="quote-na">—</td>'
             + '<td class="quote-na">no data</td>'
             + '<td></td>'
             + '</tr>';
@@ -382,16 +386,27 @@ window.onerror = function (msg, src, line, col, err) {
                     var chgPct = q.changePercentage ? q.changePercentage.toFixed(2) + '%' : '';
                     var chg = q.change ? (q.change >= 0 ? '+' : '') + q.change.toFixed(2) : '';
                     var vol = q.volume ? formatWatchlistVolume(q.volume) : '';
-                    var updated = '';
+                    var sym = q.symbol;
 
-                    var existing = document.getElementById('quote-' + q.symbol);
-                    var html = '<tr id="quote-' + q.symbol + '">'
-                        + '<td><span class="sym-link" data-symbol="' + q.symbol + '">' + q.symbol + '</span></td>'
-                        + '<td class="' + chgClass + '">' + (q.price ? q.price.toFixed(2) : '') + '</td>'
-                        + '<td class="' + chgClass + '">' + chg + '</td>'
-                        + '<td class="' + chgClass + '">' + chgPct + '</td>'
+                    var existing = document.getElementById('quote-' + sym);
+                    // Per-cell ids on the three live cells (price, change,
+                    // change %) so the poller's per-cell OOB swaps land
+                    // precisely without touching the 1W / 6M / sparkline
+                    // cells. Those static cells get populated by
+                    // hydrateWatchlistHistorical() once the row is in the DOM.
+                    var html = '<tr id="quote-' + sym + '">'
+                        + '<td><span class="sym-link" data-symbol="' + sym + '">' + sym + '</span></td>'
+                        + '<td id="quote-' + sym + '-price" class="' + chgClass + '">' + (q.price ? q.price.toFixed(2) : '') + '</td>'
+                        + '<td id="quote-' + sym + '-change" class="' + chgClass + '">' + chg + '</td>'
+                        + '<td id="quote-' + sym + '-changepct" class="' + chgClass + '">' + chgPct + '</td>'
+                        + '<td id="quote-' + sym + '-change1w" class="wl-static"></td>'
+                        + '<td id="quote-' + sym + '-changepct1w" class="wl-static"></td>'
+                        + '<td id="quote-' + sym + '-change6m" class="wl-static"></td>'
                         + '<td>' + vol + '</td>'
-                        + '<td>' + updated + '</td>'
+                        + '<td class="wl-spark-cell">'
+                        +   '<div id="quote-' + sym + '-spark" class="wl-spark"></div>'
+                        +   '<span id="quote-' + sym + '-spark-label" class="wl-spark-label">6m</span>'
+                        + '</td>'
                         + '</tr>';
 
                     if (existing) {
@@ -402,6 +417,11 @@ window.onerror = function (msg, src, line, col, err) {
 
                     // Subscribe for live updates
                     subscribeSecurity(q.symbol);
+
+                    // Populate the static columns (1W / 6M / sparkline)
+                    // from EOD history. Fires once per row; not touched by
+                    // the poller's per-cell live swaps.
+                    hydrateWatchlistHistorical(sym);
                 });
 
                 // Wire up clicks
@@ -434,6 +454,132 @@ window.onerror = function (msg, src, line, col, err) {
         if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
         if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
         return v;
+    }
+
+    // ── Watchlist static columns (1W / 6M / sparkline) ──
+    //
+    // Fired once per row at initial render. Pulls EOD history once, then
+    // populates the three change cells AND draws the inline 6M sparkline.
+    // The poller's per-cell OOB swaps never touch any of these cells, so a
+    // single fetch per symbol is enough until the user reloads the page.
+    var watchlistSparkCharts = {};
+    function hydrateWatchlistHistorical(symbol) {
+        var sym = symbol;
+        fetch('/api/historical/stock/' + encodeURIComponent(sym))
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+            .then(function (rows) {
+                if (!Array.isArray(rows) || rows.length === 0) return;
+                // FMP returns descending; flip to ascending and trim to 6M
+                // (~126 trading days) so sparkline + change values agree on
+                // the same window.
+                var asc = rows.slice().reverse();
+                if (asc.length > 126) asc = asc.slice(asc.length - 126);
+                var clean = [];
+                for (var i = 0; i < asc.length; i++) {
+                    var d = asc[i];
+                    var v = Number(d.price);
+                    if (d.date && !isNaN(v) && v > 0) clean.push({ time: d.date, value: v });
+                }
+                if (clean.length === 0) return;
+
+                var last = clean[clean.length - 1].value;
+                var first = clean[0].value;
+                // 1W ≈ 5 trading days back. Fall back gracefully if the
+                // series is shorter than that.
+                var oneWIdx = Math.max(0, clean.length - 6);
+                var oneWBase = clean[oneWIdx].value;
+
+                var c1w = last - oneWBase;
+                var c1wPct = oneWBase > 0 ? ((last - oneWBase) / oneWBase) * 100 : 0;
+                var c6m = last - first;
+
+                setWlCell(sym + '-change1w', formatSigned(c1w, 2), c1w);
+                setWlCell(sym + '-changepct1w', formatSigned(c1wPct, 2) + '%', c1w);
+                setWlCell(sym + '-change6m', formatSigned(c6m, 2), c6m);
+                drawWlSparkline(sym, clean, c6m);
+            })
+            .catch(function () { /* leave cells empty on failure */ });
+    }
+
+    function formatSigned(n, dp) {
+        if (!isFinite(n)) return '';
+        var s = n.toFixed(dp);
+        return n > 0 ? '+' + s : s;
+    }
+
+    function setWlCell(idSuffix, text, dirValue) {
+        var el = document.getElementById('quote-' + idSuffix);
+        if (!el) return;
+        el.textContent = text;
+        el.classList.remove('price-up', 'price-down', 'price-flat');
+        if (dirValue > 0) el.classList.add('price-up');
+        else if (dirValue < 0) el.classList.add('price-down');
+        else el.classList.add('price-flat');
+    }
+
+    // lightweight-charts collapses its canvas to 0x0 when the host row
+    // goes display:none (the ResizeObserver fires with a zero contentRect)
+    // and doesn't snap back when the row becomes visible again. Calling
+    // resize() on every chart after a list switch restores the proper
+    // pixel size from the host's current bounding box.
+    // Belt-and-braces for the resize-after-show case: once the row's
+    // display flips back from 'none' to '', some browsers don't re-fire
+    // ResizeObserver on the host div, so lightweight-charts can leave the
+    // canvas at its hidden-time size. autoSize:true at create-time covers
+    // the common path; this hand-rolled resize covers the gap on browsers
+    // that don't notify.
+    function resizeAllWatchlistSparklines() {
+        Object.keys(watchlistSparkCharts).forEach(function (sym) {
+            var chart = watchlistSparkCharts[sym];
+            if (!chart) return;
+            var host = document.getElementById('quote-' + sym + '-spark');
+            if (!host) return;
+            var w = host.clientWidth;
+            var h = host.clientHeight;
+            if (w > 0 && h > 0) {
+                try { chart.resize(w, h, true); } catch (e) {}
+            }
+        });
+    }
+
+    function drawWlSparkline(symbol, series, direction) {
+        var host = document.getElementById('quote-' + symbol + '-spark');
+        var label = document.getElementById('quote-' + symbol + '-spark-label');
+        if (!host || !window.LightweightCharts) return;
+        var color = direction >= 0 ? '#00cc66' : '#ff4444';
+        if (label) {
+            label.style.color = color;
+        }
+        // Dispose any prior chart for this symbol (e.g. on re-renders).
+        if (watchlistSparkCharts[symbol]) {
+            try { watchlistSparkCharts[symbol].remove(); } catch (e) {}
+        }
+        var chart = LightweightCharts.createChart(host, {
+            // autoSize re-reads the host's bounding box whenever it changes,
+            // including when a hidden ancestor (row display:none) becomes
+            // visible again. Without this, lightweight-charts collapses the
+            // canvas to 0x0 on hide and never snaps back on show.
+            autoSize: true,
+            layout: { background: { color: 'transparent' }, textColor: '#888', attributionLogo: false },
+            grid: { vertLines: { color: 'transparent' }, horzLines: { color: 'transparent' } },
+            rightPriceScale: { visible: false },
+            leftPriceScale: { visible: false },
+            timeScale: { visible: false, fixLeftEdge: true, fixRightEdge: true },
+            handleScale: false,
+            handleScroll: false,
+            crosshair: { vertLine: { visible: false }, horzLine: { visible: false } },
+        });
+        var area = chart.addSeries(LightweightCharts.AreaSeries, {
+            lineColor: color,
+            topColor: color + '44',
+            bottomColor: color + '00',
+            lineWidth: 1,
+            priceLineVisible: false,
+            lastValueVisible: false,
+        });
+        area.setData(series);
+        chart.timeScale().fitContent();
+        watchlistSparkCharts[symbol] = chart;
     }
 
     function loadWatchlists() {
@@ -502,8 +648,16 @@ window.onerror = function (msg, src, line, col, err) {
         // Show/hide rows based on active watchlist + paint borders with the active
         // list's color (so a symbol that lives in multiple lists picks up the
         // currently-viewed list's tone, not whichever list it was first added to).
+        //
+        // Important: iterate tbody's DIRECT children only, not every <tr>
+        // descendant. lightweight-charts builds its own <table><tr><td>
+        // layout inside each sparkline's host div and a broad
+        // querySelectorAll('tr') would hit those too — flipping their
+        // display:none would collapse the chart canvas to 0x0 with no way
+        // to recover.
         var visibleCount = 0;
-        tbody.querySelectorAll('tr').forEach(function (row) {
+        Array.from(tbody.children).forEach(function (row) {
+            if (row.tagName !== 'TR') return;
             var sym = row.querySelector('[data-symbol]');
             var symbol = sym ? sym.dataset.symbol : '';
             var inList = activeSymbols.indexOf(symbol) >= 0;
@@ -518,6 +672,12 @@ window.onerror = function (msg, src, line, col, err) {
             empty.style.display = visibleCount > 0 ? 'none' : '';
             empty.textContent = visibleCount > 0 ? '' : 'No securities in this watchlist — use :watch to add';
         }
+
+        // Newly-visible rows need their sparklines snapped back to the
+        // proper pixel size — lightweight-charts collapsed them to 0x0
+        // while the row was display:none. Defer one frame so the row's
+        // layout has settled before we read clientWidth/Height.
+        requestAnimationFrame(resizeAllWatchlistSparklines);
     }
 
     // Refresh the entire watchlist view after a mutation (delete / paste / copy).
@@ -701,42 +861,31 @@ window.onerror = function (msg, src, line, col, err) {
     function handleQuoteHTML(html) {
         if (currentView !== 'watchlist') return;
 
-        const temp = document.createElement('div');
+        // Poller sends one or more per-cell OOB snippets (price, change,
+        // change %). Iterate each, find the matching element by id, and
+        // swap it in place. The static cells (1W / 6M / volume /
+        // sparkline) are untouched.
+        const temp = document.createElement('template');
         temp.innerHTML = html;
-        const row = temp.firstElementChild;
-        if (!row || !row.id) return;
+        const incoming = Array.from(temp.content.children);
+        if (incoming.length === 0) return;
 
-        const existing = document.getElementById(row.id);
-        const tbody = document.getElementById('quote-body');
-        if (!tbody) return;
-
-        if (existing) {
-            existing.replaceWith(row);
-            row.classList.add('flash');
-            setTimeout(function () { row.classList.remove('flash'); }, 600);
-        } else {
-            tbody.appendChild(row);
-            const empty = document.getElementById('empty-state');
-            if (empty) empty.style.display = 'none';
-        }
-
-        // Wire up SPA click on security link
-        row.querySelectorAll('[data-symbol]').forEach(function (el) {
-            el.onclick = function (e) {
-                e.preventDefault();
-                navigate('graph', el.dataset.symbol);
-            };
-        });
-
-        // Add watchlist color badge
-        var sym = row.querySelector('[data-symbol]');
-        if (sym) {
-            var symName = sym.dataset.symbol;
-            var colors = getWatchlistColors(symName);
-            if (colors.length > 0) {
-                row.style.borderLeft = '3px solid ' + colors[0];
+        var flashedRows = new Set();
+        incoming.forEach(function (cell) {
+            if (!cell.id) return;
+            var existing = document.getElementById(cell.id);
+            if (!existing) return;
+            // Strip the hx-swap-oob marker before insertion so it doesn't
+            // accumulate on the DOM and confuse follow-up swaps.
+            cell.removeAttribute('hx-swap-oob');
+            existing.replaceWith(cell);
+            var row = cell.closest('tr');
+            if (row && !flashedRows.has(row.id)) {
+                flashedRows.add(row.id);
+                row.classList.add('flash');
+                setTimeout(function () { row.classList.remove('flash'); }, 600);
             }
-        }
+        });
     }
 
     function getWatchlistColors(symbol) {
@@ -2053,8 +2202,15 @@ window.onerror = function (msg, src, line, col, err) {
         reader.classList.remove('hidden');
         reader.dataset.mode = 'price-chart';
         if (readerTitle) readerTitle.textContent = symbol + ' — 1y';
+        // Reader layout: the 1y price chart on top, the shared mini company
+        // info panel below (same component used on the Ideas page). The panel
+        // shows symbol, name, day-change, and a 6M sparkline — replacing the
+        // older one-line "AAPL · 252d · 200.21 → 310.85 (+55.3%)" meta string.
         readerBody.innerHTML = '<div id="price-preview-host" style="width:100%;height:280px"></div>'
-            + '<p id="price-preview-meta" class="empty-state" style="margin-top:8px"></p>';
+            + '<div id="price-preview-cpanel" class="cpanel" style="margin-top:8px"></div>';
+        if (window._renderCompanyPanel) {
+            window._renderCompanyPanel('price-preview-cpanel', symbol);
+        }
 
         fetch('/api/historical/stock/' + encodeURIComponent(symbol))
             .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
@@ -2095,17 +2251,6 @@ window.onerror = function (msg, src, line, col, err) {
                 });
                 line.setData(series);
                 pricePreviewChart.timeScale().fitContent();
-
-                var pct = first > 0 ? ((last - first) / first) * 100 : 0;
-                var sign = pct >= 0 ? '+' : '';
-                var meta = document.getElementById('price-preview-meta');
-                if (meta) {
-                    meta.textContent = symbol + ' · '
-                        + series.length + 'd · '
-                        + first.toFixed(2) + ' → ' + last.toFixed(2)
-                        + ' (' + sign + pct.toFixed(1) + '%)';
-                    meta.style.color = color;
-                }
             })
             .catch(function () {
                 readerBody.innerHTML = '<p class="empty-state">Failed to load price history for ' + symbol + '.</p>';
@@ -3406,7 +3551,7 @@ window.onerror = function (msg, src, line, col, err) {
             + '<span id="cpanel-name" class="cpanel-name"></span>'
             + '<span id="cpanel-price" class="cpanel-price"></span>'
             + '<span id="cpanel-change" class="cpanel-change"></span>'
-            + '<div class="cpanel-spark-wrap"><span class="cpanel-spark-label">6M</span><div id="cpanel-spark" class="cpanel-spark"></div></div>';
+            + '<div class="cpanel-spark-wrap"><span class="cpanel-spark-label">6m</span><div id="cpanel-spark" class="cpanel-spark"></div></div>';
 
         // Make sparkline clickable
         var spark = document.getElementById('cpanel-spark');

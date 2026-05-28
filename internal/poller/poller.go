@@ -136,13 +136,15 @@ func (p *Poller) fetchAndPublish(ctx context.Context, symbols []string) {
 }
 
 func (p *Poller) renderQuoteRow(q *model.Quote) (string, error) {
+	// Per-cell OOB swaps. Three cells move on every tick — price,
+	// 1D change, 1D change %. The static columns (1W / 6M / volume
+	// / sparkline) live in the row painted by terminal.js once on
+	// page load and never get touched by the poller.
 	data := quoteRowData{
 		Symbol:        q.Symbol,
 		Price:         fmt.Sprintf("%.2f", q.Price),
 		Change:        fmt.Sprintf("%+.2f", q.Change),
 		ChangePercent: fmt.Sprintf("%+.2f%%", q.ChangePercent*100),
-		Volume:        formatVolume(q.Volume),
-		Updated:       q.Timestamp.Format("15:04:05"),
 		PriceClass:    priceClass(q.Change),
 	}
 
@@ -159,12 +161,10 @@ type quoteRowData struct {
 	Price         string
 	Change        string
 	ChangePercent string
-	Volume        string
-	Updated       string
 	PriceClass    string
 }
 
-const quoteRowTemplate = `<tr id="quote-{{.Symbol}}" hx-swap-oob="true"><td><span class="sym-link" data-symbol="{{.Symbol}}">{{.Symbol}}</span></td><td class="{{.PriceClass}}">{{.Price}}</td><td class="{{.PriceClass}}">{{.Change}}</td><td class="{{.PriceClass}}">{{.ChangePercent}}</td><td>{{.Volume}}</td><td>{{.Updated}}</td></tr>`
+const quoteRowTemplate = `<td id="quote-{{.Symbol}}-price" class="{{.PriceClass}}" hx-swap-oob="true">{{.Price}}</td><td id="quote-{{.Symbol}}-change" class="{{.PriceClass}}" hx-swap-oob="true">{{.Change}}</td><td id="quote-{{.Symbol}}-changepct" class="{{.PriceClass}}" hx-swap-oob="true">{{.ChangePercent}}</td>`
 
 func topicToSymbol(topic string) string {
 	if strings.HasPrefix(topic, "quote:") {
@@ -184,15 +184,3 @@ func priceClass(change float64) string {
 	}
 }
 
-func formatVolume(v int64) string {
-	switch {
-	case v >= 1_000_000_000:
-		return fmt.Sprintf("%.1fB", float64(v)/1_000_000_000)
-	case v >= 1_000_000:
-		return fmt.Sprintf("%.1fM", float64(v)/1_000_000)
-	case v >= 1_000:
-		return fmt.Sprintf("%.1fK", float64(v)/1_000)
-	default:
-		return fmt.Sprintf("%d", v)
-	}
-}
