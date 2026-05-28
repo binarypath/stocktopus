@@ -7,6 +7,19 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [1.15.0](https://github.com/binarypath/stocktopus/compare/v1.14.0...v1.15.0) (2026-05-28)
+
+
+### Features
+
+* **ideas:** company info panels with implicit metric grouping ([#130](https://github.com/binarypath/stocktopus/issues/130)) ([aaed11e](https://github.com/binarypath/stocktopus/commit/aaed11ec354e0406b517d424d26f19f3cd325e2a))
+* **vim:** c=chart, p=preview + BDD harness + collapse dual selection state ([#133](https://github.com/binarypath/stocktopus/issues/133)) ([2afa193](https://github.com/binarypath/stocktopus/commit/2afa19370846a4f20b0c3f0b473a66f6fe25d6af))
+
+
+### Bug Fixes
+
+* **ci:** switch release-please to manifest mode ([#134](https://github.com/binarypath/stocktopus/issues/134)) ([cc99547](https://github.com/binarypath/stocktopus/commit/cc99547fa49adddcae1cc70032311b3a132be958))
+
 ## [1.14.0](https://github.com/binarypath/stocktopus/compare/v1.13.0...v1.14.0) (2026-05-25)
 
 
