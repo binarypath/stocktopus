@@ -216,6 +216,10 @@
         currentRow = 0;
         currentCol = n - 1;
         applySelection();
+        // Fire the item's primary action — for tab strips that means
+        // the tab actually switches, not just gets highlighted. Without
+        // this, "press 2 → Financials tab" only paints a focus ring.
+        activate();
         return true;
     }
 

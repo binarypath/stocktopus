@@ -452,23 +452,9 @@
         if (n >= 0 && n < tabs.length) tabs[n].click();
     };
 
-    // Financial table row vim navigation
-    var finSelectedRow = -1;
-    window._finGetRows = function () { return Array.from(document.querySelectorAll('.fin-row')); };
-    window._finGetSelectedRow = function () { return finSelectedRow; };
-    window._finSelectRow = function (idx) {
-        var rows = window._finGetRows();
-        if (rows.length === 0) return;
-        idx = Math.max(0, Math.min(idx, rows.length - 1));
-        finSelectedRow = idx;
-        rows.forEach(function (r, i) { r.classList.toggle('vim-selected', i === idx); });
-        rows[idx].scrollIntoView({ block: 'nearest' });
-    };
-    window._finClearRow = function () {
-        var rows = window._finGetRows();
-        rows.forEach(function (r) { r.classList.remove('vim-selected'); });
-        finSelectedRow = -1;
-    };
+    // Financial row selection lives on the DOM (.vim-selected, owned by
+    // VimNav). Consumers query `.fin-row.vim-selected` directly — no
+    // parallel index state.
 
     // ── Financials Preview Chart Slide-in ──
 
@@ -513,10 +499,8 @@
     }
 
     window._finOpenChart = function () {
-        if (finSelectedRow < 0) return;
-        var rows = window._finGetRows();
-        if (finSelectedRow >= rows.length) return;
-        var row = rows[finSelectedRow];
+        var row = document.querySelector('.fin-row.vim-selected');
+        if (!row) return;
 
         var label  = row.dataset.finLabel || 'Metric';
         var finKey = row.dataset.finKey || '';
@@ -725,7 +709,6 @@
 
                 html += '</tbody></table>';
                 tc.innerHTML = html;
-                finSelectedRow = -1;
             })
             .catch(function () {
                 tc.innerHTML = '<p class="empty-state">Failed to load financials</p>';
@@ -894,7 +877,7 @@
             html += '<div class="sector-header">';
             html += '<span class="sector-name">' + esc(sector) + '</span>';
             if (industry) html += '<span class="sector-industry"> / ' + esc(industry) + '</span>';
-            html += '<span class="sector-hint"> j/k nav · i info · g graph</span>';
+            html += '<span class="sector-hint"> j/k nav · i info · c chart · p preview</span>';
             html += '</div>';
 
             // Peer comparison table with mini sparkline column
@@ -1065,7 +1048,6 @@
 
     var secFormTypes = null; // cached form type reference data
     var secFilter = ''; // current form type filter
-    var secSelectedRow = -1;
     var secView = 'filings'; // 'filings' | 'people'
 
     function loadSEC() {
@@ -1169,7 +1151,6 @@
                         secView = 'filings';
                         secFilter = btn.dataset.cat;
                     }
-                    secSelectedRow = -1;
                     loadSEC();
                 };
             });
@@ -1340,30 +1321,17 @@
         return html;
     }
 
-    // Expose for vim — sec-row in filings view, kp-row in key-people view
-    window._secGetRows = function () { return Array.from(document.querySelectorAll('.sec-row, .kp-row')); };
-    window._secGetSelectedRow = function () { return secSelectedRow; };
-    window._secSelectRow = function (idx) {
-        var rows = window._secGetRows();
-        if (rows.length === 0) return;
-        idx = Math.max(0, Math.min(idx, rows.length - 1));
-        secSelectedRow = idx;
-        rows.forEach(function (r, i) { r.classList.toggle('vim-selected', i === idx); });
-        rows[idx].scrollIntoView({ block: 'nearest' });
-    };
+    // Open the highlighted filing in a new tab. Row selection lives on
+    // the DOM (.vim-selected, owned by VimNav).
     window._secActivate = function () {
-        var rows = window._secGetRows();
-        if (secSelectedRow >= 0 && secSelectedRow < rows.length) {
-            var link = rows[secSelectedRow].dataset.link;
-            if (link) window.open(link, '_blank');
-        }
+        var row = document.querySelector('.sec-row.vim-selected, .kp-row.vim-selected');
+        if (row && row.dataset.link) window.open(row.dataset.link, '_blank');
     };
     window._secCycleFilter = function () {
         var cats = ['', 'periodic', 'event', 'ownership', 'proxy', 'registration'];
         var idx = cats.indexOf(secFilter);
         secFilter = cats[(idx + 1) % cats.length];
         secView = 'filings';
-        secSelectedRow = -1;
         loadSEC();
     };
 

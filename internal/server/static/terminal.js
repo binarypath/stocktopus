@@ -2020,6 +2020,98 @@ window.onerror = function (msg, src, line, col, err) {
         items[index].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
 
+    // ── Price preview slide-in ──
+    //
+    // Shared by /watchlist ('p' on a row) and the Sector tab on /security
+    // ('p' on a peer row). Mirrors the financials preview pattern in info.js:
+    // hijacks the article-reader slide-in, renders a 1-year EOD chart via
+    // lightweight-charts, and disposes the chart on close so we don't leak.
+    var pricePreviewChart = null;
+    function disposePricePreviewChart() {
+        if (pricePreviewChart) {
+            try { pricePreviewChart.remove(); } catch (e) {}
+            pricePreviewChart = null;
+        }
+    }
+
+    window._closePricePreview = function () {
+        var reader = document.getElementById('article-reader');
+        if (!reader) return false;
+        if (reader.dataset.mode !== 'price-chart') return false;
+        disposePricePreviewChart();
+        reader.classList.add('hidden');
+        delete reader.dataset.mode;
+        return true;
+    };
+
+    function openPricePreview(symbol) {
+        if (!symbol) return;
+        var reader = document.getElementById('article-reader');
+        var readerTitle = document.getElementById('reader-title');
+        var readerBody = document.getElementById('reader-body');
+        if (!reader || !readerBody) return;
+        reader.classList.remove('hidden');
+        reader.dataset.mode = 'price-chart';
+        if (readerTitle) readerTitle.textContent = symbol + ' — 1y';
+        readerBody.innerHTML = '<div id="price-preview-host" style="width:100%;height:280px"></div>'
+            + '<p id="price-preview-meta" class="empty-state" style="margin-top:8px"></p>';
+
+        fetch('/api/historical/stock/' + encodeURIComponent(symbol))
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+            .then(function (rows) {
+                if (!Array.isArray(rows) || rows.length === 0) {
+                    readerBody.innerHTML = '<p class="empty-state">No price history for ' + symbol + '.</p>';
+                    return;
+                }
+                // FMP returns descending — flip to ascending and trim to last
+                // 252 trading days (~1y) so the preview stays snappy.
+                var asc = rows.slice().reverse();
+                if (asc.length > 252) asc = asc.slice(asc.length - 252);
+                var series = asc.map(function (r) {
+                    return { time: r.date, value: Number(r.price) };
+                }).filter(function (p) { return p.time && !isNaN(p.value); });
+                if (series.length === 0) {
+                    readerBody.innerHTML = '<p class="empty-state">No usable points for ' + symbol + '.</p>';
+                    return;
+                }
+
+                var host = document.getElementById('price-preview-host');
+                if (!window.LightweightCharts || !host) return;
+                disposePricePreviewChart();
+                pricePreviewChart = LightweightCharts.createChart(host, {
+                    layout: { background: { color: '#0a0a0a' }, textColor: '#888888', fontFamily: "'SF Mono','Consolas',monospace", fontSize: 10, attributionLogo: false },
+                    grid: { vertLines: { color: '#1a1a1a' }, horzLines: { color: '#1a1a1a' } },
+                    rightPriceScale: { borderColor: '#2a2a2a' },
+                    timeScale: { borderColor: '#2a2a2a', timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
+                    handleScale: false,
+                    handleScroll: false,
+                });
+                var first = series[0].value;
+                var last = series[series.length - 1].value;
+                var color = last >= first ? '#00cc66' : '#ff4444';
+                var line = pricePreviewChart.addSeries(LightweightCharts.LineSeries, {
+                    color: color, lineWidth: 2,
+                    priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+                });
+                line.setData(series);
+                pricePreviewChart.timeScale().fitContent();
+
+                var pct = first > 0 ? ((last - first) / first) * 100 : 0;
+                var sign = pct >= 0 ? '+' : '';
+                var meta = document.getElementById('price-preview-meta');
+                if (meta) {
+                    meta.textContent = symbol + ' · '
+                        + series.length + 'd · '
+                        + first.toFixed(2) + ' → ' + last.toFixed(2)
+                        + ' (' + sign + pct.toFixed(1) + '%)';
+                    meta.style.color = color;
+                }
+            })
+            .catch(function () {
+                readerBody.innerHTML = '<p class="empty-state">Failed to load price history for ' + symbol + '.</p>';
+            });
+    }
+
     // ── Per-View Vim Handlers ──
 
     var vimHandlers = {
@@ -2113,7 +2205,7 @@ window.onerror = function (msg, src, line, col, err) {
                 fetch('/api/watchlists/' + wlId + '/symbols/' + encodeURIComponent(sym), { method: 'DELETE' })
                     .then(function () {
                         watchlistBuffer = sym;
-                        flashError('Cut ' + sym + ' — press p to paste into another watchlist');
+                        flashError('Cut ' + sym + ' — press P to paste into another watchlist');
                         refreshWatchlistView();
                     })
                     .catch(function () { flashError('Remove failed'); });
@@ -2140,6 +2232,12 @@ window.onerror = function (msg, src, line, col, err) {
                 // addToWatchlist already calls loadWatchlists internally, but it
                 // doesn't repaint quote rows. Force a full refresh.
                 refreshWatchlistView();
+                return true;
+            },
+            openPreview: function () {
+                var sym = this._selectedSymbol();
+                if (!sym) return false;
+                openPricePreview(sym);
                 return true;
             },
         },
@@ -2233,32 +2331,6 @@ window.onerror = function (msg, src, line, col, err) {
                 var hasSub = this.hasSubTabs();
 
                 if (dir === 'k') {
-                    // SEC tab: filing row navigation
-                    if (this._focus === 'content' && this.isSECTab()) {
-                        var secRows = window._secGetRows ? window._secGetRows() : [];
-                        var secIdx = window._secGetSelectedRow ? window._secGetSelectedRow() : -1;
-                        if (secRows.length > 0 && secIdx > 0) {
-                            window._secSelectRow(secIdx - 1);
-                            return;
-                        }
-                        clearVimSelection();
-                        this._focus = hasSub ? 'sub' : 'main';
-                        this._highlightFocus();
-                        return;
-                    }
-                    // Financials tab: row navigation
-                    if (this._focus === 'content' && this.isFinTab()) {
-                        var finRows = window._finGetRows ? window._finGetRows() : [];
-                        var finIdx = window._finGetSelectedRow ? window._finGetSelectedRow() : -1;
-                        if (finRows.length > 0 && finIdx > 0) {
-                            window._finSelectRow(finIdx - 1);
-                            return;
-                        }
-                        if (window._finClearRow) window._finClearRow();
-                        this._focus = hasSub ? 'sub' : 'main';
-                        this._highlightFocus();
-                        return;
-                    }
                     // AI tab: trading panel navigation
                     if (this._focus === 'content' && this.isAITab()) {
                         if (window._tradingVimHandler && window._tradingVimHandler(dir)) return;
@@ -2318,22 +2390,6 @@ window.onerror = function (msg, src, line, col, err) {
                     // Go straight to content (skip focus-only transition)
                     this._focus = 'content';
                     this._highlightFocus();
-                    if (this.isSECTab()) {
-                        var secRows = window._secGetRows ? window._secGetRows() : [];
-                        if (secRows.length > 0) {
-                            var secIdx = window._secGetSelectedRow ? window._secGetSelectedRow() : -1;
-                            window._secSelectRow(secIdx + 1);
-                        }
-                        return;
-                    }
-                    if (this.isFinTab()) {
-                        var finRows = window._finGetRows ? window._finGetRows() : [];
-                        if (finRows.length > 0) {
-                            var finIdx = window._finGetSelectedRow ? window._finGetSelectedRow() : -1;
-                            window._finSelectRow(finIdx + 1);
-                        }
-                        return;
-                    }
                     if (this.isAITab()) {
                         if (window._tradingVimHandler) window._tradingVimHandler(dir);
                         return;
@@ -2447,6 +2503,7 @@ window.onerror = function (msg, src, line, col, err) {
                 if (!sym) return;
                 if (action === 'info' && window._navigateToSecurity) window._navigateToSecurity(sym);
                 if (action === 'graph' && window._navigateToGraph) window._navigateToGraph(sym);
+                if (action === 'preview') openPricePreview(sym);
             }
         },
         ei: {
@@ -2653,6 +2710,7 @@ window.onerror = function (msg, src, line, col, err) {
                     var mode = reader.dataset.mode;
                     if (mode === 'fin-chart' && window._finCloseChart) window._finCloseChart();
                     else if (mode === 'eco-chart' && window._economicsClosePreview) window._economicsClosePreview();
+                    else if (mode === 'price-chart' && window._closePricePreview) window._closePricePreview();
                     else reader.classList.add('hidden');
                     return;
                 }
@@ -2793,14 +2851,27 @@ window.onerror = function (msg, src, line, col, err) {
                 if (handler && handler.jumpToSubTab) { e.preventDefault(); handler.jumpToSubTab(1); }
                 return;
             case 'c':
+                // Watchlist: 'c' charts the selected security (was 'g' until
+                // declarative vim-nav landed; rebound so the key matches the
+                // action — c for chart). 'g' / 'gg' now only do nav.
+                if (currentView === 'watchlist' && handler && handler.graph) {
+                    e.preventDefault();
+                    handler.graph();
+                    return;
+                }
+                // Sector peers (security info → Sector tab): chart the
+                // highlighted peer row.
+                if (handler && handler.isSectorTab && handler.isSectorTab() && handler.sectorNav) {
+                    e.preventDefault();
+                    handler.sectorNav('graph');
+                    return;
+                }
                 // Financials tab: 'c' on a highlighted metric opens the full
                 // chart page for that metric (was historically 'g', moved here
                 // so the key matches the action — 'c' for chart).
                 if (handler && handler.isFinTab && handler.isFinTab()) {
-                    var finRows = window._finGetRows ? window._finGetRows() : [];
-                    var finIdx = window._finGetSelectedRow ? window._finGetSelectedRow() : -1;
-                    if (finIdx >= 0 && finIdx < finRows.length && selectedSecurity) {
-                        var finRow = finRows[finIdx];
+                    var finRow = document.querySelector('.fin-row.vim-selected');
+                    if (finRow && selectedSecurity) {
                         var finKey = finRow.dataset.finKey || '';
                         if (finRow.dataset.finFormat !== 'calc' && finKey && finKey.indexOf('/') < 0) {
                             e.preventDefault();
@@ -2819,6 +2890,18 @@ window.onerror = function (msg, src, line, col, err) {
                 }
                 return;
             case 'p':
+                // Watchlist: 'p' opens a price chart slide-in for the
+                // highlighted symbol. Cut/paste 'p' moved to capital 'P' so
+                // 'p' = preview is consistent across listings.
+                if (currentView === 'watchlist' && handler && handler.openPreview) {
+                    if (handler.openPreview()) { e.preventDefault(); return; }
+                }
+                // Sector peers: preview the highlighted peer's price chart.
+                if (handler && handler.isSectorTab && handler.isSectorTab() && handler.sectorNav) {
+                    e.preventDefault();
+                    handler.sectorNav('preview');
+                    return;
+                }
                 // /economics catalog: open 5-year slide-in chart preview.
                 if (currentView === 'economics' && window._economicsOpenPreview) {
                     if (window._economicsOpenPreview('5y')) { e.preventDefault(); return; }
@@ -2842,7 +2925,11 @@ window.onerror = function (msg, src, line, col, err) {
                     handler.activate();
                     return;
                 }
-                // Watchlist: move (paste) selected symbol to another list (idea #12).
+                return;
+            case 'P':
+                // Watchlist cut/paste — paste the yanked symbol into the
+                // current list. Capital P mirrors vim's "paste before" and
+                // frees lowercase p for the preview action above.
                 if (handler && handler.pasteSelected) {
                     if (handler.pasteSelected()) e.preventDefault();
                 }
@@ -2868,10 +2955,8 @@ window.onerror = function (msg, src, line, col, err) {
                 // 'a' on a highlighted Financials row prefills :add SYMBOL.field
                 // in the command bar so the user can confirm + send to the sketchpad.
                 if (handler && handler.isFinTab && handler.isFinTab()) {
-                    var rows = window._finGetRows ? window._finGetRows() : [];
-                    var idx = window._finGetSelectedRow ? window._finGetSelectedRow() : -1;
-                    if (idx >= 0 && idx < rows.length) {
-                        var row = rows[idx];
+                    var row = document.querySelector('.fin-row.vim-selected');
+                    if (row) {
                         var key = row.dataset.finKey || '';
                         if (row.dataset.finFormat === 'calc' || !key || key.indexOf('/') >= 0) return;
                         if (!selectedSecurity) return;

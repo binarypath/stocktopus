@@ -1,4 +1,4 @@
-.PHONY: dev build test smoke clean setup-agents agent-train lint-js
+.PHONY: dev build test smoke bdd clean setup-agents agent-train lint-js
 
 dev: build
 	./bin/stocktopus
@@ -17,6 +17,9 @@ test:
 
 smoke:
 	go test -tags e2e -v -count=1 ./tests/e2e/
+
+bdd:
+	cd tests/bdd && npm install --silent && npm test
 
 setup-agents:
 	@echo "Installing Ollama (if not present)..."
