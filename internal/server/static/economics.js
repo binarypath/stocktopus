@@ -53,7 +53,11 @@
     function switchTab(name) {
         activeTab = name;
         document.querySelectorAll('#economics-tabs .economics-tab').forEach(function (btn) {
-            btn.classList.toggle('active', btn.dataset.tab === name);
+            var on = btn.dataset.tab === name;
+            // Dual-write legacy + design-system active class so both
+            // selectors stay in sync during migration.
+            btn.classList.toggle('active', on);
+            btn.classList.toggle('st-tab--active', on);
         });
         $('economics-calendar-panel').classList.toggle('hidden', name !== 'calendar');
         $('economics-catalog-panel').classList.toggle('hidden', name !== 'catalog');

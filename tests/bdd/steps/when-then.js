@@ -142,6 +142,89 @@ When('the page receives a background DOM update', async ({ page }) => {
   await page.waitForTimeout(200);
 });
 
+// ── Vim navigation robustness ──
+
+Then('the highlighted item has data-tab {string}', async ({ page }, tab) => {
+  // Verifies the .vim-selected element actually carries the expected
+  // data-tab. Hard-fails on missing selection (catches both the
+  // 'walked into the void' bug and the 'crashed before applySelection'
+  // bug at once).
+  const got = await page.evaluate(() => {
+    const el = document.querySelector('.vim-selected');
+    return el ? (el.dataset.tab || null) : null;
+  });
+  expect(got, 'no element is highlighted').not.toBeNull();
+  expect(got).toBe(tab);
+});
+
+Then('no JavaScript error has been logged', async ({ page }) => {
+  const errs = page.__pageErrors || [];
+  expect(errs, 'page logged JS errors during this scenario').toEqual([]);
+});
+
+// ── Design system tokens & primitives ──
+
+Then('the computed value of CSS variable {string} is {string}',
+  async ({ page }, varName, expected) => {
+    const actual = await page.evaluate((v) => {
+      // Read on documentElement (where :root lives) and resolve through
+      // a temporary element so color-mix() expands.
+      const probe = document.createElement('span');
+      probe.style.color = 'var(' + v + ')';
+      document.body.appendChild(probe);
+      const c = getComputedStyle(probe).color;
+      probe.remove();
+      return c;
+    }, varName);
+    expect(actual).toBe(expected);
+  }
+);
+
+Then('the computed value of CSS variable {string} is the same as {string}',
+  async ({ page }, a, b) => {
+    const [va, vb] = await page.evaluate(([x, y]) => {
+      const read = (name) => {
+        const probe = document.createElement('span');
+        probe.style.color = 'var(' + name + ')';
+        document.body.appendChild(probe);
+        const c = getComputedStyle(probe).color;
+        probe.remove();
+        return c;
+      };
+      return [read(x), read(y)];
+    }, [a, b]);
+    expect(va).toBe(vb);
+  }
+);
+
+Then('the active tab carries the class {string}', async ({ page }, cls) => {
+  await expect(page.locator('#info-tabs .info-tab.active')).toHaveClass(new RegExp('(^|\\s)' + cls + '(\\s|$)'));
+});
+
+Then('the tab strip carries the class {string}', async ({ page }, cls) => {
+  await expect(page.locator('#info-tabs')).toHaveClass(new RegExp('(^|\\s)' + cls + '(\\s|$)'));
+});
+
+Then('the peer table carries the class {string}', async ({ page }, cls) => {
+  await expect(page.locator('#peer-table')).toHaveClass(new RegExp('(^|\\s)' + cls + '(\\s|$)'), { timeout: 5000 });
+});
+
+Then('the peer symbol cells carry the class {string}', async ({ page }, cls) => {
+  // At least one .peer-row should host a span with the requested class.
+  await expect(page.locator('.peer-row .' + cls).first()).toBeVisible({ timeout: 5000 });
+});
+
+Then('the tab strip {string} carries the class {string}', async ({ page }, sel, cls) => {
+  await expect(page.locator(sel)).toHaveClass(new RegExp('(^|\\s)' + cls + '(\\s|$)'));
+});
+
+Then('the active tab in {string} carries the class {string}', async ({ page }, sel, cls) => {
+  // Scope to .st-tab so we don't pick up sibling buttons with their own
+  // 'active' state (auto-refresh on the chart bar, etc.).
+  await expect(page.locator(sel + ' .st-tab.active').first())
+    .toHaveClass(new RegExp('(^|\\s)' + cls + '(\\s|$)'));
+});
+
 // ── Screener UX assertions ──
 
 Then('every filter group is collapsed', async ({ page }) => {

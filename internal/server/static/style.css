@@ -1,17 +1,343 @@
 :root {
+    /* ── Surfaces ── */
     --bg-primary: #0a0a0a;
     --bg-secondary: #111111;
     --bg-tertiary: #1a1a1a;
     --border: #2a2a2a;
+
+    /* ── Text ── */
     --text-primary: #e0e0e0;
     --text-secondary: #888888;
+    --text-tertiary: #666666;
     --text-muted: #555555;
-    --orange: #ff8800;
+
+    /* ── Market semantics (unchanged) ── */
     --green: #00cc66;
     --red: #ff4444;
-    --blue: #4499ff;
     --yellow: #ccaa00;
+
+    /* ── Brand accents (saturated). --orange / --blue are aliases for
+       gradual migration; new code should reach for --accent-orange /
+       --accent-blue directly. ── */
+    --accent-orange: #ff9a1a;
+    --accent-blue: #2db8ff;
+    --orange: var(--accent-orange);
+    --blue: var(--accent-blue);
+
+    /* ── Lines / rails (weight-1 brand strokes) ── */
+    --line-default: 1px solid var(--border);
+    --line-accent-orange: 1px solid var(--accent-orange);
+    --line-accent-blue: 1px solid var(--accent-blue);
+    --rail-accent-orange: 2px solid var(--accent-orange);
+    --rail-accent-blue: 2px solid var(--accent-blue);
+
+    /* Left-rail box-shadows (note: distinct from --rail-*, which are
+       border shorthands and cannot be inlined inside a box-shadow
+       declaration). Use these on row-selected highlights. */
+    --rail-shadow-orange: inset 2px 0 0 var(--accent-orange);
+    --rail-shadow-blue: inset 2px 0 0 var(--accent-blue);
+
+    /* ── Brand surfaces (opaque-ish; reserve low-alpha for hover only). ── */
+    --accent-orange-surface: color-mix(in srgb, var(--accent-orange) 18%, var(--bg-primary));
+    --accent-orange-surface-strong: color-mix(in srgb, var(--accent-orange) 35%, var(--bg-primary));
+    --accent-orange-surface-solid: color-mix(in srgb, var(--accent-orange) 88%, #000000);
+    --accent-blue-surface: color-mix(in srgb, var(--accent-blue) 18%, var(--bg-primary));
+    --accent-blue-surface-strong: color-mix(in srgb, var(--accent-blue) 35%, var(--bg-primary));
+    --accent-blue-surface-solid: color-mix(in srgb, var(--accent-blue) 88%, #000000);
+    --accent-orange-hover: color-mix(in srgb, var(--accent-orange) 12%, transparent);
+    --accent-blue-hover: color-mix(in srgb, var(--accent-blue) 12%, transparent);
+
+    /* Tab strip focus (row chrome only — much lighter than table selection) */
+    --tab-row-focus-bg: color-mix(in srgb, var(--accent-orange) 10%, transparent);
+    --tab-row-focus-bg-blue: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+
+    /* Selected/current tab pill (50% accent fill — no underline) */
+    --tab-selected-fill-orange: color-mix(in srgb, var(--accent-orange) 50%, transparent);
+    --tab-selected-fill-blue: color-mix(in srgb, var(--accent-blue) 50%, transparent);
+
+    /* ── Selection (one source of truth for row + tab + pane state) ── */
+    --select-row-bg: var(--accent-orange-surface-strong);
+    --select-row-rail: var(--rail-shadow-orange);
+    --select-sub-row-bg: var(--accent-blue-surface-strong);
+    --select-sub-row-rail: var(--rail-shadow-blue);
+    --pane-focus-line: 2px solid var(--accent-orange);
+
+    /* ── Ternary unit (spacing atom = 3px). Snap padding/gap to these. ── */
+    --u: 3px;
+    --space-1: var(--u);                  /*  3 */
+    --space-2: calc(var(--u) * 2);        /*  6 */
+    --space-3: calc(var(--u) * 3);        /*  9 */
+    --space-4: calc(var(--u) * 4);        /* 12 */
+    --space-5: calc(var(--u) * 5);        /* 15 */
+    --space-6: calc(var(--u) * 6);        /* 18 */
+    --space-8: calc(var(--u) * 8);        /* 24 */
+    --space-10: calc(var(--u) * 10);      /* 30 */
+    --space-15: calc(var(--u) * 15);      /* 45 */
+
+    /* ── 1 : 3 split (chrome : content) ── */
+    --layout-chrome: 1fr;
+    --layout-content: 3fr;
+    --layout-split: var(--layout-chrome) var(--layout-content);
+
+    /* ── Emphasis thirds (replace ad-hoc 0.25 / 0.15 fills) ── */
+    --emphasis-1: 33%;
+    --emphasis-2: 66%;
+    --emphasis-3: 100%;
+
+    /* ── Motion (×3 ms cadence) ── */
+    --duration-1: 90ms;
+    --duration-2: 180ms;
+    --duration-3: 270ms;
+    --duration-select: var(--duration-2);
+    --ease-select: cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* ── Type tiers (three chrome + one hero). Aliases keep old names
+       working; new code should use the numbered tier. ── */
+    --text-1: 10px;
+    --text-2: 12px;
+    --text-3: 13px;
+    --text-hero: 16px;
+    --text-xs: var(--text-1);
+    --text-sm: var(--text-2);
+    --text-md: var(--text-3);
+    --text-lg: var(--text-hero);
+    --line-height-tight: 1.333;   /* 4/3 */
+    --line-height-body: 1.5;      /* 3/2 */
+
+    /* ── Radius (two stops; favour over 2/4/6 mix) ── */
+    --radius-sm: 3px;
+    --radius-md: 6px;
+
     --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   Design system primitives (st-*)
+
+   Reusable classes that codify the unified visual language. Pages
+   dual-write these alongside legacy class names during migration;
+   legacy rules retire only once every consumer has switched. See
+   `design-language-unification.md` for the full spec.
+
+   Naming:
+     .st-<thing>            base
+     .st-<thing>--<mod>     modifier (BEM-style)
+   ──────────────────────────────────────────────────────────────── */
+
+/* Tabs — strip baseline + 50% pill that slides in/out on select (no underline). */
+.st-tab-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    border-bottom: none;
+    box-shadow: inset 0 -1px 0 var(--border);
+    margin-bottom: var(--space-4);
+    padding-bottom: 0;
+}
+
+.st-tab,
+.info-tab,
+.info-sub-tab {
+    position: relative;
+    z-index: 0;
+    isolation: isolate;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    margin: 0;
+    box-shadow: none;
+    cursor: pointer;
+    transition: color var(--duration-select) var(--ease-select);
+}
+
+.st-tab {
+    font-size: var(--text-2);
+    padding: var(--space-1) var(--space-3);
+}
+
+/* Animated fill — slides in from the left, out on deselect. */
+.st-tab::before,
+.info-tab::before,
+.info-sub-tab::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    z-index: -1;
+    background: var(--tab-selected-fill-orange);
+    transform: scaleX(0);
+    transform-origin: left center;
+    opacity: 0;
+    transition:
+        transform var(--duration-select) var(--ease-select),
+        opacity var(--duration-select) var(--ease-select);
+}
+
+.st-tab-row--blue .st-tab::before,
+.info-sub-tabs .info-sub-tab::before,
+.info-sub-tabs .st-tab::before {
+    background: var(--tab-selected-fill-blue);
+}
+
+.st-tab:hover,
+.info-tab:hover,
+.info-sub-tab:hover {
+    color: var(--text-primary);
+}
+
+.st-tab--active,
+.st-tab.vim-selected,
+.info-tab.active,
+.info-tab.vim-selected {
+    color: var(--accent-orange);
+    box-shadow: none;
+}
+
+.st-tab--active::before,
+.st-tab.vim-selected::before,
+.info-tab.active::before,
+.info-tab.vim-selected::before,
+.info-sub-tab.active::before,
+.info-sub-tab.vim-selected::before {
+    transform: scaleX(1);
+    opacity: 1;
+}
+
+.st-tab-row--blue .st-tab--active,
+.st-tab-row--blue .st-tab.vim-selected,
+.info-sub-tab.active,
+.info-sub-tab.vim-selected,
+.info-sub-tabs .st-tab.active,
+.info-sub-tabs .st-tab.vim-selected {
+    color: var(--accent-blue);
+    box-shadow: none;
+}
+
+/* Hotkey badge lives inside the pill — no opaque chip punching a hole. */
+.st-tab--active .tab-key,
+.st-tab.vim-selected .tab-key,
+.info-tab.active .tab-key,
+.info-tab.vim-selected .tab-key,
+.info-sub-tab.active .tab-key,
+.info-sub-tab.vim-selected .tab-key {
+    background: transparent;
+    border-color: color-mix(in srgb, currentColor 55%, var(--border));
+    color: inherit;
+}
+
+/* Selected row — rail (1) + surface (2/3). Mirrors .vim-selected
+   so JS-driven and CSS-only selection feel identical. */
+.st-row-selected {
+    background: var(--select-row-bg) !important;
+    box-shadow: var(--select-row-rail);
+    transition:
+        background var(--duration-select) var(--ease-select),
+        box-shadow var(--duration-select) var(--ease-select);
+}
+.st-row-selected--blue {
+    background: var(--select-sub-row-bg) !important;
+    box-shadow: var(--select-sub-row-rail);
+    transition:
+        background var(--duration-select) var(--ease-select),
+        box-shadow var(--duration-select) var(--ease-select);
+}
+
+/* Active pane (multi-column layouts) — top edge bar in brand orange.
+   Used by Ideas (sidebar / main) and Screener (filters / results). */
+.st-pane-active {
+    box-shadow: 0 -2px 0 1px var(--accent-orange);
+}
+
+/* Form inputs. Default border is muted; focus picks up brand blue
+   so the focused control is unambiguous even at a glance. */
+.st-input {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: var(--line-default);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: var(--text-3);
+    padding: var(--space-2) var(--space-3);
+    outline: none;
+}
+.st-input:focus {
+    border-color: var(--accent-blue);
+}
+
+/* Chips / tags. Three semantic variants — orange (workspace), blue
+   (security identity), muted (neutral metadata). Use sparingly: a
+   page with five chip variants stops feeling intentional. */
+.st-chip {
+    display: inline-block;
+    font-size: var(--text-1);
+    font-weight: 600;
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    letter-spacing: 0.02em;
+}
+.st-chip--orange {
+    color: var(--accent-orange);
+    background: var(--accent-orange-surface-solid);
+    border-color: var(--accent-orange);
+}
+.st-chip--blue {
+    color: var(--accent-blue);
+    background: var(--accent-blue-surface-solid);
+    border-color: var(--accent-blue);
+}
+.st-chip--muted {
+    color: var(--text-secondary);
+    background: var(--bg-tertiary);
+    border-color: var(--border);
+}
+
+/* Security symbol link — blue, bold, terminal-style. The canonical
+   visual contract for "this string is a tradable identifier". */
+.st-link-sym {
+    color: var(--accent-blue);
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+}
+.st-link-sym:hover {
+    text-decoration: underline;
+}
+
+/* Section titles. Compact, all-caps, brand orange — the heading
+   pattern used by screener groups and chart sub-sections. */
+.st-section-title {
+    font-size: var(--text-1);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent-orange);
+}
+
+/* Shared table chrome. Pages adopt by adding `st-table` alongside
+   their existing class so visual parity follows automatically. */
+.st-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-2);
+}
+.st-table thead th {
+    text-align: left;
+    color: var(--text-secondary);
+    font-size: var(--text-1);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: var(--line-default);
+}
+.st-table tbody td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+.st-table tbody tr:hover {
+    background: var(--bg-secondary);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -433,26 +759,26 @@ body {
 }
 
 .reader-ticker {
-    font-size: 11px;
+    font-size: var(--text-sm);
     font-weight: 700;
-    color: var(--blue);
-    background: rgba(68, 153, 255, 0.1);
-    border: 1px solid rgba(68, 153, 255, 0.3);
-    border-radius: 3px;
+    color: var(--accent-blue);
+    background: var(--accent-blue-hover);
+    border: var(--line-accent-blue);
+    border-radius: var(--radius-sm);
     padding: 1px 6px;
     cursor: pointer;
 }
 
 .reader-ticker:hover {
-    background: rgba(68, 153, 255, 0.2);
+    background: var(--accent-blue-surface);
 }
 
 .reader-sector-badge {
-    font-size: 10px;
-    color: var(--orange);
-    background: rgba(255, 136, 0, 0.1);
-    border: 1px solid rgba(255, 136, 0, 0.2);
-    border-radius: 3px;
+    font-size: var(--text-1);
+    color: var(--accent-orange);
+    background: var(--accent-orange-hover);
+    border: var(--line-accent-orange);
+    border-radius: var(--radius-sm);
     padding: 1px 6px;
 }
 
@@ -542,8 +868,8 @@ body {
 }
 
 .footer-mode.insert {
-    color: var(--orange);
-    background: rgba(255, 136, 0, 0.15);
+    color: var(--accent-orange);
+    background: var(--accent-orange-surface);
 }
 
 .footer-view {
@@ -658,22 +984,32 @@ body {
     margin-bottom: 8px;
 }
 
+/* Watchlist tabs — each list has its own user-chosen colour, which
+   serves as identity. Adopting the orange pill from .st-tab--active
+   would override that, so the watchlist deliberately stays on a
+   parallel visual language: rounded, bordered in the list's colour,
+   filled with a soft tint of that same colour on active.
+   currentColor picks up the inline style colour set per tab. */
 .wl-tab {
-    font-size: 11px;
-    padding: 3px 10px;
+    font-size: var(--text-sm);
+    padding: var(--space-1) var(--space-3);
     border: 1px solid;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     opacity: 0.6;
+    transition:
+        opacity var(--duration-select) var(--ease-select),
+        background var(--duration-select) var(--ease-select);
 }
 
 .wl-tab:hover {
-    opacity: 0.8;
+    opacity: 0.85;
 }
 
 .wl-tab-active {
     opacity: 1;
     font-weight: 700;
+    background: color-mix(in srgb, currentColor 18%, var(--bg-primary));
 }
 
 /* ── Add Security Form (Watchlist) ── */
@@ -821,35 +1157,20 @@ body {
 }
 
 
+/* Legacy info-tab rules converged onto the flat st-tab look. */
 .info-tabs {
     display: flex;
-    gap: 4px;
-    margin-bottom: 12px;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 8px;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+    border-bottom: none;
+    box-shadow: inset 0 -1px 0 var(--border);
+    padding-bottom: 0;
 }
 
 .info-tab {
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    color: var(--text-secondary);
-    font-family: var(--font-mono);
-    font-size: 12px;
-    padding: 5px 12px;
-    cursor: pointer;
-}
-
-.info-tab:hover {
-    color: var(--text-primary);
-    background: var(--bg-tertiary);
-}
-
-.info-tab.active {
-    color: var(--orange);
-    border-color: var(--orange);
-    background: var(--bg-tertiary);
-    box-shadow: inset 0 -2px 0 var(--orange);
+    font-size: var(--text-2);
+    padding: var(--space-1) var(--space-3);
 }
 
 .info-content {
@@ -911,35 +1232,21 @@ body {
     margin: 0;
 }
 
+/* Sub-tab strip — same baseline geometry as .st-tab-row. */
 .info-sub-tabs {
     display: flex;
-    gap: 4px;
-    margin-bottom: 12px;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 8px;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+    border-bottom: none;
+    box-shadow: inset 0 -1px 0 var(--border);
+    padding-bottom: 0;
 }
 
+/* Sub-tabs — blue variant (fill + slide from shared .info-sub-tab rules). */
 .info-sub-tab {
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    color: var(--text-secondary);
-    font-family: var(--font-mono);
-    font-size: 11px;
-    padding: 4px 10px;
-    cursor: pointer;
-}
-
-.info-sub-tab:hover {
-    color: var(--text-primary);
-    background: var(--bg-tertiary);
-}
-
-.info-sub-tab.active {
-    color: var(--blue);
-    border-color: var(--blue);
-    background: var(--bg-tertiary);
-    box-shadow: inset 0 -2px 0 var(--blue);
+    font-size: var(--text-1);
+    padding: var(--space-1) var(--space-3);
 }
 
 .fin-table {
@@ -1011,11 +1318,13 @@ body {
 }
 
 .info-tabs.tab-row-focused {
-    border-bottom-color: var(--orange) !important;
+    background: var(--tab-row-focus-bg);
+    box-shadow: inset 0 -1px 0 var(--border);
 }
 
 .info-sub-tabs.tab-row-focused {
-    border-bottom-color: var(--blue) !important;
+    background: var(--tab-row-focus-bg-blue);
+    box-shadow: inset 0 -1px 0 var(--border);
 }
 
 .help-tip {
@@ -1462,7 +1771,7 @@ body {
 }
 
 @keyframes info-pulse-fade {
-    0% { color: var(--orange); text-shadow: 0 0 6px rgba(255, 136, 0, 0.5); }
+    0% { color: var(--accent-orange); text-shadow: 0 0 6px color-mix(in srgb, var(--accent-orange) 50%, transparent); }
     100% { color: inherit; text-shadow: none; }
 }
 
@@ -1628,25 +1937,21 @@ body {
 
 /* ── Stock / Graph View ── */
 
+/* Chart range bar — blue tab-strip variant. Intraday + EOD ranges share
+   the .st-tab pill animation; auto-refresh + indicator toggles inside
+   the same bar keep their own bespoke styles (they're filters, not
+   selectors). */
 .chart-range-bar {
     display: flex;
-    gap: 4px;
+    align-items: center;
+    gap: var(--space-2);
+    box-shadow: inset 0 -1px 0 var(--border);
 }
 
 .chart-range-btn {
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    color: var(--text-secondary);
-    font-family: var(--font-mono);
-    font-size: 12px;
-    padding: 4px 10px;
-    cursor: pointer;
-}
-
-.chart-range-btn:hover {
-    color: var(--text-primary);
-    background: var(--bg-tertiary);
+    /* Geometry on ternary grid; pill + colour flow from .st-tab rules. */
+    font-size: var(--text-2);
+    padding: var(--space-1) var(--space-3);
 }
 
 .chart-auto-refresh {
@@ -1680,10 +1985,12 @@ body {
     line-height: 1;
 }
 
+/* Legacy .chart-range-btn.active retained as a token bridge — when
+   markup hasn't been dual-written yet, the colour change still lands.
+   Box-shadow + bg flow from the shared pill rules at the top of the
+   file. */
 .chart-range-btn.active {
-    color: var(--orange);
-    border-color: var(--orange);
-    background: var(--bg-tertiary);
+    color: var(--accent-blue);
 }
 
 .chart-toggle {
@@ -2058,31 +2365,63 @@ body {
 
 /* ── Vim Selection ── */
 
-/* Soft orange fill (25% of #ff8800) — the whole element lights up
- * when navigated to. No outline; the fill alone is the indicator.
- * Works uniformly for tabs, table rows, news cards, etc. */
+/* Selection = LINE (1) + SURFACE (2/3). The line is the left rail;
+ * the surface is an opaque-ish brand fill (emphasis-2, i.e. 66%
+ * toward the bg). The previous 25% rgba wash read as muddy on
+ * dark backgrounds and is now reserved for :hover only. */
 .vim-selected {
-    background: rgba(255, 136, 0, 0.25) !important;
+    background: color-mix(in srgb, var(--accent-orange) var(--emphasis-2), var(--bg-primary)) !important;
+    box-shadow: var(--rail-shadow-orange);
+    transition:
+        background var(--duration-select) var(--ease-select),
+        box-shadow var(--duration-select) var(--ease-select),
+        color var(--duration-select) var(--ease-select);
 }
 
 /* Row-level cue: when any item inside a row container is selected,
  * the whole row gets the same fill. For tab strips this means the
  * entire nav row lights up, not just the focused tab. */
 [data-vim-row]:has(.vim-selected) {
-    background: rgba(255, 136, 0, 0.25);
+    background: color-mix(in srgb, var(--accent-orange) var(--emphasis-2), var(--bg-primary));
 }
 
-/* Sub-tabs use blue instead of orange so they're visually
- * distinguishable from the main tab row when the user is
- * navigating between strips. Matches the .info-sub-tab.active
- * blue accent. */
-.info-sub-tabs .vim-selected,
-.news-sub-tabs .vim-selected {
-    background: rgba(68, 153, 255, 0.25) !important;
+/* Tab strips: faint row wash + neutral baseline (not table-row fill). */
+.st-tab-row[data-vim-row]:has(.vim-selected),
+.info-tabs[data-vim-row]:has(.vim-selected),
+.economics-tabs[data-vim-row]:has(.vim-selected) {
+    background: var(--tab-row-focus-bg);
+    box-shadow: inset 0 -1px 0 var(--border);
 }
-.info-sub-tabs:has(.vim-selected),
-.news-sub-tabs:has(.vim-selected) {
-    background: rgba(68, 153, 255, 0.25);
+
+.st-tab-row--blue[data-vim-row]:has(.vim-selected),
+.info-sub-tabs[data-vim-row]:has(.vim-selected),
+.news-sub-tabs[data-vim-row]:has(.vim-selected) {
+    background: var(--tab-row-focus-bg-blue);
+    box-shadow: inset 0 -1px 0 var(--border);
+}
+
+/* Tab vim focus: colour only — fill slide is on ::before (see .st-tab rules). */
+.st-tab-row .st-tab.vim-selected,
+.st-tab-row .info-tab.vim-selected,
+.info-tabs .info-tab.vim-selected,
+.info-sub-tabs .info-sub-tab.vim-selected,
+.info-sub-tabs .st-tab.vim-selected,
+.news-sub-tabs .info-sub-tab.vim-selected,
+.news-sub-tabs .st-tab.vim-selected {
+    background: transparent !important;
+    box-shadow: none !important;
+    margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .st-tab::before,
+    .info-tab::before,
+    .info-sub-tab::before,
+    .vim-selected,
+    .st-row-selected,
+    .st-row-selected--blue {
+        transition: none;
+    }
 }
 
 /* ── Equity Indices ── */
@@ -3126,26 +3465,19 @@ a, [tabindex] {
     flex-shrink: 0;
 }
 
+/* Economics tabs — primary nav (orange variant of the st-tab pill). */
 .economics-tabs {
     display: flex;
-    gap: 4px;
+    align-items: center;
+    gap: var(--space-2);
+    box-shadow: inset 0 -1px 0 var(--border);
 }
 
 .economics-tab {
-    background: transparent;
-    color: var(--text-secondary);
-    border: 1px solid var(--border);
-    padding: 4px 12px;
-    font-family: inherit;
-    font-size: 12px;
-    cursor: pointer;
-}
-
-.economics-tab:hover { color: var(--text-primary); }
-
-.economics-tab.active {
-    color: var(--orange);
-    border-color: var(--orange);
+    /* Geometry on the ternary grid. Visual (fill + active state) flows
+       from the shared .info-tab / .st-tab rules at the top of the file. */
+    font-size: var(--text-2);
+    padding: var(--space-1) var(--space-3);
 }
 
 .economics-hint {

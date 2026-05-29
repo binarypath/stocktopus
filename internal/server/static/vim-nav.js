@@ -112,19 +112,40 @@
         applySelection();
     }
 
-    // Row down: move to row+1, column 0. j past the last row is a no-op
-    // — by spec the page's last element is the bottom of nav.
+    // Bounds-check helper. Called at the top of every directional move so
+    // stale selection state (rows pruned out from under us by an HTML
+    // re-render) can't crash the page on the next keypress. Returns true
+    // if the cursor was already valid; otherwise resets to (0, 0).
+    function ensureCursorInBounds() {
+        if (currentRow < 0 || currentRow >= grid.length) {
+            currentRow = 0;
+            currentCol = 0;
+            return false;
+        }
+        var row = grid[currentRow];
+        if (currentCol < 0 || currentCol >= row.items.length) {
+            currentCol = 0;
+            return false;
+        }
+        return true;
+    }
+
+    // Directional moves all share the same shape:
+    //   1. rebuild grid + bounds-check (cold state lands on (0,0))
+    //   2. attempt the move (no-op at the edge)
+    //   3. apply selection
+    //
+    // The first directional keypress on a fresh page advances rather
+    // than just initialising: pressing 'l' on a freshly-loaded security
+    // page jumps from "nothing selected" to "second tab", which matches
+    // muscle memory better than "nothing → first tab → press again".
     function moveDown() {
         buildGrid();
         if (grid.length === 0) return false;
-        if (currentRow < 0) {
-            currentRow = 0;
-            currentCol = 0;
-        } else if (currentRow < grid.length - 1) {
+        ensureCursorInBounds();
+        if (currentRow < grid.length - 1) {
             currentRow++;
             currentCol = 0;
-        } else {
-            return true; // consumed but at end
         }
         applySelection();
         return true;
@@ -133,14 +154,10 @@
     function moveUp() {
         buildGrid();
         if (grid.length === 0) return false;
-        if (currentRow < 0) {
-            currentRow = 0;
-            currentCol = 0;
-        } else if (currentRow > 0) {
+        ensureCursorInBounds();
+        if (currentRow > 0) {
             currentRow--;
             currentCol = 0;
-        } else {
-            return true;
         }
         applySelection();
         return true;
@@ -149,13 +166,10 @@
     function moveRight() {
         buildGrid();
         if (grid.length === 0) return false;
-        if (currentRow < 0) {
-            currentRow = 0;
-            currentCol = 0;
-        } else {
-            var row = grid[currentRow];
-            if (currentCol < row.items.length - 1) currentCol++;
-            else return true; // at end of row — by spec h/l doesn't wrap
+        ensureCursorInBounds();
+        var row = grid[currentRow];
+        if (currentCol < row.items.length - 1) {
+            currentCol++;
         }
         applySelection();
         return true;
@@ -164,13 +178,9 @@
     function moveLeft() {
         buildGrid();
         if (grid.length === 0) return false;
-        if (currentRow < 0) {
-            currentRow = 0;
-            currentCol = 0;
-        } else if (currentCol > 0) {
+        ensureCursorInBounds();
+        if (currentCol > 0) {
             currentCol--;
-        } else {
-            return true;
         }
         applySelection();
         return true;
@@ -181,16 +191,13 @@
     function wordForward() {
         buildGrid();
         if (grid.length === 0) return false;
-        if (currentRow < 0) {
-            currentRow = 0;
+        ensureCursorInBounds();
+        var row = grid[currentRow];
+        if (currentCol < row.items.length - 1) {
+            currentCol++;
+        } else if (currentRow < grid.length - 1) {
+            currentRow++;
             currentCol = 0;
-        } else {
-            var row = grid[currentRow];
-            if (currentCol < row.items.length - 1) currentCol++;
-            else if (currentRow < grid.length - 1) {
-                currentRow++;
-                currentCol = 0;
-            } else return true;
         }
         applySelection();
         return true;
@@ -199,15 +206,13 @@
     function wordBack() {
         buildGrid();
         if (grid.length === 0) return false;
-        if (currentRow < 0) {
-            currentRow = 0;
-            currentCol = 0;
-        } else if (currentCol > 0) {
+        ensureCursorInBounds();
+        if (currentCol > 0) {
             currentCol--;
         } else if (currentRow > 0) {
             currentRow--;
             currentCol = grid[currentRow].items.length - 1;
-        } else return true;
+        }
         applySelection();
         return true;
     }
