@@ -362,7 +362,7 @@
     function loadPeers() {
         var html = '<div class="sector-section-title">Top Coins by Market Cap</div>';
         html += '<table class="fin-table peer-table" id="peer-table"><thead><tr>';
-        html += '<th>Coin</th><th>Name</th><th>Price</th><th>24h</th><th>Market Cap</th><th>1M</th>';
+        html += '<th>Coin</th><th>Name</th><th>Price</th><th>24h</th><th>Market Cap</th><th>1m</th>';
         html += '</tr></thead><tbody>';
         PEER_COINS.forEach(function (sym) {
             var isCurrent = sym === symbol;

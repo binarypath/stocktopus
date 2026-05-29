@@ -22,3 +22,17 @@ Feature: Watchlist vim keybindings stay working
     When I press the keys "jp"
     And I press "Escape"
     Then the preview slide-in is hidden
+
+  Scenario: Highlight on the selected row survives background DOM updates
+    When I press "j"
+    Then a row is highlighted
+    When the page receives a background DOM update
+    Then a row is highlighted
+
+  Scenario: Each j press lands on a real security row, not a phantom inside a sparkline
+    When I press "j"
+    Then the highlighted row has a data-symbol
+    When I press "j"
+    Then the highlighted row has a data-symbol
+    When I press "j"
+    Then the highlighted row has a data-symbol

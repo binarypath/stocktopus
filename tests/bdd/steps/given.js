@@ -56,6 +56,21 @@ Given('I am on the watchlist page', async ({ page }) => {
   await page.waitForSelector('#quote-body tr', { state: 'visible' });
 });
 
+Given('I am on the screener page', async ({ page }) => {
+  // Capture every /api/screener request so later steps can assert on the
+  // exact URL the form submits (used by the shorthand-parsing scenario).
+  page.__screenerRequests = [];
+  page.on('request', (req) => {
+    if (req.url().includes('/api/screener')) {
+      page.__screenerRequests.push(req.url());
+    }
+  });
+  await page.goto('/screener');
+  await page.waitForSelector('#screener-form');
+  // <details> elements are closed by default; give them a tick to settle.
+  await page.waitForTimeout(150);
+});
+
 Given('I am on the security page for {string}', async ({ page }, sym) => {
   await page.goto('/security/' + sym);
   await page.waitForSelector('#info-tabs .info-tab.active');

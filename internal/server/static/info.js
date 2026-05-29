@@ -886,7 +886,7 @@
 
                 html += '<div class="sector-section-title">Peer Comparison</div>';
                 html += '<table class="fin-table peer-table" id="peer-table"><thead><tr>';
-                html += '<th>Security</th><th>Company</th><th>Price</th><th>Market Cap</th><th>1M</th>';
+                html += '<th>Security</th><th>Company</th><th>Price</th><th>Market Cap</th><th>1m</th>';
                 html += '</tr></thead><tbody>';
 
                 // Current company
@@ -910,7 +910,7 @@
             }
 
             // Performance chart
-            html += '<div class="sector-section-title">6M Performance Comparison</div>';
+            html += '<div class="sector-section-title">6m Performance Comparison</div>';
             html += '<div id="sector-perf-chart" class="sector-perf-chart"></div>';
 
             // Sector news

@@ -4,20 +4,28 @@
     <aside class="screener-filters">
         <div class="screener-filters-header">Filters</div>
         <form id="screener-form" class="screener-form">
-            <div class="screener-group">
-                <h4>Fundamentals</h4>
-                <label>Market cap ≥<input type="number" name="marketCapMoreThan" step="any" placeholder="e.g. 1000000000"></label>
-                <label>Market cap ≤<input type="number" name="marketCapLowerThan" step="any"></label>
-                <label>Price ≥<input type="number" name="priceMoreThan" step="any"></label>
-                <label>Price ≤<input type="number" name="priceLowerThan" step="any"></label>
-                <label>Beta ≥<input type="number" name="betaMoreThan" step="any"></label>
-                <label>Beta ≤<input type="number" name="betaLowerThan" step="any"></label>
-                <label>Volume ≥<input type="number" name="volumeMoreThan" step="any"></label>
-                <label>Dividend ≥<input type="number" name="dividendMoreThan" step="any"></label>
-            </div>
+            <details class="screener-group">
+                <summary>Fundamentals</summary>
+                <div class="screener-presets" id="marketcap-presets">
+                    <span class="screener-presets-label">Cap presets</span>
+                    <button type="button" class="screener-preset" data-min="0" data-max="50000000">penny</button>
+                    <button type="button" class="screener-preset" data-min="50000000" data-max="2000000000">small</button>
+                    <button type="button" class="screener-preset" data-min="2000000000" data-max="10000000000">mid</button>
+                    <button type="button" class="screener-preset" data-min="10000000000" data-max="200000000000">large</button>
+                    <button type="button" class="screener-preset" data-min="200000000000" data-max="">mega</button>
+                </div>
+                <label>Market cap ≥<input type="text" name="marketCapMoreThan" placeholder="e.g. 1bn or 1000000000" autocomplete="off"><small class="filter-help">Total share value. Accepts shorthand like 1bn / 250m. Big-cap usually means ≥ $10bn.</small></label>
+                <label>Market cap ≤<input type="text" name="marketCapLowerThan" placeholder="e.g. 200bn" autocomplete="off"><small class="filter-help">Caps the upper end. Use with the lower bound to box a size band.</small></label>
+                <label>Price ≥<input type="number" name="priceMoreThan" step="any"><small class="filter-help">Current share price in USD.</small></label>
+                <label>Price ≤<input type="number" name="priceLowerThan" step="any"><small class="filter-help">Exclude high-priced names — useful when scanning for round-lot affordability.</small></label>
+                <label>Beta ≥<input type="number" name="betaMoreThan" step="any"><small class="filter-help">Sensitivity to market moves. β=1 tracks the market; &gt;1 amplifies; &lt;0 inverse.</small></label>
+                <label>Beta ≤<input type="number" name="betaLowerThan" step="any"><small class="filter-help">Cap the upper end to filter out high-volatility names.</small></label>
+                <label>Volume ≥<input type="number" name="volumeMoreThan" step="any"><small class="filter-help">Minimum daily share volume. Liquidity floor.</small></label>
+                <label>Dividend ≥<input type="number" name="dividendMoreThan" step="any"><small class="filter-help">Annual dividend per share, in USD.</small></label>
+            </details>
 
-            <div class="screener-group">
-                <h4>Sector / Exchange</h4>
+            <details class="screener-group">
+                <summary>Sector / Exchange</summary>
                 <label>Sector
                     <select name="sector">
                         <option value="">(any)</option>
@@ -33,29 +41,31 @@
                         <option>Utilities</option>
                         <option>Real Estate</option>
                     </select>
+                    <small class="filter-help">Economic sector classification (GICS-style).</small>
                 </label>
-                <label>Country<input type="text" name="country" placeholder="e.g. US" maxlength="2"></label>
-                <label>Exchange<input type="text" name="exchange" placeholder="e.g. NASDAQ"></label>
+                <label>Country<input type="text" name="country" placeholder="e.g. US" maxlength="2"><small class="filter-help">2-letter ISO country code (US, GB, JP…).</small></label>
+                <label>Exchange<input type="text" name="exchange" placeholder="e.g. NASDAQ"><small class="filter-help">Exchange code (NASDAQ, NYSE, LSE…).</small></label>
                 <label class="screener-checkbox">
                     <input type="checkbox" name="isActivelyTrading" value="true" checked>
                     Actively trading only
+                    <small class="filter-help">Exclude delisted, suspended, or otherwise inactive tickers.</small>
                 </label>
-            </div>
+            </details>
 
-            <div class="screener-group">
-                <h4>Intraday change</h4>
-                <label>Δ from open ≥ %<input type="number" name="changeFromOpenMin" step="any" placeholder="e.g. 2"></label>
-                <label>Δ from open ≤ %<input type="number" name="changeFromOpenMax" step="any"></label>
-                <label>Δ from prev close ≥ %<input type="number" name="changeFromPrevDayMin" step="any"></label>
-                <label>Δ from prev close ≤ %<input type="number" name="changeFromPrevDayMax" step="any"></label>
-                <label>Δ vs market (SPY) ≥ pp<input type="number" name="changeVsMarketMin" step="any" placeholder="e.g. 1"></label>
-                <label>Δ vs market (SPY) ≤ pp<input type="number" name="changeVsMarketMax" step="any"></label>
-            </div>
+            <details class="screener-group">
+                <summary>Intraday change</summary>
+                <label>Δ from open ≥ %<input type="number" name="changeFromOpenMin" step="any" placeholder="e.g. 2"><small class="filter-help">Percent move since today's open. Catches breakouts.</small></label>
+                <label>Δ from open ≤ %<input type="number" name="changeFromOpenMax" step="any"><small class="filter-help">Caps the upper move so you can find names lagging the open.</small></label>
+                <label>Δ from prev close ≥ %<input type="number" name="changeFromPrevDayMin" step="any"><small class="filter-help">Percent move vs yesterday's close. The headline "day change" number.</small></label>
+                <label>Δ from prev close ≤ %<input type="number" name="changeFromPrevDayMax" step="any"><small class="filter-help">Cap the upper bound — useful for finding sleepers.</small></label>
+                <label>Δ vs market (SPY) ≥ pp<input type="number" name="changeVsMarketMin" step="any" placeholder="e.g. 1"><small class="filter-help">Percentage points the name is above SPY's day move. Relative strength.</small></label>
+                <label>Δ vs market (SPY) ≤ pp<input type="number" name="changeVsMarketMax" step="any"><small class="filter-help">Cap relative strength upper bound.</small></label>
+            </details>
 
-            <div class="screener-group">
-                <h4>Output</h4>
-                <label>Show top<input type="number" name="displayLimit" step="1" min="1" max="250" value="50"></label>
-            </div>
+            <details class="screener-group">
+                <summary>Output</summary>
+                <label>Show top<input type="number" name="displayLimit" step="1" min="1" max="250" value="50"><small class="filter-help">Max rows in the result table. 1–250.</small></label>
+            </details>
 
             <div class="screener-actions">
                 <button type="submit" id="screener-run">Run Screen</button>

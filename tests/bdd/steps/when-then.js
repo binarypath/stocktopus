@@ -113,6 +113,90 @@ When('I switch to the previous watchlist tab', async ({ page }) => {
   await page.waitForTimeout(300);
 });
 
+Then('the highlighted row has a data-symbol', async ({ page }) => {
+  // Regression net for the phantom-row bug: legacy getItems() on
+  // /watchlist used '#quote-body tr' which matched lightweight-charts'
+  // nested layout <tr>s inside each sparkline host. j/k then walked
+  // 'through invisible tree' between visible quote rows.
+  const sym = await page.evaluate(() => {
+    const sel = document.querySelector('.vim-selected');
+    return sel ? sel.querySelector('[data-symbol]')?.dataset.symbol || null : null;
+  });
+  expect(sym, 'highlighted row should carry a data-symbol').toBeTruthy();
+});
+
+When('the page receives a background DOM update', async ({ page }) => {
+  // Simulate the kind of mutation that normally happens on this page —
+  // the vim-mode footer text changes on focus/blur, the poller swaps a
+  // quote cell, etc. The fix under test scopes vim-nav.js's
+  // clearSelection so these mutations don't strip selection from a row
+  // managed by a legacy per-view handler.
+  await page.evaluate(() => {
+    const el = document.getElementById('vim-mode') || document.body;
+    const original = el.textContent;
+    el.textContent = original + ' ';
+    el.textContent = original;
+  });
+  // The MutationObserver in vim-nav.js debounces by 50ms; wait long
+  // enough for the reset to fire (or, with the fix, to no-op).
+  await page.waitForTimeout(200);
+});
+
+// ── Screener UX assertions ──
+
+Then('every filter group is collapsed', async ({ page }) => {
+  const groups = page.locator('details.screener-group');
+  const count = await groups.count();
+  expect(count, 'expected at least one filter group').toBeGreaterThan(0);
+  for (let i = 0; i < count; i++) {
+    const open = await groups.nth(i).getAttribute('open');
+    expect(open, `group ${i} should be closed by default`).toBeNull();
+  }
+});
+
+When('I open the {string} filter group', async ({ page }, name) => {
+  await page.locator('details.screener-group', { has: page.locator('summary', { hasText: name }) })
+    .locator('summary').click();
+  await page.waitForTimeout(120);
+});
+
+When('I click the {string} market cap preset', async ({ page }, label) => {
+  await page.locator('#marketcap-presets .screener-preset', { hasText: label }).click();
+});
+
+Then('the market cap minimum input contains {string}', async ({ page }, value) => {
+  await expect(page.locator('input[name="marketCapMoreThan"]')).toHaveValue(value);
+});
+
+Then('the market cap maximum input contains {string}', async ({ page }, value) => {
+  await expect(page.locator('input[name="marketCapLowerThan"]')).toHaveValue(value);
+});
+
+When('I type {string} into the market cap minimum input', async ({ page }, text) => {
+  const input = page.locator('input[name="marketCapMoreThan"]');
+  await input.fill(text);
+});
+
+When('I run the screen', async ({ page }) => {
+  await page.locator('#screener-run').click();
+  await page.waitForTimeout(400);
+});
+
+Then('the screener request used {string}', async ({ page }, expected) => {
+  const requests = page.__screenerRequests || [];
+  expect(requests.length, 'no screener requests recorded').toBeGreaterThan(0);
+  const last = requests[requests.length - 1];
+  expect(last).toContain(expected);
+});
+
+Then('no filter help text is visible', async ({ page }) => {
+  await expect(page.locator('.filter-help').first()).not.toBeVisible();
+});
+
+Then('filter help text is visible', async ({ page }) => {
+  await expect(page.locator('.filter-help').first()).toBeVisible({ timeout: 2000 });
+});
+
 Then("the first watchlist row's sparkline canvas is the host's width",
   async ({ page }) => {
     // Regression net for the display:none → 0x0 canvas bug. The canvas
