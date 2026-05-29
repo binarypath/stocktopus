@@ -1435,7 +1435,19 @@ window.onerror = function (msg, src, line, col, err) {
                     var colonCmd = raw.substring(1);
                     var colonLower = colonCmd.toLowerCase();
 
-                    // Chart range: :1, :5, :15, :30, :1h, :4h, :1w, :1m, :3m, :6m
+                    // Ideas sketchpad: :1d / :1w / :1m / :6m / :all narrow
+                    // the chart's visible window. Match the main chart
+                    // page's vocabulary so muscle memory ports over.
+                    if (currentView === 'ideas' && window._ideasSetRange) {
+                        if (window._ideasSetRange(colonLower)) {
+                            input.value = '';
+                            enterNormalMode();
+                            return;
+                        }
+                    }
+
+                    // Main /stock chart range: :1, :5, :15, :30, :1h, :4h,
+                    // :1w, :1m, :3m, :6m
                     var rangeMap = {
                         '1': '1m', '5': '5m', '15': '15m', '30': '30m',
                         '1h': '1h', '4h': '4h',
@@ -1512,7 +1524,17 @@ window.onerror = function (msg, src, line, col, err) {
                         return;
                     }
 
-                    // :save <name> — name + persist the current sketch
+                    // :w <name> — vim-style write: name + persist the current
+                    // sketch. The older :save spelling is still accepted as
+                    // an alias so existing muscle memory keeps working.
+                    if (colonLower === 'w' || colonLower.startsWith('w ')) {
+                        var saveName = colonCmd.substring(1).trim();
+                        input.value = '';
+                        hideCmdDropdown();
+                        enterNormalMode();
+                        if (window._ideasSave) window._ideasSave(saveName);
+                        return;
+                    }
                     if (colonLower === 'save' || colonLower.startsWith('save ')) {
                         var saveName = colonCmd.substring(4).trim();
                         input.value = '';
@@ -2283,10 +2305,15 @@ window.onerror = function (msg, src, line, col, err) {
         },
         watchlist: {
             getItems: function () {
-                // Only visible rows (filtered by active watchlist)
-                var all = document.querySelectorAll('#quote-body tr');
-                return Array.from(all).filter(function (row) {
-                    return row.style.display !== 'none';
+                // Only the tbody's direct <tr> children — lightweight-charts
+                // builds its own nested <table><tr><td> layout inside each
+                // sparkline host, and a broad '#quote-body tr' selector would
+                // include those phantoms in the nav list, so j/k would walk
+                // 'through invisible tree' between visible quote rows.
+                var tbody = document.getElementById('quote-body');
+                if (!tbody) return [];
+                return Array.from(tbody.children).filter(function (row) {
+                    return row.tagName === 'TR' && row.style.display !== 'none';
                 });
             },
             move: function (dir) {
@@ -2710,9 +2737,24 @@ window.onerror = function (msg, src, line, col, err) {
             _filterIdx: 0,
             _resultIdx: 0,
             getFilters: function () {
-                return Array.from(document.querySelectorAll(
-                    '#screener-form input:not([type=hidden]), #screener-form select, #screener-form button'
-                ));
+                // Summaries are nav targets (Enter on one toggles the
+                // section). Inputs inside a closed <details> are skipped so
+                // j/k doesn't walk invisible controls — same family of bug
+                // as the watchlist phantom-row issue, just with collapse.
+                var all = document.querySelectorAll(
+                    '#screener-form summary, ' +
+                    '#screener-form input:not([type=hidden]), ' +
+                    '#screener-form select, ' +
+                    '#screener-form button'
+                );
+                return Array.from(all).filter(function (el) {
+                    var details = el.closest('details');
+                    if (!details) return true;
+                    // <summary> itself is always navigable; everything
+                    // else hides when the details is collapsed.
+                    if (el.tagName === 'SUMMARY') return true;
+                    return details.open;
+                });
             },
             getResults: function () {
                 return Array.from(document.querySelectorAll('#screener-table tbody tr'))
@@ -2763,7 +2805,8 @@ window.onerror = function (msg, src, line, col, err) {
                     var items = this.getFilters();
                     var el = items[this._filterIdx];
                     if (!el) return;
-                    if (el.tagName === 'BUTTON') {
+                    if (el.tagName === 'BUTTON' || el.tagName === 'SUMMARY') {
+                        // Buttons fire, summaries toggle the details open.
                         el.click();
                     } else {
                         // Focus the input — user is now in insert mode editing
@@ -2784,10 +2827,38 @@ window.onerror = function (msg, src, line, col, err) {
                 var btn = document.getElementById('screener-run');
                 if (btn) btn.click();
             },
+            toggleHelp: function () {
+                // '?' shows / hides one-line help under every filter input.
+                var form = document.getElementById('screener-form');
+                if (form) form.classList.toggle('help-on');
+            },
+            openPreview: function () {
+                // 'p' on a selected result row opens the shared price-preview
+                // slide-in (1y EOD chart + mini company panel) — same UX as
+                // /watchlist and sector peers. No-op when focus is on filters
+                // or when no row is selected.
+                if (this._focus !== 'results') return false;
+                var rows = this.getResults();
+                var row = rows[this._resultIdx];
+                if (!row) return false;
+                var link = row.querySelector('a[href]');
+                if (!link) return false;
+                var href = link.getAttribute('href') || '';
+                var sym = href.replace(/^\/security\//, '').toUpperCase();
+                if (!sym) return false;
+                openPricePreview(sym);
+                return true;
+            },
             _applyFocus: function () {
                 document.querySelectorAll('.vim-selected').forEach(function (e) {
                     e.classList.remove('vim-selected');
                 });
+                // Toggle the active-pane bounding box on the filters /
+                // results column so the user sees which side j/k is in.
+                var filtersPane = document.querySelector('.screener-filters');
+                var resultsPane = document.querySelector('.screener-results');
+                if (filtersPane) filtersPane.classList.toggle('pane-focused', this._focus === 'filters');
+                if (resultsPane) resultsPane.classList.toggle('pane-focused', this._focus === 'results');
                 var el;
                 if (this._focus === 'filters') {
                     el = this.getFilters()[this._filterIdx];
@@ -3039,6 +3110,10 @@ window.onerror = function (msg, src, line, col, err) {
                 // highlighted symbol. Cut/paste 'p' moved to capital 'P' so
                 // 'p' = preview is consistent across listings.
                 if (currentView === 'watchlist' && handler && handler.openPreview) {
+                    if (handler.openPreview()) { e.preventDefault(); return; }
+                }
+                // Screener: preview the selected result row's symbol.
+                if (currentView === 'screener' && handler && handler.openPreview) {
                     if (handler.openPreview()) { e.preventDefault(); return; }
                 }
                 // Sector peers: preview the highlighted peer's price chart.

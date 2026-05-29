@@ -72,7 +72,16 @@
     }
 
     function clearSelection() {
-        document.querySelectorAll('.' + SELECTED_CLASS).forEach(function (el) {
+        // Only clear .vim-selected from elements VimNav itself painted —
+        // i.e. nodes inside a [data-vim-row] container, or row elements
+        // themselves. Legacy per-view handlers (watchlist, screener, news
+        // cards) set .vim-selected on plain rows that don't carry a
+        // [data-vim-row] attribute; a blanket document-wide sweep would
+        // wipe those every time the MutationObserver fires reset (mode
+        // indicator updates, WS quote ticks, etc.), and the highlight
+        // would seem to fade after a second or two.
+        var sel = '[data-vim-row].' + SELECTED_CLASS + ', [data-vim-row] .' + SELECTED_CLASS;
+        document.querySelectorAll(sel).forEach(function (el) {
             el.classList.remove(SELECTED_CLASS);
         });
     }

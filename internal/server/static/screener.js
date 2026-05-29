@@ -15,6 +15,50 @@
         await runScreen();
     });
 
+    // Market-cap shorthand parser. Accepts 1bn / 1b / 250m / 50k /
+    // 1.5bn / plain numbers. Returns a numeric string (or empty for
+    // unparseable input, so the server's existing validation fails
+    // loudly rather than silently coercing junk).
+    function parseShortAmount(raw) {
+        const s = String(raw || '').trim().toLowerCase().replace(/[,_$]/g, '');
+        if (!s) return '';
+        const m = s.match(/^(\d+(?:\.\d+)?)\s*(bn|b|mn|m|k)?$/);
+        if (!m) return s; // pass through unchanged
+        const n = parseFloat(m[1]);
+        switch (m[2]) {
+            case 'bn': case 'b': return String(n * 1e9);
+            case 'mn': case 'm': return String(n * 1e6);
+            case 'k': return String(n * 1e3);
+            default: return String(n);
+        }
+    }
+
+    function toShortAmount(n) {
+        const v = Number(n);
+        if (!isFinite(v) || v === 0) return '';
+        if (v >= 1e9) return (v / 1e9) + 'bn';
+        if (v >= 1e6) return (v / 1e6) + 'm';
+        if (v >= 1e3) return (v / 1e3) + 'k';
+        return String(v);
+    }
+
+    // Wire market-cap preset buttons (penny / small / mid / large / mega).
+    document.querySelectorAll('#marketcap-presets .screener-preset').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const min = btn.dataset.min;
+            const max = btn.dataset.max;
+            const minIn = form.elements['marketCapMoreThan'];
+            const maxIn = form.elements['marketCapLowerThan'];
+            if (minIn) minIn.value = min ? toShortAmount(min) : '';
+            if (maxIn) maxIn.value = max ? toShortAmount(max) : '';
+            // Reflect which preset is active so the user can see what
+            // they clicked. Clicking again deselects nothing; pick a
+            // different preset to switch.
+            document.querySelectorAll('#marketcap-presets .screener-preset').forEach((b) => b.classList.remove('active'));
+            btn.classList.add('active');
+        });
+    });
+
     $('screener-reset').addEventListener('click', () => {
         form.reset();
         tbody.innerHTML = '<tr><td colspan="10" class="empty-state">Filters reset. Press <kbd>Run Screen</kbd>.</td></tr>';
@@ -26,7 +70,13 @@
         const params = new URLSearchParams();
         const fd = new FormData(form);
         for (const [k, v] of fd.entries()) {
-            const trimmed = String(v).trim();
+            let trimmed = String(v).trim();
+            if (trimmed === '') continue;
+            // Market-cap fields accept shorthand (1bn, 250m, …); convert
+            // to plain numeric before hitting the API.
+            if (k === 'marketCapMoreThan' || k === 'marketCapLowerThan') {
+                trimmed = parseShortAmount(trimmed);
+            }
             if (trimmed !== '') params.set(k, trimmed);
         }
 
@@ -61,7 +111,7 @@
         }
         const rows = sortKey ? [...lastResults].sort(byKey(sortKey, sortDir)) : lastResults;
         tbody.innerHTML = rows.map((r) => {
-            const sign = (n) => n > 0 ? 'paper-pnl-pos' : (n < 0 ? 'paper-pnl-neg' : '');
+            const sign = (n) => n > 0 ? 'price-up' : (n < 0 ? 'price-down' : '');
             const pct = (n) => (n >= 0 ? '+' : '') + n.toFixed(2);
             return `<tr>
                 <td><a href="/security/${encodeURIComponent(r.symbol)}">${escape(r.symbol)}</a></td>

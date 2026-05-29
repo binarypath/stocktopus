@@ -193,7 +193,9 @@
                 +    '</div>'
                 +    '<div class="ideas-info-quote">'
                 +      '<span class="ideas-info-price">' + fmtPrice(p.price) + '</span>'
+                +      '<span class="ideas-info-tag">:live:</span>'
                 +      '<span class="ideas-info-pct ' + pctClass + '">' + pctStr + '</span>'
+                +      '<span class="ideas-info-tag">:1d:</span>'
                 +    '</div>'
                 +    '<div class="ideas-info-stats">'
                 +      '<span><label>Open</label>' + fmtPrice(p.open) + '</span>'
@@ -325,6 +327,29 @@
         seriesByID = {};
     }
 
+    var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    function dateTickFormatter(time, tickType) {
+        // Render month/day context on the time axis so a reader can tell at
+        // a glance which range they're looking at. Accepts every shape
+        // lightweight-charts hands the formatter (BusinessDay object,
+        // unix-seconds number, ISO string).
+        var d;
+        if (time && typeof time === 'object' && time.year != null) {
+            d = new Date(Date.UTC(time.year, time.month - 1, time.day));
+        } else if (typeof time === 'number') {
+            d = new Date(time * 1000);
+        } else if (typeof time === 'string') {
+            d = new Date(time + 'T00:00:00Z');
+        } else {
+            return '';
+        }
+        if (isNaN(d.getTime())) return '';
+        var T = (window.LightweightCharts && LightweightCharts.TickMarkType) || {};
+        if (tickType === T.Year) return String(d.getUTCFullYear());
+        if (tickType === T.Month) return MONTHS[d.getUTCMonth()] + " '" + String(d.getUTCFullYear()).slice(2);
+        return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate();
+    }
+
     function ensureChart() {
         if (chart) return chart;
         if (!window.LightweightCharts || !hostEl) return null;
@@ -333,7 +358,13 @@
             grid: { vertLines: { color: '#1a1a1a' }, horzLines: { color: '#1a1a1a' } },
             crosshair: { mode: LightweightCharts.CrosshairMode.Magnet, vertLine: { color: '#555', style: 2 }, horzLine: { color: '#555', style: 2 } },
             rightPriceScale: { borderColor: '#2a2a2a' },
-            timeScale: { borderColor: '#2a2a2a', timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
+            timeScale: {
+                borderColor: '#2a2a2a',
+                timeVisible: true,
+                fixLeftEdge: true,
+                fixRightEdge: true,
+                tickMarkFormatter: dateTickFormatter,
+            },
         });
         return chart;
     }
@@ -401,6 +432,34 @@
 
         renderLegend();
     }
+
+    // ── Chart timeframe commands (:1d / :1w / :1m / :6m) ──
+    //
+    // Mirror the main /stock chart page's range vocabulary. On the Ideas
+    // sketchpad these don't re-fetch — they just narrow the visible
+    // window on the time scale, since every metric already has its full
+    // history loaded. Falls back to fitContent if any series doesn't
+    // have data in the requested window.
+    var RANGE_DAYS = { '1d': 1, '1w': 7, '1m': 30, '6m': 180, 'all': 0 };
+    window._ideasSetRange = function (range) {
+        if (!chart) return false;
+        var days = RANGE_DAYS[range];
+        if (days == null) return false;
+        if (days === 0) {
+            chart.timeScale().fitContent();
+            return true;
+        }
+        var to = new Date();
+        var from = new Date();
+        from.setUTCDate(from.getUTCDate() - days);
+        var iso = function (d) { return d.toISOString().slice(0, 10); };
+        try {
+            chart.timeScale().setVisibleRange({ from: iso(from), to: iso(to) });
+        } catch (e) {
+            chart.timeScale().fitContent();
+        }
+        return true;
+    };
 
     // Drop a horizontal price line at the last crosshair value (or midpoint if
     // the user hasn't hovered the chart yet). Press 'h' again to add another.

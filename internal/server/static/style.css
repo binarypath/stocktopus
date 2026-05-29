@@ -3001,11 +3001,17 @@ li.kp-row::before {
     .info-overview-top { grid-template-columns: 1fr; }
 }
 
-/* Ideas — three-pane vim navigation */
-
+/* Active-pane bounding box for multi-column layouts.
+   Used on Ideas (sidebar | main) and Screener (filters | results).
+   The shape emphasises the top edge (the bar over the column the user
+   is currently navigating with j/k) while keeping the side dividers
+   thin — reads as "this is the active column" without taking visual
+   weight from the data inside. */
 .ideas-sidebar.pane-focused,
-.ideas-main.pane-focused {
-    box-shadow: inset 0 0 0 1px var(--orange);
+.ideas-main.pane-focused,
+.screener-filters.pane-focused,
+.screener-results.pane-focused {
+    box-shadow: 0px -2px 0 1px var(--orange);
 }
 
 .ideas-help {
@@ -3702,6 +3708,96 @@ a, [tabindex] {
     padding-bottom: 3px;
 }
 
+/* Collapsible filter sections. <details> sections start closed; the
+   <summary> is the title row + click-target. j/k on the screener
+   sidebar can park on a summary; Enter toggles its open state. The
+   ::-webkit-details-marker selector hides the native disclosure
+   triangle so we own the visual. */
+details.screener-group {
+    border-bottom: 1px solid var(--bg-tertiary);
+    padding: 4px 0;
+}
+details.screener-group > summary {
+    margin: 0;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--orange);
+    padding: 3px 0;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+details.screener-group > summary::-webkit-details-marker { display: none; }
+details.screener-group > summary::before {
+    content: '▸ ';
+    display: inline-block;
+    width: 12px;
+    color: var(--text-tertiary, #666);
+    transition: transform 0.1s ease;
+}
+details.screener-group[open] > summary::before {
+    content: '▾ ';
+}
+details.screener-group > summary.vim-selected {
+    background: var(--bg-tertiary);
+}
+
+/* Per-filter contextual help. Hidden by default; '?' on the screener
+   page toggles .help-on on the form to reveal all the tips at once.
+   Reuses the existing .help-tip yellow accent for visual parity. */
+.screener-form .filter-help {
+    display: none;
+    font-size: 10px;
+    color: var(--yellow);
+    line-height: 1.4;
+    margin-top: 2px;
+    font-style: italic;
+    letter-spacing: 0;
+    text-transform: none;
+}
+.screener-form.help-on .filter-help {
+    display: block;
+}
+
+/* Market-cap preset chips. One click fills both market-cap inputs with
+   the bucket's range (expressed as shorthand — '1bn', '200bn'). The
+   user can still type a custom value in the inputs themselves; the
+   parser on submit accepts shorthand too. */
+.screener-presets {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin: 0 0 6px;
+}
+.screener-presets-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-tertiary, #666);
+    margin-right: 2px;
+}
+.screener-preset {
+    font-size: 10px;
+    padding: 2px 6px;
+    border: 1px solid var(--border, #333);
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 2px;
+    cursor: pointer;
+    text-transform: lowercase;
+}
+.screener-preset:hover {
+    border-color: var(--orange);
+    color: var(--orange);
+}
+.screener-preset.active {
+    border-color: var(--orange);
+    background: var(--bg-tertiary);
+    color: var(--orange);
+}
+
 .screener-group label {
     display: flex;
     flex-direction: column;
@@ -3962,6 +4058,17 @@ a, [tabindex] {
 
 .ideas-info-pct.price-up { color: var(--green); }
 .ideas-info-pct.price-down { color: var(--red); }
+
+/* Subtle :live: / :1d: micro-tags on the Ideas quote line. They sit
+   adjacent to the value they qualify (price :live:, percent :1d:) and
+   read as secondary metadata, never overpowering the numbers. */
+.ideas-info-tag {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-tertiary, #666);
+    letter-spacing: 0.02em;
+    margin-left: -4px;
+}
 
 .ideas-info-stats {
     display: grid;
