@@ -195,8 +195,12 @@
     if (tabs) {
         tabs.querySelectorAll('.info-tab').forEach(function (tab) {
             tab.onclick = function () {
-                tabs.querySelectorAll('.info-tab').forEach(function (t) { t.classList.remove('active'); });
-                tab.classList.add('active');
+                tabs.querySelectorAll('.info-tab').forEach(function (t) {
+                    // Dual-write both legacy and design-system active classes
+                    // so consumers can pick either selector during migration.
+                    t.classList.remove('active', 'st-tab--active');
+                });
+                tab.classList.add('active', 'st-tab--active');
                 loadTab(tab.dataset.tab);
             };
         });
@@ -423,18 +427,20 @@
 
     function loadFinancials(type) {
         // Sub-tab bar with keycap badges
-        var subHtml = '<div class="info-sub-tabs" id="fin-sub-tabs" data-vim-row>';
+        var subHtml = '<div class="info-sub-tabs st-tab-row st-tab-row--blue" id="fin-sub-tabs" data-vim-row>';
         finSubTypes.forEach(function (t, i) {
-            var active = t.key === type ? ' active' : '';
-            subHtml += '<button class="info-sub-tab' + active + '" data-ftype="' + t.key + '" data-vim-item><span class="tab-key">' + t.hotkey + '</span> ' + t.label + '</button>';
+            var active = t.key === type ? ' active st-tab--active' : '';
+            subHtml += '<button class="info-sub-tab st-tab' + active + '" data-ftype="' + t.key + '" data-vim-item><span class="tab-key">' + t.hotkey + '</span> ' + t.label + '</button>';
         });
         subHtml += '</div><div id="fin-table-container"><p class="empty-state">Loading...</p></div>';
         container.innerHTML = subHtml;
 
         container.querySelectorAll('.info-sub-tab').forEach(function (btn) {
             btn.onclick = function () {
-                container.querySelectorAll('.info-sub-tab').forEach(function (b) { b.classList.remove('active'); });
-                btn.classList.add('active');
+                container.querySelectorAll('.info-sub-tab').forEach(function (b) {
+                    b.classList.remove('active', 'st-tab--active');
+                });
+                btn.classList.add('active', 'st-tab--active');
                 history.replaceState(history.state, '', location.pathname + '#financials-' + btn.dataset.ftype);
                 loadFinancialTable(btn.dataset.ftype);
             };
@@ -777,10 +783,10 @@
     var newsCurrent = 'press-releases'; // remembered across re-entries
 
     function loadNews() {
-        var subHtml = '<div class="info-sub-tabs" id="news-sub-tabs" data-vim-row>';
+        var subHtml = '<div class="info-sub-tabs st-tab-row st-tab-row--blue" id="news-sub-tabs" data-vim-row>';
         NEWS_CATS.forEach(function (c) {
-            var active = c.key === newsCurrent ? ' active' : '';
-            subHtml += '<button class="info-sub-tab' + active + '" data-cat="' + c.key + '" data-vim-item>'
+            var active = c.key === newsCurrent ? ' active st-tab--active' : '';
+            subHtml += '<button class="info-sub-tab st-tab' + active + '" data-cat="' + c.key + '" data-vim-item>'
                 + c.label + '</button>';
         });
         subHtml += '</div><div id="news-cards-host" class="news-cards-host"></div>';
@@ -788,8 +794,10 @@
 
         container.querySelectorAll('#news-sub-tabs .info-sub-tab').forEach(function (btn) {
             btn.onclick = function () {
-                container.querySelectorAll('#news-sub-tabs .info-sub-tab').forEach(function (b) { b.classList.remove('active'); });
-                btn.classList.add('active');
+                container.querySelectorAll('#news-sub-tabs .info-sub-tab').forEach(function (b) {
+                    b.classList.remove('active', 'st-tab--active');
+                });
+                btn.classList.add('active', 'st-tab--active');
                 newsCurrent = btn.dataset.cat;
                 loadNewsCategory(newsCurrent);
             };
@@ -884,14 +892,14 @@
             if (peers.length > 0) {
                 peers.sort(function (a, b) { return (b.mktCap || b.marketCap || 0) - (a.mktCap || a.marketCap || 0); });
 
-                html += '<div class="sector-section-title">Peer Comparison</div>';
-                html += '<table class="fin-table peer-table" id="peer-table"><thead><tr>';
+                html += '<div class="sector-section-title st-section-title">Peer Comparison</div>';
+                html += '<table class="fin-table peer-table st-table" id="peer-table"><thead><tr>';
                 html += '<th>Security</th><th>Company</th><th>Price</th><th>Market Cap</th><th>1m</th>';
                 html += '</tr></thead><tbody>';
 
                 // Current company
                 html += '<tr class="peer-row peer-current" data-symbol="' + esc(symbol) + '" data-vim-row data-vim-action="navigate" data-vim-href="/security/' + encodeURIComponent(symbol) + '">'
-                    + '<td><span class="sym-link">' + esc(symbol) + '</span></td>'
+                    + '<td><span class="sym-link st-link-sym">' + esc(symbol) + '</span></td>'
                     + '<td>' + esc(profile.companyName || '') + '</td>'
                     + '<td>' + (profile.price ? profile.price.toFixed(2) : '—') + '</td>'
                     + '<td>' + fmt(profile.marketCap) + '</td>'
@@ -900,7 +908,7 @@
                 peers.forEach(function (p) {
                     var cap = p.mktCap || p.marketCap || 0;
                     html += '<tr class="peer-row" data-symbol="' + esc(p.symbol) + '" data-vim-row data-vim-action="navigate" data-vim-href="/security/' + encodeURIComponent(p.symbol) + '">'
-                        + '<td><span class="sym-link">' + esc(p.symbol) + '</span></td>'
+                        + '<td><span class="sym-link st-link-sym">' + esc(p.symbol) + '</span></td>'
                         + '<td>' + esc(p.companyName || '') + '</td>'
                         + '<td>' + (p.price ? p.price.toFixed(2) : '—') + '</td>'
                         + '<td>' + fmt(cap) + '</td>'
@@ -1088,15 +1096,15 @@
             var html = '<div class="sec-view">';
 
             // Sub-tab row: category filters + Key People view switcher
-            html += '<div class="info-sub-tabs" id="sec-filters" data-vim-row>';
+            html += '<div class="info-sub-tabs st-tab-row st-tab-row--blue" id="sec-filters" data-vim-row>';
             categories.forEach(function (cat) {
-                var active = (secView === 'filings' && secFilter === cat.key) ? ' active' : '';
-                html += '<button class="info-sub-tab' + active + '" data-cat="' + cat.key + '" data-view="filings" data-vim-item>' + cat.label + '</button>';
+                var active = (secView === 'filings' && secFilter === cat.key) ? ' active st-tab--active' : '';
+                html += '<button class="info-sub-tab st-tab' + active + '" data-cat="' + cat.key + '" data-view="filings" data-vim-item>' + cat.label + '</button>';
             });
             // Visual separator + Key People view switcher
             html += '<span class="sec-tab-sep" aria-hidden="true">|</span>';
-            var peopleActive = secView === 'people' ? ' active' : '';
-            html += '<button class="info-sub-tab' + peopleActive + '" data-view="people" data-vim-item>Key People</button>';
+            var peopleActive = secView === 'people' ? ' active st-tab--active' : '';
+            html += '<button class="info-sub-tab st-tab' + peopleActive + '" data-view="people" data-vim-item>Key People</button>';
             html += '</div>';
 
             if (secView === 'filings') {

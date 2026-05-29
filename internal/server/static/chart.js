@@ -431,7 +431,14 @@
     // ── Range Buttons ──
     function setActiveRangeBtn(range) {
         var bar = document.getElementById('chart-range-bar');
-        if (bar) bar.querySelectorAll('.chart-range-btn').forEach(function (b) { b.classList.toggle('active', b.dataset.range === range); });
+        if (!bar) return;
+        bar.querySelectorAll('.chart-range-btn').forEach(function (b) {
+            var on = b.dataset.range === range;
+            // Dual-write legacy + design-system active class so the
+            // pill rule and the legacy rule stay aligned during migration.
+            b.classList.toggle('active', on);
+            b.classList.toggle('st-tab--active', on);
+        });
     }
     var rangeBar = document.getElementById('chart-range-bar');
     if (rangeBar) rangeBar.querySelectorAll('.chart-range-btn').forEach(function (btn) { btn.onclick = function () { setRange(btn.dataset.range); }; });

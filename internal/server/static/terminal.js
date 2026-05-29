@@ -3622,7 +3622,7 @@ window.onerror = function (msg, src, line, col, err) {
         var el = document.getElementById(containerId);
         if (!el || !symbol) return;
 
-        el.innerHTML = '<span class="cpanel-sym">' + symbol + '</span>'
+        el.innerHTML = '<span class="cpanel-sym st-link-sym">' + symbol + '</span>'
             + '<span id="cpanel-name" class="cpanel-name"></span>'
             + '<span id="cpanel-price" class="cpanel-price"></span>'
             + '<span id="cpanel-change" class="cpanel-change"></span>'

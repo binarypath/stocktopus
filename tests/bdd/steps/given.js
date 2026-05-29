@@ -56,6 +56,16 @@ Given('I am on the watchlist page', async ({ page }) => {
   await page.waitForSelector('#quote-body tr', { state: 'visible' });
 });
 
+Given('I am on the economics page', async ({ page }) => {
+  await page.goto('/economics');
+  await page.waitForSelector('#economics-tabs .economics-tab.active');
+});
+
+Given('I am on the stock chart page for {string}', async ({ page }, sym) => {
+  await page.goto('/stock/' + sym);
+  await page.waitForSelector('#chart-range-bar .chart-range-btn.active');
+});
+
 Given('I am on the screener page', async ({ page }) => {
   // Capture every /api/screener request so later steps can assert on the
   // exact URL the form submits (used by the shorthand-parsing scenario).
@@ -72,6 +82,11 @@ Given('I am on the screener page', async ({ page }) => {
 });
 
 Given('I am on the security page for {string}', async ({ page }, sym) => {
+  // Capture any uncaught JS errors so robustness scenarios can assert
+  // none fired during a key-mash. Stash on the page so When/Then steps
+  // can read it.
+  page.__pageErrors = [];
+  page.on('pageerror', (err) => { page.__pageErrors.push(err.message); });
   await page.goto('/security/' + sym);
   await page.waitForSelector('#info-tabs .info-tab.active');
   // Wait for the Overview tab to finish painting — otherwise its late
