@@ -387,12 +387,12 @@ body {
     flex-direction: row;
     align-items: center;
     flex: 1;
-    gap: 8px;
+    gap: var(--space-3);
     min-width: 0;
     background: var(--bg-tertiary);
     border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 6px 12px;
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-4);
     position: relative;
 }
 
@@ -425,12 +425,12 @@ body {
 
 .cmd-dropdown {
     position: absolute;
-    top: calc(100% + 4px);
+    top: calc(100% + var(--space-2));
     left: 0;
     right: 0;
     background: var(--bg-secondary);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-md);
     overflow: hidden;
     z-index: 200;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
@@ -443,8 +443,8 @@ body {
 .cmd-option {
     display: flex;
     align-items: baseline;
-    gap: 12px;
-    padding: 8px 12px;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
     cursor: pointer;
     border-bottom: 1px solid var(--border);
 }
@@ -597,7 +597,10 @@ body {
 /* ── Article Reader Panel ── */
 
 .article-reader {
-    width: 450px;
+    /* Ternary cap: never wider than 1/3 of the column, never wider than
+     * 450px. On wide displays it stops bloating; on narrow ones the
+     * percentage takes over. */
+    width: min(33.333%, 450px);
     flex-shrink: 0;
     background: var(--bg-secondary);
     border-left: 1px solid var(--border);
@@ -2164,8 +2167,8 @@ body {
 
 .debug-panels {
     display: grid;
-    grid-template-columns: 280px 1fr;
-    gap: 12px;
+    grid-template-columns: var(--layout-split);
+    gap: var(--space-4);
     height: calc(100vh - 140px);
 }
 
@@ -3084,7 +3087,11 @@ li.kp-row::before {
 /* ── Ideas / Sketchpad ── */
 
 .ideas-layout {
-    display: flex;
+    /* Ternary 1:3 chrome/content split — sidebar floor of 240px keeps
+     * the symbol list dense on narrow viewports; above ~960px wide it
+     * resolves to a true 1fr/3fr ratio. */
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) 3fr;
     height: 100%;
     flex: 1;
     min-height: 0;
@@ -3098,20 +3105,21 @@ li.kp-row::before {
 }
 
 .ideas-sidebar {
-    width: 240px;
-    flex-shrink: 0;
+    /* Width comes from the grid track on .ideas-layout. */
     background: var(--bg-secondary);
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     font-size: 12px;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .ideas-sidebar-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 12px;
+    padding: var(--space-3) var(--space-4);
     border-bottom: 1px solid var(--border);
     color: var(--text-primary);
     font-weight: 700;
@@ -3533,8 +3541,8 @@ a, [tabindex] {
 .economics-header {
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding: 8px 12px;
+    gap: var(--space-5);
+    padding: var(--space-3) var(--space-4);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
 }
@@ -4069,7 +4077,10 @@ a, [tabindex] {
 }
 
 .screener-layout {
-    display: flex;
+    /* Ternary 1:3 — filter sidebar gets a 280px floor so the labelled
+     * inputs don't wrap awkwardly on narrow viewports. */
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) 3fr;
     height: 100%;
     flex: 1;
     min-height: 0;
@@ -4077,11 +4088,11 @@ a, [tabindex] {
 }
 
 .screener-filters {
-    width: 280px;
-    flex-shrink: 0;
+    /* Width comes from the grid track on .screener-layout. */
     background: var(--bg-secondary);
     border-right: 1px solid var(--border);
     overflow-y: auto;
+    min-width: 0;
     display: flex;
     flex-direction: column;
 }
@@ -4101,17 +4112,17 @@ a, [tabindex] {
 }
 
 .screener-group {
-    margin-bottom: 16px;
+    margin-bottom: var(--space-5);
 }
 
 .screener-group h4 {
-    margin: 0 0 6px;
+    margin: 0 0 var(--space-2);
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.8px;
     color: var(--orange);
     border-bottom: 1px solid var(--bg-tertiary);
-    padding-bottom: 3px;
+    padding-bottom: var(--space-1);
 }
 
 /* Collapsible filter sections. <details> sections start closed; the
