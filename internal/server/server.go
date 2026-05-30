@@ -155,6 +155,8 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/batch-quote", s.handleBatchQuote)
 	mux.HandleFunc("GET /api/security/{symbol}/metrics", s.handleSecurityMetrics)
 	mux.HandleFunc("GET /api/security/{symbol}/financials", s.handleSecurityFinancials)
+	mux.HandleFunc("GET /api/security/{symbol}/modeling", s.handleSecurityModeling)
+	mux.HandleFunc("POST /api/security/{symbol}/modeling", s.handleSecurityModeling)
 	mux.HandleFunc("GET /api/security/{symbol}/estimates", s.handleSecurityEstimates)
 	mux.HandleFunc("GET /api/security/{symbol}/peers", s.handleSecurityPeers)
 	mux.HandleFunc("GET /api/security/{symbol}/intelligence", s.handleIntelligence)
@@ -581,7 +583,9 @@ func (s *Server) handleSecurityMetrics(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSecurityFinancials(w http.ResponseWriter, r *http.Request) {
 	symbol := r.PathValue("symbol")
 	typ := r.URL.Query().Get("type")
-	limit := 5
+	// Upgraded FMP plan returns the full 10y window; lower tier silently
+	// caps at 5y so this is a strict non-regression.
+	limit := 10
 
 	var data json.RawMessage
 	var err error
