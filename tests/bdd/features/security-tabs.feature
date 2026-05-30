@@ -9,9 +9,9 @@ Feature: Numbered tabs on the security page
     Given the dev server is reachable
     And I am on the security page for "AAPL"
 
-  Scenario: Pressing 2 jumps to the Financials tab
+  Scenario: Pressing 2 jumps to the Financial Modeling tab
     When I press "2"
-    Then the active tab is "Financials"
+    Then the active tab is "Financial Modeling"
     And the browser URL should match "/security/AAPL"
 
   Scenario: Pressing 1 returns to the Overview tab

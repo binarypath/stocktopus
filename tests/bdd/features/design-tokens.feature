@@ -34,3 +34,16 @@ Feature: Design tokens and st-* primitives are in effect
     Then the tab strip "#chart-range-bar" carries the class "st-tab-row"
     And the tab strip "#chart-range-bar" carries the class "st-tab-row--blue"
     And the active tab in "#chart-range-bar" carries the class "st-tab--active"
+
+  Scenario: An active screener preset chip carries the new pill fill
+    Given I am on the screener page
+    When I open the "Fundamentals" filter group
+    And I click the "large" market cap preset
+    Then the active screener preset has a saturated orange background
+
+  Scenario: Vim row selection paints a rail and a brand surface
+    Given I am on the watchlist page
+    And the default watchlist has at least one security
+    When I press "j"
+    Then the highlighted row's background contains "rgb"
+    And the highlighted row's box-shadow is non-empty

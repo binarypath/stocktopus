@@ -3369,7 +3369,7 @@ window.onerror = function (msg, src, line, col, err) {
             var html = '<div class="reader-related-title">Related Securities</div>';
             html += '<div class="reader-related-list">';
             symbols.forEach(function (s) {
-                html += '<span class="reader-ticker" onclick="if(window._navigateToSecurity)window._navigateToSecurity(\'' + escapeHtml(s.symbol) + '\')">'
+                html += '<span class="reader-ticker st-chip st-chip--blue" onclick="if(window._navigateToSecurity)window._navigateToSecurity(\'' + escapeHtml(s.symbol) + '\')">'
                     + escapeHtml(s.symbol)
                     + '<span class="reader-related-name">' + escapeHtml(s.name).substring(0, 30) + '</span>'
                     + '</span>';
@@ -3440,7 +3440,7 @@ window.onerror = function (msg, src, line, col, err) {
 
                 var html = '';
                 (data.tickers || []).forEach(function (t) {
-                    html += '<span class="reader-ticker" onclick="if(window._navigateToSecurity)window._navigateToSecurity(\'' + escapeHtml(t) + '\')">' + escapeHtml(t) + '</span>';
+                    html += '<span class="reader-ticker st-chip st-chip--blue" onclick="if(window._navigateToSecurity)window._navigateToSecurity(\'' + escapeHtml(t) + '\')">' + escapeHtml(t) + '</span>';
                 });
                 (data.companies || []).forEach(function (c) {
                     html += '<span class="reader-company-badge">' + escapeHtml(c) + '</span>';
@@ -3449,7 +3449,7 @@ window.onerror = function (msg, src, line, col, err) {
                     html += '<span class="reader-person-badge">' + escapeHtml(p) + '</span>';
                 });
                 (data.sectors || []).forEach(function (s) {
-                    html += '<span class="reader-sector-badge">' + escapeHtml(s) + '</span>';
+                    html += '<span class="reader-sector-badge st-chip st-chip--orange">' + escapeHtml(s) + '</span>';
                 });
                 el.innerHTML = html;
             })

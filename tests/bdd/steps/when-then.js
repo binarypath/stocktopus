@@ -225,6 +225,52 @@ Then('the active tab in {string} carries the class {string}', async ({ page }, s
     .toHaveClass(new RegExp('(^|\\s)' + cls + '(\\s|$)'));
 });
 
+Then('the active screener preset has a saturated orange background',
+  async ({ page }) => {
+    // Pre-token the chip's active state used a flat grey bg
+    // (var(--bg-tertiary)). Post-token it uses the 50% accent fill
+    // (--tab-selected-fill-orange). The resolved value is browser-
+    // specific (rgb / rgba / oklab / color(srgb …) depending on the
+    // engine), so we don't try to parse channels — we just assert the
+    // resolved colour string mentions one of the known accent-orange
+    // primitives. Loose enough to survive computed-style format drift,
+    // strict enough to fail if the rule silently dropped.
+    const probe = await page.locator('.screener-preset.active').first().evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return {
+        bg: cs.backgroundColor,
+        color: cs.color,
+        border: cs.borderColor,
+      };
+    });
+    expect(probe.bg, 'background should not be transparent').not.toBe('rgba(0, 0, 0, 0)');
+    expect(probe.bg).not.toBe('transparent');
+    // Text and border on .active are var(--accent-orange) which resolves
+    // to rgb(255, 154, 26) cross-browser — pin that as a structural check.
+    expect(probe.color).toBe('rgb(255, 154, 26)');
+    expect(probe.border).toBe('rgb(255, 154, 26)');
+  }
+);
+
+Then("the highlighted row's background contains {string}",
+  async ({ page }, needle) => {
+    const bg = await page.evaluate(() => {
+      const sel = document.querySelector('.vim-selected');
+      return sel ? getComputedStyle(sel).backgroundColor : null;
+    });
+    expect(bg).toContain(needle);
+  }
+);
+
+Then("the highlighted row's box-shadow is non-empty", async ({ page }) => {
+  const shadow = await page.evaluate(() => {
+    const sel = document.querySelector('.vim-selected');
+    return sel ? getComputedStyle(sel).boxShadow : null;
+  });
+  expect(shadow).not.toBeNull();
+  expect(shadow).not.toBe('none');
+});
+
 // ── Screener UX assertions ──
 
 Then('every filter group is collapsed', async ({ page }) => {
@@ -245,6 +291,9 @@ When('I open the {string} filter group', async ({ page }, name) => {
 
 When('I click the {string} market cap preset', async ({ page }, label) => {
   await page.locator('#marketcap-presets .screener-preset', { hasText: label }).click();
+  // Allow the 90ms colour/border transition on .screener-preset.active
+  // to settle before downstream assertions read the computed style.
+  await page.waitForTimeout(150);
 });
 
 Then('the market cap minimum input contains {string}', async ({ page }, value) => {

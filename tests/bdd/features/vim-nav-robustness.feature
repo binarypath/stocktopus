@@ -42,7 +42,7 @@ Feature: Vim navigation is robust across every directional key
   Scenario: Enter activates the highlighted tab
     When I press "l"
     And I press "Enter"
-    Then the active tab is "Financials"
+    Then the active tab is "Financial Modeling"
 
   Scenario: A rapid keypress after an HTML rerender does not crash
     When I press "2"

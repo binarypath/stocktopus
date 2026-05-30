@@ -227,21 +227,26 @@
     color: inherit;
 }
 
-/* Selected row — rail (1) + surface (2/3). Mirrors .vim-selected
-   so JS-driven and CSS-only selection feel identical. */
+/* Selected row — rail (1) + emphasis-2 surface (66% accent toward bg).
+   The vim-driven selection (.vim-selected) and the CSS-only opt-in
+   (.st-row-selected) share one rule so both selectors produce the
+   same visual contract. Tab strips override this back to transparent
+   further down (see "Vim Selection") so the sliding pill owns the
+   look there instead. */
+.vim-selected,
 .st-row-selected {
-    background: var(--select-row-bg) !important;
-    box-shadow: var(--select-row-rail);
+    background: color-mix(in srgb, var(--accent-orange) var(--emphasis-2), var(--bg-primary)) !important;
+    box-shadow: var(--rail-shadow-orange);
     transition:
         background var(--duration-select) var(--ease-select),
-        box-shadow var(--duration-select) var(--ease-select);
+        box-shadow var(--duration-select) var(--ease-select),
+        color var(--duration-select) var(--ease-select);
 }
+.info-sub-tabs .vim-selected,
+.news-sub-tabs .vim-selected,
 .st-row-selected--blue {
-    background: var(--select-sub-row-bg) !important;
-    box-shadow: var(--select-sub-row-rail);
-    transition:
-        background var(--duration-select) var(--ease-select),
-        box-shadow var(--duration-select) var(--ease-select);
+    background: color-mix(in srgb, var(--accent-blue) var(--emphasis-2), var(--bg-primary)) !important;
+    box-shadow: var(--rail-shadow-blue);
 }
 
 /* Active pane (multi-column layouts) — top edge bar in brand orange.
@@ -758,28 +763,12 @@ body {
     margin-bottom: 8px;
 }
 
+/* Reader entity badges — visual now flows from .st-chip + .st-chip--blue
+   / --orange (see primitives section). The legacy classes remain as
+   semantic hooks (the vim-selected handler and the click target lookup
+   key off .reader-ticker), but they no longer carry their own paint. */
 .reader-ticker {
-    font-size: var(--text-sm);
-    font-weight: 700;
-    color: var(--accent-blue);
-    background: var(--accent-blue-hover);
-    border: var(--line-accent-blue);
-    border-radius: var(--radius-sm);
-    padding: 1px 6px;
     cursor: pointer;
-}
-
-.reader-ticker:hover {
-    background: var(--accent-blue-surface);
-}
-
-.reader-sector-badge {
-    font-size: var(--text-1);
-    color: var(--accent-orange);
-    background: var(--accent-orange-hover);
-    border: var(--line-accent-orange);
-    border-radius: var(--radius-sm);
-    padding: 1px 6px;
 }
 
 .entity-ticker {
@@ -2363,20 +2352,19 @@ body {
 .log-ERROR .log-msg { color: var(--red); }
 .log-DEBUG .log-level { color: var(--text-muted); }
 
-/* ── Vim Selection ── */
-
-/* Selection = LINE (1) + SURFACE (2/3). The line is the left rail;
- * the surface is an opaque-ish brand fill (emphasis-2, i.e. 66%
- * toward the bg). The previous 25% rgba wash read as muddy on
- * dark backgrounds and is now reserved for :hover only. */
-.vim-selected {
-    background: color-mix(in srgb, var(--accent-orange) var(--emphasis-2), var(--bg-primary)) !important;
-    box-shadow: var(--rail-shadow-orange);
-    transition:
-        background var(--duration-select) var(--ease-select),
-        box-shadow var(--duration-select) var(--ease-select),
-        color var(--duration-select) var(--ease-select);
-}
+/* ── Vim Selection — strip- and tab-specific overrides ──
+ *
+ * The base row-selection visual lives in the primitives section near
+ * the top of this file (.vim-selected, .st-row-selected — shared rule).
+ * The rules below adapt that visual for two cases:
+ *
+ *   1. Strip background — when the cursor lands in a tab row, the whole
+ *      strip gets a faint accent wash so the user sees which strip is
+ *      "live" even if they jump between rows.
+ *   2. Tab overrides — for individual tab items inside a strip, the
+ *      base row-selection background is reset to transparent because
+ *      the sliding ::before pill (see .st-tab rules) owns the highlight.
+ */
 
 /* Row-level cue: when any item inside a row container is selected,
  * the whole row gets the same fill. For tab strips this means the
@@ -3428,16 +3416,15 @@ li.kp-row::before {
 }
 
 /* Active-pane bounding box for multi-column layouts.
-   Used on Ideas (sidebar | main) and Screener (filters | results).
-   The shape emphasises the top edge (the bar over the column the user
-   is currently navigating with j/k) while keeping the side dividers
-   thin — reads as "this is the active column" without taking visual
-   weight from the data inside. */
+   Visual contract identical to .st-pane-active in the primitives section
+   — pane-focused stays as the live class name the JS handlers toggle;
+   st-pane-active is the shared CSS primitive that future panes can use
+   without going through ideas/screener-specific selectors. */
 .ideas-sidebar.pane-focused,
 .ideas-main.pane-focused,
 .screener-filters.pane-focused,
 .screener-results.pane-focused {
-    box-shadow: 0px -2px 0 1px var(--orange);
+    box-shadow: 0 -2px 0 1px var(--accent-orange);
 }
 
 .ideas-help {
@@ -4197,24 +4184,33 @@ details.screener-group > summary.vim-selected {
     color: var(--text-tertiary, #666);
     margin-right: 2px;
 }
+/* Screener size presets — small pill-flavoured chips. The active state
+   uses the same 50% accent fill as .st-tab--active so a clicked preset
+   reads as the same kind of "you are here" indicator as a selected
+   tab. No sliding animation here (the chips are static targets, not a
+   nav scaffold) — just a clean fill swap. */
 .screener-preset {
-    font-size: 10px;
-    padding: 2px 6px;
-    border: 1px solid var(--border, #333);
+    font-size: var(--text-1);
+    padding: var(--space-1) var(--space-2);
+    border: var(--line-default);
     background: transparent;
     color: var(--text-secondary);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     text-transform: lowercase;
+    transition:
+        color var(--duration-1),
+        border-color var(--duration-1),
+        background var(--duration-1);
 }
 .screener-preset:hover {
-    border-color: var(--orange);
-    color: var(--orange);
+    color: var(--accent-orange);
+    border-color: var(--accent-orange);
 }
 .screener-preset.active {
-    border-color: var(--orange);
-    background: var(--bg-tertiary);
-    color: var(--orange);
+    color: var(--accent-orange);
+    border-color: var(--accent-orange);
+    background: var(--tab-selected-fill-orange);
 }
 
 .screener-group label {
