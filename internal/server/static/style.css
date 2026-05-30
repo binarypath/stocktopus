@@ -2834,6 +2834,93 @@ body {
     color: var(--text-muted);
 }
 
+/* ── Financial Modeling (Assumptions + Forecast sub-tabs) ── */
+
+.modeling-explainer {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    background: var(--bg-secondary);
+    border-left: 2px solid var(--orange);
+    border-radius: 2px;
+}
+
+.modeling-table .modeling-unit {
+    color: var(--text-muted);
+    font-weight: 400;
+    font-size: 10px;
+    margin-left: 4px;
+}
+
+.modeling-input {
+    width: 100%;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 2px 6px;
+    text-align: right;
+    font-family: inherit;
+    font-size: 12px;
+    border-radius: 2px;
+}
+
+.modeling-input:focus {
+    outline: none;
+    border-color: var(--orange);
+    background: var(--bg-tertiary);
+}
+
+.modeling-actions {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.modeling-btn {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 4px 10px;
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    border-radius: 2px;
+}
+
+.modeling-btn:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.modeling-status {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.modeling-forecast .forecast-col {
+    color: var(--text-secondary);
+    font-style: italic;
+    background: rgba(255, 165, 0, 0.04);
+}
+
+.modeling-forecast th.forecast-col {
+    color: var(--orange);
+    font-style: normal;
+}
+
+.modeling-spacer td {
+    border-bottom: none !important;
+    padding: 2px 0 !important;
+}
+
+.modeling-bscheck td {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
 /* ── SEC Filings ── */
 
 .fin-explainer {

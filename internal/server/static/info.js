@@ -420,9 +420,11 @@
     // ── Financials ──
 
     var finSubTypes = [
-        { key: 'income',   label: 'Income',        hotkey: 'i' },
-        { key: 'balance',  label: 'Balance Sheet',  hotkey: 'b' },
-        { key: 'cashflow', label: 'Cash Flow',      hotkey: 'c' },
+        { key: 'income',      label: 'Income',         hotkey: 'i' },
+        { key: 'balance',     label: 'Balance Sheet',  hotkey: 'b' },
+        { key: 'cashflow',    label: 'Cash Flow',      hotkey: 'c' },
+        { key: 'assumptions', label: 'Assumptions',    hotkey: 'a' },
+        { key: 'forecast',    label: 'Forecast',       hotkey: 'f' },
     ];
 
     function loadFinancials(type) {
@@ -611,6 +613,10 @@
     function loadFinancialTable(type) {
         var tc = document.getElementById('fin-table-container');
         if (!tc) return;
+        if (type === 'assumptions' || type === 'forecast') {
+            loadModeling(type);
+            return;
+        }
         tc.innerHTML = '<p class="empty-state">Loading...</p>';
 
         fetch('/api/security/' + symbol + '/financials?type=' + type)
@@ -719,6 +725,285 @@
             .catch(function () {
                 tc.innerHTML = '<p class="empty-state">Failed to load financials</p>';
             });
+    }
+
+    // ── Financial Modeling (CFI three-statement projection) ──
+    //
+    // Drivers + 5y projection live in /api/security/SYMBOL/modeling.
+    // Defaults are derived server-side from history; the Assumptions
+    // sub-tab edits them in place and POSTs the override to recompute
+    // the Forecast sub-tab. Edits persist to localStorage per symbol so
+    // a refresh keeps your scenario.
+
+    // Drivers, in render order. Format: 'pct' (0.10 → "10.0%"),
+    // 'days' (raw number suffixed with " d"), 'money' (compact $).
+    var MODELING_DRIVERS = [
+        { key: 'revenueGrowth',  label: 'Revenue Growth',       format: 'pct'   },
+        { key: 'cogsPct',        label: 'COGS % of Revenue',    format: 'pct'   },
+        { key: 'opexPct',        label: 'OpEx % of Revenue',    format: 'pct'   },
+        { key: 'daPct',          label: 'D&A % of opening PP&E',format: 'pct'   },
+        { key: 'interestPct',    label: 'Interest % of Debt',   format: 'pct'   },
+        { key: 'taxRate',        label: 'Tax Rate',             format: 'pct'   },
+        { key: 'arDays',         label: 'A/R Days',             format: 'days'  },
+        { key: 'inventoryDays',  label: 'Inventory Days',       format: 'days'  },
+        { key: 'apDays',         label: 'A/P Days',             format: 'days'  },
+        { key: 'capex',          label: 'Capex',                format: 'money' },
+        { key: 'debtIssuance',   label: 'Debt Issuance',        format: 'money' },
+        { key: 'equityIssuance', label: 'Equity Issuance',      format: 'money' },
+    ];
+
+    // Forecast table rows. Each entry: [label, periodField, format].
+    // 'money' is the default (large dollar values via fmt()); 'pct' is
+    // for the BS check row which we display as a delta. The historical
+    // OpEx field is bundled (salaries + rent + other) — the same as the
+    // forecast — so the row is comparable across the time line.
+    var MODELING_FORECAST_ROWS = [
+        ['Revenue',                  'revenue'],
+        ['Cost of Revenue',          'cogs'],
+        ['Gross Profit',             'grossProfit'],
+        ['Operating Expenses',       'opex'],
+        ['Depreciation & Amortization', 'da'],
+        ['Interest Expense',         'interest'],
+        ['Earnings Before Tax',      'ebt'],
+        ['Tax',                      'tax'],
+        ['Net Earnings',             'netEarnings'],
+        ['',                         ''],
+        ['Cash',                     'cash'],
+        ['Accounts Receivable',      'ar'],
+        ['Inventory',                'inventory'],
+        ['Property & Equipment',     'ppe'],
+        ['Total Assets',             'totalAssets'],
+        ['Accounts Payable',         'ap'],
+        ['Debt',                     'debt'],
+        ['Equity Capital',           'equity'],
+        ['Retained Earnings',        'retainedEarnings'],
+        ['Total Liab & Equity',      'totalLE'],
+        ['Balance Check (Δ)',        'bsCheck',     'bscheck'],
+        ['',                         ''],
+        ['Operating Cash Flow',      'operatingCF'],
+        ['Investing Cash Flow',      'investingCF'],
+        ['Financing Cash Flow',      'financingCF'],
+        ['Net Change in Cash',       'netChangeCash'],
+    ];
+
+    // window._modelingData stores the latest response keyed by symbol so
+    // switching between Assumptions and Forecast doesn't trigger a fetch.
+    // Cleared on symbol change because this script is per-page.
+
+    function modelingStorageKey() {
+        return 'stocktopus.modeling.' + symbol;
+    }
+
+    function readStoredAssumptions() {
+        try {
+            var raw = localStorage.getItem(modelingStorageKey());
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function writeStoredAssumptions(a) {
+        try {
+            localStorage.setItem(modelingStorageKey(), JSON.stringify(a));
+        } catch (e) {}
+    }
+
+    function clearStoredAssumptions() {
+        try { localStorage.removeItem(modelingStorageKey()); } catch (e) {}
+    }
+
+    function loadModeling(view) {
+        var tc = document.getElementById('fin-table-container');
+        if (!tc) return;
+        tc.innerHTML = '<p class="empty-state">Loading model…</p>';
+
+        // If we already fetched in this session and the user is just
+        // toggling Assumptions ↔ Forecast, re-render from the cache.
+        if (window._modelingData && window._modelingData.symbol === symbol) {
+            renderModeling(view, window._modelingData);
+            return;
+        }
+
+        var stored = readStoredAssumptions();
+        var url = '/api/security/' + symbol + '/modeling';
+        var opts = { method: 'GET' };
+        if (stored) {
+            opts = {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(stored),
+            };
+        }
+        fetch(url, opts)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                window._modelingData = data;
+                window._modelingData.symbol = symbol;
+                renderModeling(view, data);
+            })
+            .catch(function () {
+                tc.innerHTML = '<p class="empty-state">Failed to load model</p>';
+            });
+    }
+
+    function renderModeling(view, data) {
+        var tc = document.getElementById('fin-table-container');
+        if (!tc) return;
+        if (view === 'assumptions') {
+            tc.innerHTML = renderAssumptions(data);
+            wireAssumptionInputs();
+        } else {
+            tc.innerHTML = renderForecast(data);
+        }
+    }
+
+    function formatDriver(format, v) {
+        if (v == null || isNaN(v)) return '';
+        if (format === 'pct')   return (v * 100).toFixed(1);
+        if (format === 'days')  return v.toFixed(0);
+        if (format === 'money') return v.toFixed(0);
+        return String(v);
+    }
+
+    function parseDriver(format, raw) {
+        var n = parseFloat(raw);
+        if (isNaN(n)) return 0;
+        if (format === 'pct') return n / 100;
+        return n;
+    }
+
+    function renderAssumptions(data) {
+        var forecastYears = (data.forecast || []).map(function (p) { return p.year; });
+        var html = '<div class="modeling-explainer help-tip' + (helpVisible ? '' : ' hidden') + '">';
+        html += 'Assumptions drive the 5-year projection. Defaults are derived from the most recent historical year (e.g. revenue growth ≈ last YoY change, A/R days ≈ last year\'s receivables ÷ revenue × 365). Edit any cell to override; changes persist to this browser and recompute the Forecast tab.';
+        html += '</div>';
+
+        html += '<table class="fin-table modeling-table"><thead><tr><th>Driver</th>';
+        forecastYears.forEach(function (y) {
+            html += '<th>' + y + '</th>';
+        });
+        html += '</tr></thead><tbody>';
+
+        MODELING_DRIVERS.forEach(function (drv, rowIdx) {
+            var vals = (data.assumptions && data.assumptions[drv.key]) || [];
+            html += '<tr class="fin-row modeling-row" data-fin-idx="' + rowIdx + '" data-driver="' + drv.key + '" data-format="' + drv.format + '" data-vim-row>';
+            html += '<td class="fin-label">' + drv.label;
+            if (drv.format === 'pct')   html += ' <span class="modeling-unit">(%)</span>';
+            if (drv.format === 'days')  html += ' <span class="modeling-unit">(days)</span>';
+            if (drv.format === 'money') html += ' <span class="modeling-unit">($)</span>';
+            html += '</td>';
+            vals.forEach(function (v, i) {
+                html += '<td><input class="modeling-input" type="number" step="any" data-driver="' + drv.key + '" data-year-idx="' + i + '" value="' + formatDriver(drv.format, v) + '"></td>';
+            });
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        html += '<div class="modeling-actions">';
+        html += '<button type="button" id="modeling-reset" class="modeling-btn">Reset to derived defaults</button>';
+        html += '<span class="modeling-status" id="modeling-status"></span>';
+        html += '</div>';
+        return html;
+    }
+
+    function wireAssumptionInputs() {
+        var inputs = document.querySelectorAll('.modeling-input');
+        inputs.forEach(function (inp) {
+            inp.addEventListener('change', onAssumptionChange);
+        });
+        var reset = document.getElementById('modeling-reset');
+        if (reset) reset.addEventListener('click', function () {
+            clearStoredAssumptions();
+            window._modelingData = null;
+            loadModeling('assumptions');
+        });
+    }
+
+    function onAssumptionChange() {
+        if (!window._modelingData) return;
+        var assumptions = JSON.parse(JSON.stringify(window._modelingData.assumptions));
+        document.querySelectorAll('.modeling-row').forEach(function (row) {
+            var driverKey = row.dataset.driver;
+            var format = row.dataset.format;
+            row.querySelectorAll('.modeling-input').forEach(function (inp) {
+                var idx = parseInt(inp.dataset.yearIdx, 10);
+                assumptions[driverKey][idx] = parseDriver(format, inp.value);
+            });
+        });
+        writeStoredAssumptions(assumptions);
+        setModelingStatus('Recomputing…');
+        fetch('/api/security/' + symbol + '/modeling', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(assumptions),
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                window._modelingData = data;
+                window._modelingData.symbol = symbol;
+                setModelingStatus('Saved · forecast updated');
+            })
+            .catch(function () {
+                setModelingStatus('Recompute failed');
+            });
+    }
+
+    function setModelingStatus(msg) {
+        var el = document.getElementById('modeling-status');
+        if (el) el.textContent = msg;
+    }
+
+    function renderForecast(data) {
+        var hist = data.historical || [];
+        var fc = data.forecast || [];
+        var allPeriods = hist.concat(fc);
+        var hiddenClass = helpVisible ? '' : ' hidden';
+
+        var html = '<div class="modeling-explainer help-tip' + hiddenClass + '">';
+        html += 'Five years of history (left) and five years of projection (right, italic) computed from the assumption drivers. The Balance Check row is the gap between Total Assets and Total Liabilities + Equity — well-formed models tie to zero (within rounding).';
+        html += '</div>';
+
+        html += '<table class="fin-table modeling-table modeling-forecast"><thead><tr><th></th>';
+        allPeriods.forEach(function (p) {
+            var cls = p.historical ? '' : ' class="forecast-col"';
+            html += '<th' + cls + '>' + p.year + '</th>';
+        });
+        html += '</tr></thead><tbody>';
+
+        MODELING_FORECAST_ROWS.forEach(function (row, rowIdx) {
+            var label = row[0];
+            var field = row[1];
+            var fmt2 = row[2] || '';
+            if (label === '' && field === '') {
+                html += '<tr class="modeling-spacer"><td colspan="' + (allPeriods.length + 1) + '">&nbsp;</td></tr>';
+                return;
+            }
+            var bsCheckClass = (fmt2 === 'bscheck') ? ' modeling-bscheck' : '';
+            html += '<tr class="fin-row modeling-row' + bsCheckClass + '" data-fin-idx="' + rowIdx + '" data-vim-row>';
+            html += '<td class="fin-label">' + label + '</td>';
+            allPeriods.forEach(function (p) {
+                var v = p[field];
+                var cls = p.historical ? '' : ' forecast-col';
+                var val;
+                if (fmt2 === 'bscheck') {
+                    // The BS check only ties on the projected periods;
+                    // historical reports have many liability lines our
+                    // 4-line subset doesn't track, so we'd display a
+                    // misleading non-zero gap. Suppress on history.
+                    if (p.historical) {
+                        val = '—';
+                    } else {
+                        val = (v == null) ? '—' : (Math.abs(v) < 1 ? '0' : v.toFixed(0));
+                    }
+                } else {
+                    val = fmt(v);
+                }
+                html += '<td class="' + cls + '">' + val + '</td>';
+            });
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        return html;
     }
 
     // ── Estimates ──
