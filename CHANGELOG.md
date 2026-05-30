@@ -7,6 +7,22 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [1.16.0](https://github.com/binarypath/stocktopus/compare/v1.15.0...v1.16.0) (2026-05-30)
+
+
+### Features
+
+* **modeling:** three-statement projection (Financial Modeling tab) ([#140](https://github.com/binarypath/stocktopus/issues/140)) ([638a43f](https://github.com/binarypath/stocktopus/commit/638a43fa7e9518056667165296add314bc29ab02))
+* **ui:** incremental UI batch — selection bugs, screener overhaul, ideas timeframes, lowercase tokens ([#138](https://github.com/binarypath/stocktopus/issues/138)) ([deac5f2](https://github.com/binarypath/stocktopus/commit/deac5f20f7aa1d6d03a23bf7831b7452d09e385f))
+* **watchlist:** duration-tagged columns, 6m sparkline, reader company panel ([#136](https://github.com/binarypath/stocktopus/issues/136)) ([a3dde15](https://github.com/binarypath/stocktopus/commit/a3dde158acb772455f69ce184e6afe38068c9e70))
+
+
+### Refactor
+
+* **ui:** add design tokens, ternary grid, and st-* primitives (Info, Watchlist, Economics, Graph) ([#139](https://github.com/binarypath/stocktopus/issues/139)) ([7420a0d](https://github.com/binarypath/stocktopus/commit/7420a0d5fa6c2bf4571044a2aaa726d736d77398))
+* **ui:** design-system final — ternary layout + Phase 5 guardrails ([#142](https://github.com/binarypath/stocktopus/issues/142)) ([80e515a](https://github.com/binarypath/stocktopus/commit/80e515a5bebc073f190ac4b0150fd3712e30b74e))
+* **ui:** unify selection, screener preset pill, reader chip primitives ([#141](https://github.com/binarypath/stocktopus/issues/141)) ([6e4ba07](https://github.com/binarypath/stocktopus/commit/6e4ba077a16ad87180f234c546712ecb3f52755a))
+
 ## [1.15.0](https://github.com/binarypath/stocktopus/compare/v1.14.0...v1.15.0) (2026-05-28)
 
 
