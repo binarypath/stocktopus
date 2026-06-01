@@ -1,0 +1,188 @@
+/* ============================================================================
+   tron.css — Stocktopus "terminal of the future" enhancement layer
+   ----------------------------------------------------------------------------
+   ADDITIVE overlay. Include this AFTER style.css; it touches nothing structural
+   and overrides only paint (glow, ignite-on-active). Remove the one <link> to
+   fully revert. It reuses the tokens already defined in style.css :root
+   (--accent-orange, --accent-blue, --green, --red, surfaces, --emphasis-2,
+   --duration-*, --ease-select) and only adds a glow + Tron-backdrop layer.
+
+   Philosophy (unchanged from design-language-unification.md): default is matte
+   and muted; an element IGNITES — colour brightens + neon bloom — only when it
+   is active / selected / focused / live. Glow is the selection language.
+   ============================================================================ */
+
+:root {
+    /* Hotter hazard yellow (was #ccaa00) — brighter, more "danger". */
+    --yellow: #ffcc00;
+
+    /* Deeper Tron canvas + grid. */
+    --bg-deep: #060709;
+    --bg-void: #030405;
+    --grid-color: color-mix(in srgb, var(--accent-blue) 7%, transparent);
+    --grid-size: 30px;
+    --grid-image:
+        linear-gradient(var(--grid-color) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+
+    /* Box-shadow glows (layered near + far bloom). */
+    --glow-amber:  0 0 6px color-mix(in srgb, var(--accent-orange) 55%, transparent),
+                   0 0 18px color-mix(in srgb, var(--accent-orange) 28%, transparent);
+    --glow-cyan:   0 0 6px color-mix(in srgb, var(--accent-blue) 55%, transparent),
+                   0 0 18px color-mix(in srgb, var(--accent-blue) 28%, transparent);
+    --glow-green:  0 0 6px color-mix(in srgb, var(--green) 55%, transparent),
+                   0 0 16px color-mix(in srgb, var(--green) 26%, transparent);
+    --glow-red:    0 0 6px color-mix(in srgb, var(--red) 55%, transparent),
+                   0 0 16px color-mix(in srgb, var(--red) 26%, transparent);
+
+    /* Text-shadow glows (igniting type). */
+    --text-glow-amber: 0 0 8px color-mix(in srgb, var(--accent-orange) 70%, transparent);
+    --text-glow-cyan:  0 0 8px color-mix(in srgb, var(--accent-blue) 70%, transparent);
+    --text-glow-green: 0 0 8px color-mix(in srgb, var(--green) 70%, transparent);
+    --text-glow-red:   0 0 8px color-mix(in srgb, var(--red) 70%, transparent);
+
+    /* Glowing left-rails for selected rows (solid edge + soft inner bloom). */
+    --rail-glow-amber: inset 2px 0 0 var(--accent-orange),
+                       inset 10px 0 14px -8px color-mix(in srgb, var(--accent-orange) 70%, transparent);
+    --rail-glow-cyan:  inset 2px 0 0 var(--accent-blue),
+                       inset 10px 0 14px -8px color-mix(in srgb, var(--accent-blue) 70%, transparent);
+}
+
+/* ───────────────────────── BACKDROP ─────────────────────────
+   Deepen the canvas and lay a faint grid + centered glow well behind the
+   content. Subtle by design — foreground glow should still dominate. */
+body { background: var(--bg-deep); }
+
+.terminal-content {
+    background-color: var(--bg-deep);
+    background-image:
+        radial-gradient(120% 80% at 50% -10%,
+            color-mix(in srgb, var(--accent-blue) 8%, transparent) 0%,
+            transparent 55%),
+        var(--grid-image);
+    background-size: auto, var(--grid-size) var(--grid-size);
+    background-attachment: local, local;
+}
+
+/* ───────────────────────── SHELL ─────────────────────────  */
+
+/* Underlit header rule — cyan→amber glowing edge beneath the chrome. */
+.terminal-header { position: relative; }
+.terminal-header::after {
+    content: '';
+    position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+    background: linear-gradient(90deg, transparent 0%,
+        color-mix(in srgb, var(--accent-blue) 55%, transparent) 30%,
+        color-mix(in srgb, var(--accent-orange) 55%, transparent) 70%, transparent 100%);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent-blue) 30%, transparent);
+    pointer-events: none;
+}
+.brand { text-shadow: var(--text-glow-amber); }
+
+/* Command bar ignites amber on focus. */
+.cmd-bar:focus-within { box-shadow: var(--glow-amber); }
+.cmd-prompt { text-shadow: var(--text-glow-amber); }
+
+/* Security selector ignites cyan on focus. */
+.security-input:focus { box-shadow: var(--glow-cyan); }
+
+/* Connection status — green bloom + brighter border when live. */
+.conn-status.connected {
+    border-color: color-mix(in srgb, var(--green) 60%, var(--border));
+    box-shadow: var(--glow-green);
+    text-shadow: var(--text-glow-green);
+}
+
+/* Footer mode + view ignite. */
+.footer-mode.normal { text-shadow: var(--text-glow-green); }
+.footer-mode.insert { text-shadow: var(--text-glow-amber); }
+.footer-view { text-shadow: var(--text-glow-amber); }
+
+/* ───────────────────────── TABS ─────────────────────────
+   The real tabs already animate a 50% fill (::before). Add an underline
+   bloom (::after) + text-glow on the active tab. Amber primary, cyan sub. */
+.st-tab, .info-tab, .info-sub-tab, .economics-tab, .chart-range-btn { position: relative; }
+
+.st-tab::after, .info-tab::after, .economics-tab::after {
+    content: '';
+    position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
+    background: var(--accent-orange); box-shadow: var(--glow-amber);
+    opacity: 0; transition: opacity var(--duration-2, 180ms) var(--ease-select, ease);
+    pointer-events: none;
+}
+.st-tab--active, .st-tab.vim-selected,
+.info-tab.active, .info-tab.vim-selected,
+.economics-tab.active, .st-tab.active {
+    text-shadow: var(--text-glow-amber);
+}
+.st-tab--active::after, .st-tab.vim-selected::after,
+.info-tab.active::after, .info-tab.vim-selected::after,
+.economics-tab.active::after, .st-tab.active::after { opacity: 1; }
+
+/* Cyan sub-tab strip */
+.info-sub-tabs .info-sub-tab::after,
+.st-tab-row--blue .st-tab::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
+    background: var(--accent-blue); box-shadow: var(--glow-cyan);
+    opacity: 0; transition: opacity var(--duration-2, 180ms) var(--ease-select, ease);
+    pointer-events: none;
+}
+.info-sub-tab.active, .info-sub-tab.vim-selected,
+.st-tab-row--blue .st-tab--active { text-shadow: var(--text-glow-cyan); }
+.info-sub-tab.active::after, .info-sub-tab.vim-selected::after,
+.st-tab-row--blue .st-tab--active::after { opacity: 1; }
+
+/* ───────────────────────── SELECTION ─────────────────────────
+   Upgrade the existing rail box-shadow to a glowing rail. */
+.vim-selected, .st-row-selected { box-shadow: var(--rail-glow-amber) !important; }
+.info-sub-tabs .vim-selected, .news-sub-tabs .vim-selected,
+.st-row-selected--blue { box-shadow: var(--rail-glow-cyan) !important; }
+
+/* Active pane — add a top-edge amber bloom to the existing inset bar. */
+.st-pane-active,
+.ideas-sidebar.pane-focused, .ideas-main.pane-focused,
+.screener-filters.pane-focused, .screener-results.pane-focused {
+    box-shadow: inset 0 2px 0 var(--accent-orange),
+                inset 0 14px 18px -14px color-mix(in srgb, var(--accent-orange) 60%, transparent) !important;
+}
+
+/* ───────────────────────── IDENTITY & CHIPS ─────────────────────────  */
+
+/* Security symbols carry a faint cyan glow (identity = cyan). */
+.cpanel-sym, .idx-sym, .st-link-sym:hover, .sym-link:hover { text-shadow: var(--text-glow-cyan); }
+
+/* Solid chips bloom in their own colour. */
+.st-chip--orange { box-shadow: var(--glow-amber); }
+.st-chip--blue   { box-shadow: var(--glow-cyan); }
+
+/* ───────────────────────── MARKET DATA ─────────────────────────
+   Keep deltas matte in tables (density!), but let the hero price-change
+   and sparkline labels glow. */
+.cpanel-change.price-up, .wl-spark-label.price-up,
+.cpanel-change .price-up { text-shadow: var(--text-glow-green); }
+.cpanel-change.price-down, .wl-spark-label.price-down,
+.cpanel-change .price-down { text-shadow: var(--text-glow-red); }
+
+/* Stat values read as neon-white headline figures. */
+.info-stat-value {
+    color: #fff;
+    text-shadow: 0 0 2px rgba(255,255,255,0.85), 0 0 12px rgba(255,255,255,0.4),
+                 0 0 22px rgba(180,220,255,0.22);
+}
+.info-stat { transition: border-color var(--duration-2, 180ms), box-shadow var(--duration-2, 180ms); }
+.info-stat:hover {
+    border-color: color-mix(in srgb, var(--accent-blue) 40%, var(--border));
+    box-shadow: var(--glow-cyan);
+}
+
+/* ───────────────────────── TABLE CHROME ─────────────────────────
+   A whisper of amber along the top edge of data tables (echoes the
+   "neon-orange → black" gradient without hurting row legibility). */
+.quote-table, .screener-table, .st-table {
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent-orange) 28%, transparent);
+}
+
+/* Inputs ignite cyan on focus (single focused-control language). */
+.st-input:focus, .screener-form input:focus, .add-security-form input:focus {
+    box-shadow: var(--glow-cyan);
+}
