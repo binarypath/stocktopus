@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [1.17.0](https://github.com/binarypath/stocktopus/compare/v1.16.0...v1.17.0) (2026-06-01)
+
+
+### Features
+
+* **ui:** add Tron glow overlay (tron.css) ([#144](https://github.com/binarypath/stocktopus/issues/144)) ([0f24443](https://github.com/binarypath/stocktopus/commit/0f244438ce86d0c5eb3d561a2b86430418ea06c9))
+
 ## [1.16.0](https://github.com/binarypath/stocktopus/compare/v1.15.0...v1.16.0) (2026-05-30)
 
 
