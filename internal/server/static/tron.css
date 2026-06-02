@@ -16,14 +16,9 @@
     /* Hotter hazard yellow (was #ccaa00) — brighter, more "danger". */
     --yellow: #ffcc00;
 
-    /* Deeper Tron canvas + grid. */
+    /* Deeper Tron canvas. */
     --bg-deep: #060709;
     --bg-void: #030405;
-    --grid-color: color-mix(in srgb, var(--accent-blue) 7%, transparent);
-    --grid-size: 30px;
-    --grid-image:
-        linear-gradient(var(--grid-color) 1px, transparent 1px),
-        linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
 
     /* Box-shadow glows (layered near + far bloom). */
     --glow-amber:  0 0 6px color-mix(in srgb, var(--accent-orange) 55%, transparent),
@@ -49,8 +44,9 @@
 }
 
 /* ───────────────────────── BACKDROP ─────────────────────────
-   Deepen the canvas and lay a faint grid + centered glow well behind the
-   content. Subtle by design — foreground glow should still dominate. */
+   Deepen the canvas and lay a single centered glow well behind the content.
+   No grid lines — they fight tabular data. Subtle by design; foreground glow
+   should dominate. */
 body { background: var(--bg-deep); }
 
 .terminal-content {
@@ -58,10 +54,8 @@ body { background: var(--bg-deep); }
     background-image:
         radial-gradient(120% 80% at 50% -10%,
             color-mix(in srgb, var(--accent-blue) 8%, transparent) 0%,
-            transparent 55%),
-        var(--grid-image);
-    background-size: auto, var(--grid-size) var(--grid-size);
-    background-attachment: local, local;
+            transparent 55%);
+    background-attachment: local;
 }
 
 /* ───────────────────────── SHELL ─────────────────────────  */
