@@ -3660,19 +3660,24 @@ window.onerror = function (msg, src, line, col, err) {
 
     // ── Shared Company Panel ──
     // Renders price, change, and sparkline into a container element.
-    // Used by info and news views.
+    // Used by the security page top panel AND the sector preview slide-in.
+    // Child elements are queried via class names scoped to `el` — the
+    // earlier pass used hardcoded IDs (#cpanel-spark etc.) which
+    // collided when more than one company panel was on screen at once,
+    // causing the sector-preview sparkline to render INTO the top
+    // panel's spark host and stack up on every 'p' toggle.
     window._renderCompanyPanel = function (containerId, symbol) {
         var el = document.getElementById(containerId);
         if (!el || !symbol) return;
 
         el.innerHTML = '<span class="cpanel-sym st-link-sym">' + symbol + '</span>'
-            + '<span id="cpanel-name" class="cpanel-name"></span>'
-            + '<span id="cpanel-price" class="cpanel-price"></span>'
-            + '<span id="cpanel-change" class="cpanel-change"></span>'
-            + '<div class="cpanel-spark-wrap"><span class="cpanel-spark-label">6m</span><div id="cpanel-spark" class="cpanel-spark"></div></div>';
+            + '<span class="cpanel-name"></span>'
+            + '<span class="cpanel-price"></span>'
+            + '<span class="cpanel-change"></span>'
+            + '<div class="cpanel-spark-wrap"><span class="cpanel-spark-label">6m</span><div class="cpanel-spark"></div></div>';
 
         // Make sparkline clickable
-        var spark = document.getElementById('cpanel-spark');
+        var spark = el.querySelector('.cpanel-spark');
         if (spark) {
             spark.style.cursor = 'pointer';
             spark.title = 'Open chart';
@@ -3720,9 +3725,12 @@ window.onerror = function (msg, src, line, col, err) {
         }
 
         function setCpanelData(name, price, change, changePct) {
-            var nameEl = document.getElementById('cpanel-name');
-            var priceEl = document.getElementById('cpanel-price');
-            var changeEl = document.getElementById('cpanel-change');
+            // Query inside `el` so we update this container's children,
+            // not the first .cpanel-name on the page (which on /security
+            // pages is the top company-panel above us).
+            var nameEl = el.querySelector('.cpanel-name');
+            var priceEl = el.querySelector('.cpanel-price');
+            var changeEl = el.querySelector('.cpanel-change');
             if (nameEl) nameEl.textContent = name;
             if (priceEl) priceEl.textContent = price ? price.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '';
             if (changeEl) {
@@ -3776,8 +3784,10 @@ window.onerror = function (msg, src, line, col, err) {
                     series.setData(data.map(function (d) { return { time: d.date, value: d.close }; }));
                     chart.timeScale().fitContent();
 
-                    // Colour the 6M label to match the sparkline
-                    var label = document.querySelector('.cpanel-spark-label');
+                    // Colour the 6M label to match the sparkline. Scope
+                    // to this container so the preview's label doesn't
+                    // recolour the top panel's.
+                    var label = el.querySelector('.cpanel-spark-label');
                     if (label) label.style.color = color;
                 });
         }
