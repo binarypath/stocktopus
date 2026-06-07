@@ -987,6 +987,18 @@
         });
         html += '</tr></thead><tbody>';
 
+        // Same set of "total" labels as the Income/Balance/CashFlow tables —
+        // bold + orange top rule so the eye picks up summed lines first.
+        // Forecast table labels are slightly different from the FMP-driven
+        // tables (e.g. 'Net Earnings' vs 'Net Income'), so this is its own
+        // dictionary rather than a shared one.
+        var MODELING_TOTAL_LABELS = {
+            'Gross Profit': true, 'Net Earnings': true,
+            'Total Assets': true, 'Total Liab & Equity': true,
+            'Operating Cash Flow': true, 'Investing Cash Flow': true,
+            'Financing Cash Flow': true, 'Net Change in Cash': true,
+        };
+
         MODELING_FORECAST_ROWS.forEach(function (row, rowIdx) {
             var label = row[0];
             var field = row[1];
@@ -996,7 +1008,8 @@
                 return;
             }
             var bsCheckClass = (fmt2 === 'bscheck') ? ' modeling-bscheck' : '';
-            html += '<tr class="fin-row modeling-row' + bsCheckClass + '" data-fin-idx="' + rowIdx + '" data-vim-row>';
+            var totalClass = MODELING_TOTAL_LABELS[label] ? ' fin-row--total' : '';
+            html += '<tr class="fin-row modeling-row' + bsCheckClass + totalClass + '" data-fin-idx="' + rowIdx + '" data-vim-row>';
             html += '<td class="fin-label">' + label + '</td>';
             allPeriods.forEach(function (p) {
                 var v = p[field];
