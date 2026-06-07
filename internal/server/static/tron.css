@@ -16,14 +16,11 @@
     /* Hotter hazard yellow (was #ccaa00) — brighter, more "danger". */
     --yellow: #ffcc00;
 
-    /* Deeper Tron canvas + grid. */
+    /* Deeper Tron canvas. The grid backdrop was pulled — readable on
+     * mockups, but on real pages every faint horizontal line competed
+     * with the actual content for the reader's eye. */
     --bg-deep: #060709;
     --bg-void: #030405;
-    --grid-color: color-mix(in srgb, var(--accent-blue) 7%, transparent);
-    --grid-size: 30px;
-    --grid-image:
-        linear-gradient(var(--grid-color) 1px, transparent 1px),
-        linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
 
     /* Box-shadow glows (layered near + far bloom). */
     --glow-amber:  0 0 6px color-mix(in srgb, var(--accent-orange) 55%, transparent),
@@ -49,8 +46,10 @@
 }
 
 /* ───────────────────────── BACKDROP ─────────────────────────
-   Deepen the canvas and lay a faint grid + centered glow well behind the
-   content. Subtle by design — foreground glow should still dominate. */
+   Deepen the canvas and lay a centered cyan glow well behind the
+   content. The grid pattern that originally sat here was pulled —
+   repeating horizontal lines competed with the actual content; the
+   ambient glow well reads as light, not as a discrete pattern. */
 body { background: var(--bg-deep); }
 
 .terminal-content {
@@ -58,10 +57,7 @@ body { background: var(--bg-deep); }
     background-image:
         radial-gradient(120% 80% at 50% -10%,
             color-mix(in srgb, var(--accent-blue) 8%, transparent) 0%,
-            transparent 55%),
-        var(--grid-image);
-    background-size: auto, var(--grid-size) var(--grid-size);
-    background-attachment: local, local;
+            transparent 55%);
 }
 
 /* ───────────────────────── SHELL ─────────────────────────  */

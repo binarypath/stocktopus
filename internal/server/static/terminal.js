@@ -22,7 +22,19 @@ window.onerror = function (msg, src, line, col, err) {
     let newsFilterSecurity = '';
     var newsCurrentTopic = '';
     var newsSeenURLs = new Set();
+    // newsReadURLs persists across reloads so visited articles stay
+    // muted on the news page, the security News tab, and any future
+    // surface that renders .news-card. Stored as a plain URL array
+    // under stocktopus.newsReadURLs to keep the format obvious.
+    var NEWS_READ_KEY = 'stocktopus.newsReadURLs';
     var newsReadURLs = new Set();
+    try {
+        var stored = JSON.parse(localStorage.getItem(NEWS_READ_KEY) || '[]');
+        if (Array.isArray(stored)) stored.forEach(function (u) { newsReadURLs.add(u); });
+    } catch (e) {}
+    function persistNewsRead() {
+        try { localStorage.setItem(NEWS_READ_KEY, JSON.stringify(Array.from(newsReadURLs))); } catch (e) {}
+    }
     // Economic catalog — keyed by full identifier ("US.UNRATE") AND by bare
     // code ("UNRATE") for v1 ergonomics where typing `:add unrate` should
     // still resolve. Populated by loadFredCodes on boot.
@@ -1113,10 +1125,26 @@ window.onerror = function (msg, src, line, col, err) {
     }
 
     function markNewsRead(card) {
-        card.classList.remove('news-unread');
-        var url = card.dataset.url;
-        if (url) newsReadURLs.add(url);
+        if (card) card.classList.remove('news-unread');
+        var url = card && card.dataset && card.dataset.url;
+        if (url) markUrlRead(url);
     }
+
+    // markUrlRead — single entry point for "this URL was opened". Updates
+    // the persistence layer and any matching .news-card[data-url=…]
+    // currently in the DOM (including the security News tab in info.js).
+    function markUrlRead(url) {
+        if (!url || newsReadURLs.has(url)) return;
+        newsReadURLs.add(url);
+        persistNewsRead();
+        var sel = '.news-card[data-url="' + url.replace(/"/g, '\\"') + '"]';
+        document.querySelectorAll(sel).forEach(function (c) {
+            c.classList.remove('news-unread');
+        });
+    }
+
+    window._isNewsRead = function (url) { return newsReadURLs.has(url); };
+    window._markNewsRead = markUrlRead;
 
     function showNewsSpinner(show) {
         var el = document.getElementById('news-spinner');
@@ -2665,13 +2693,21 @@ window.onerror = function (msg, src, line, col, err) {
                     }
                 }
             },
-            // Sector: i→info, g→graph for selected peer
+            // Sector: i→info, g→graph, p→preview for the highlighted peer.
+            // The peer rows carry data-vim-row, so VimNav owns selection —
+            // the legacy `vimSelectedIndex` stays -1 here. Read the live
+            // .vim-selected element directly instead of indexing the list.
             sectorNav: function (action) {
                 if (!this.isSectorTab()) return;
-                var items = this.getSectorItems();
-                if (vimSelectedIndex < 0 || vimSelectedIndex >= items.length) return;
-                var el = items[vimSelectedIndex];
-                var sym = el.dataset.symbol;
+                var el = document.querySelector('.peer-row.vim-selected, .sector-news-item.vim-selected');
+                if (!el) {
+                    // Fallback for any legacy code path that did track
+                    // vimSelectedIndex into getSectorItems().
+                    var items = this.getSectorItems();
+                    if (vimSelectedIndex < 0 || vimSelectedIndex >= items.length) return;
+                    el = items[vimSelectedIndex];
+                }
+                var sym = el && el.dataset && el.dataset.symbol;
                 if (!sym) return;
                 if (action === 'info' && window._navigateToSecurity) window._navigateToSecurity(sym);
                 if (action === 'graph' && window._navigateToGraph) window._navigateToGraph(sym);
@@ -3249,6 +3285,13 @@ window.onerror = function (msg, src, line, col, err) {
         var readerTitle = document.getElementById('reader-title');
         if (!reader || !readerBody) return;
 
+        // Mark as read globally — any visible card with this URL gets
+        // its `news-unread` class stripped, and the URL is persisted to
+        // localStorage so it stays muted next visit. SEC filings hit
+        // _openReader too, but their cards don't carry .news-unread so
+        // this is a no-op for them.
+        markUrlRead(url);
+
         reader.classList.remove('hidden');
         if (readerTitle) readerTitle.textContent = title || 'Loading...';
 
@@ -3617,19 +3660,24 @@ window.onerror = function (msg, src, line, col, err) {
 
     // ── Shared Company Panel ──
     // Renders price, change, and sparkline into a container element.
-    // Used by info and news views.
+    // Used by the security page top panel AND the sector preview slide-in.
+    // Child elements are queried via class names scoped to `el` — the
+    // earlier pass used hardcoded IDs (#cpanel-spark etc.) which
+    // collided when more than one company panel was on screen at once,
+    // causing the sector-preview sparkline to render INTO the top
+    // panel's spark host and stack up on every 'p' toggle.
     window._renderCompanyPanel = function (containerId, symbol) {
         var el = document.getElementById(containerId);
         if (!el || !symbol) return;
 
         el.innerHTML = '<span class="cpanel-sym st-link-sym">' + symbol + '</span>'
-            + '<span id="cpanel-name" class="cpanel-name"></span>'
-            + '<span id="cpanel-price" class="cpanel-price"></span>'
-            + '<span id="cpanel-change" class="cpanel-change"></span>'
-            + '<div class="cpanel-spark-wrap"><span class="cpanel-spark-label">6m</span><div id="cpanel-spark" class="cpanel-spark"></div></div>';
+            + '<span class="cpanel-name"></span>'
+            + '<span class="cpanel-price"></span>'
+            + '<span class="cpanel-change"></span>'
+            + '<div class="cpanel-spark-wrap"><span class="cpanel-spark-label">6m</span><div class="cpanel-spark"></div></div>';
 
         // Make sparkline clickable
-        var spark = document.getElementById('cpanel-spark');
+        var spark = el.querySelector('.cpanel-spark');
         if (spark) {
             spark.style.cursor = 'pointer';
             spark.title = 'Open chart';
@@ -3677,9 +3725,12 @@ window.onerror = function (msg, src, line, col, err) {
         }
 
         function setCpanelData(name, price, change, changePct) {
-            var nameEl = document.getElementById('cpanel-name');
-            var priceEl = document.getElementById('cpanel-price');
-            var changeEl = document.getElementById('cpanel-change');
+            // Query inside `el` so we update this container's children,
+            // not the first .cpanel-name on the page (which on /security
+            // pages is the top company-panel above us).
+            var nameEl = el.querySelector('.cpanel-name');
+            var priceEl = el.querySelector('.cpanel-price');
+            var changeEl = el.querySelector('.cpanel-change');
             if (nameEl) nameEl.textContent = name;
             if (priceEl) priceEl.textContent = price ? price.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '';
             if (changeEl) {
@@ -3733,8 +3784,10 @@ window.onerror = function (msg, src, line, col, err) {
                     series.setData(data.map(function (d) { return { time: d.date, value: d.close }; }));
                     chart.timeScale().fitContent();
 
-                    // Colour the 6M label to match the sparkline
-                    var label = document.querySelector('.cpanel-spark-label');
+                    // Colour the 6M label to match the sparkline. Scope
+                    // to this container so the preview's label doesn't
+                    // recolour the top panel's.
+                    var label = el.querySelector('.cpanel-spark-label');
                     if (label) label.style.color = color;
                 });
         }

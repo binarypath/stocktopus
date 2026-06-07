@@ -264,6 +264,15 @@
                             (el.textContent || '').trim().slice(0, 200);
                 if (url && window._openReader) window._openReader(url, title);
                 return true;
+            case 'open-external':
+                // Open in a new tab — for URLs whose host actively blocks
+                // server-side fetching (e.g. SEC EDGAR returns a "Your
+                // request originates from an undeclared automated tool"
+                // page to our reader proxy).
+                var extUrl = el.getAttribute('data-vim-url') ||
+                             (el.querySelector('a') && el.querySelector('a').href) || '';
+                if (extUrl) window.open(extUrl, '_blank', 'noopener,noreferrer');
+                return true;
             case 'navigate':
                 var href = el.getAttribute('data-vim-href');
                 if (href) window.location.href = href;
