@@ -215,18 +215,6 @@
     box-shadow: none;
 }
 
-/* Hotkey badge lives inside the pill — no opaque chip punching a hole. */
-.st-tab--active .tab-key,
-.st-tab.vim-selected .tab-key,
-.info-tab.active .tab-key,
-.info-tab.vim-selected .tab-key,
-.info-sub-tab.active .tab-key,
-.info-sub-tab.vim-selected .tab-key {
-    background: transparent;
-    border-color: color-mix(in srgb, currentColor 55%, var(--border));
-    color: inherit;
-}
-
 /* Selected row — rail (1) + emphasis-2 surface (66% accent toward bg).
    The vim-driven selection (.vim-selected) and the CSS-only opt-in
    (.st-row-selected) share one rule so both selectors produce the
@@ -1828,20 +1816,6 @@ body {
     font-size: 12px;
     padding: 5px 12px;
     cursor: pointer;
-}
-
-.tab-key {
-    display: inline-block;
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--text-muted);
-    background: var(--bg-primary);
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    padding: 0 4px;
-    margin-right: 4px;
-    line-height: 1.4;
-    vertical-align: baseline;
 }
 
 .news-tab:hover {
