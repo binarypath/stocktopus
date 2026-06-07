@@ -428,11 +428,13 @@
     ];
 
     function loadFinancials(type) {
-        // Sub-tab bar with keycap badges
+        // Sub-tab bar — hotkeys remain wired in vim-nav but no per-tab
+        // keycap badge: vim navigation owns the row and the badges read
+        // as visual noise in the financials context.
         var subHtml = '<div class="info-sub-tabs st-tab-row st-tab-row--blue" id="fin-sub-tabs" data-vim-row>';
         finSubTypes.forEach(function (t, i) {
             var active = t.key === type ? ' active st-tab--active' : '';
-            subHtml += '<button class="info-sub-tab st-tab' + active + '" data-ftype="' + t.key + '" data-vim-item><span class="tab-key">' + t.hotkey + '</span> ' + t.label + '</button>';
+            subHtml += '<button class="info-sub-tab st-tab' + active + '" data-ftype="' + t.key + '" data-vim-item>' + t.label + '</button>';
         });
         subHtml += '</div><div id="fin-table-container"><p class="empty-state">Loading...</p></div>';
         container.innerHTML = subHtml;
@@ -698,12 +700,25 @@
                 });
                 html += '</tr></thead><tbody>';
 
+                // Total-row labels — bolded + top border per analyst-spreadsheet
+                // convention (fool.com / Bloomberg). Match on the canonical
+                // label, not the FMP field key.
+                var FIN_TOTAL_LABELS = {
+                    'Gross Profit': true, 'Operating Income': true, 'Income Before Tax': true,
+                    'EBITDA': true, 'Net Income': true,
+                    'Total Assets': true, 'Total Liabilities': true, 'Total Debt': true,
+                    'Total Equity': true,
+                    'Operating CF': true, 'Investing CF': true, 'Financing CF': true,
+                    'Free Cash Flow': true, 'Net Change in Cash': true,
+                };
+
                 rows.forEach(function (row, rowIdx) {
                     var field = row[0].toLowerCase().replace(/[^a-z0-9]/g, '-');
                     var tip = HELP[field] ? '<span class="help-tip hidden">' + esc(HELP[field]) + '</span>' : '';
                     var format = row[2] || '';
                     var finKey = format === 'calc' ? row[3] + '/' + row[4] : (row[1] || '');
-                    html += '<tr class="fin-row" data-fin-idx="' + rowIdx + '" data-fin-key="' + esc(finKey) + '" data-fin-label="' + esc(row[0]) + '" data-fin-format="' + format + '" data-vim-row>';
+                    var totalCls = FIN_TOTAL_LABELS[row[0]] ? ' fin-row--total' : '';
+                    html += '<tr class="fin-row' + totalCls + '" data-fin-idx="' + rowIdx + '" data-fin-key="' + esc(finKey) + '" data-fin-label="' + esc(row[0]) + '" data-fin-format="' + format + '" data-vim-row>';
                     html += '<td class="fin-label">' + row[0] + tip + '</td>';
                     data.forEach(function (d) {
                         var val;
@@ -899,8 +914,10 @@
             html += '</tr>';
         });
         html += '</tbody></table>';
-        html += '<div class="modeling-actions">';
-        html += '<button type="button" id="modeling-reset" class="modeling-btn">Reset to derived defaults</button>';
+        // Reset button row joins the vim grid as its own row so j keeps
+        // moving past the last driver into the actions strip.
+        html += '<div class="modeling-actions" data-vim-row>';
+        html += '<button type="button" id="modeling-reset" class="modeling-btn" data-vim-item>Reset to derived defaults</button>';
         html += '<span class="modeling-status" id="modeling-status"></span>';
         html += '</div>';
         return html;
@@ -1122,7 +1139,13 @@
                         var plain = div.textContent || div.innerText || '';
                         if (plain.length > 220) plain = plain.substring(0, 220) + '…';
                         var title = (item.title || '').replace(/"/g, '&quot;');
-                        return '<div class="news-card news-unread" data-vim-row data-vim-action="open-reader" data-vim-url="' + esc(item.url) + '" data-vim-title="' + esc(title) + '">'
+                        // Read state lives in terminal.js's global Set
+                        // (persisted to localStorage). The card carries
+                        // data-url so the global mark-read helper can
+                        // strip .news-unread when _openReader fires.
+                        var isRead = window._isNewsRead && window._isNewsRead(item.url);
+                        var unreadCls = isRead ? '' : ' news-unread';
+                        return '<div class="news-card' + unreadCls + '" data-url="' + esc(item.url) + '" data-vim-row data-vim-action="open-reader" data-vim-url="' + esc(item.url) + '" data-vim-title="' + esc(title) + '">'
                             + '<div class="news-card-title"><a href="' + esc(item.url) + '" onclick="event.preventDefault();if(window._openReader)window._openReader(this.href,this.textContent)">' + esc(item.title) + '</a></div>'
                             + '<div class="news-card-meta"><span>' + esc(item.source || '') + '</span><span>' + date + '</span></div>'
                             + '<div class="news-card-text">' + esc(plain) + '</div>'
@@ -1410,7 +1433,7 @@
                         var catClass = 'sec-cat-' + (t.category || 'other');
                         var date = (f.filingDate || '').substring(0, 10);
                         var filingTitle = esc(t.title || f.formType);
-                        html += '<tr class="sec-row" data-idx="' + idx + '" data-link="' + esc(f.link || f.finalLink || '') + '" data-vim-row data-vim-action="open-reader" data-vim-url="' + esc(f.link || f.finalLink || '') + '" data-vim-title="' + filingTitle + '">';
+                        html += '<tr class="sec-row" data-idx="' + idx + '" data-link="' + esc(f.link || f.finalLink || '') + '" data-vim-row data-vim-action="open-external" data-vim-url="' + esc(f.link || f.finalLink || '') + '" data-vim-title="' + filingTitle + '">';
                         html += '<td class="sec-date">' + date + '</td>';
                         html += '<td><span class="sec-badge ' + catClass + '">' + esc(f.formType) + '</span></td>';
                         html += '<td class="sec-desc">' + filingTitle + '</td>';
@@ -1662,28 +1685,31 @@
                 html += renderTradingResult(tradingResult);
             }
 
-            // Existing AI analysis
+            // AI analysis content lives in its own host div so the Phase 1
+            // poll can swap progress → result without clobbering the
+            // Deep Analysis header + button above it. Closes the bug
+            // where the Run Deep Analysis button disappeared when Phase 1
+            // auto-kicked off on a fresh security.
+            var aiContent = '';
             if (data.status && !data.summary) {
                 if (data.status === 'running' || data.status === 'pending') {
-                    html += renderAIProgress(data);
-                    container.innerHTML = html;
-                    pollAIStatus();
-                    return;
-                }
-                if (data.status === 'failed') {
-                    html += '<p class="empty-state">AI analysis failed: ' + esc(data.error || 'unknown') + '</p>';
-                    container.innerHTML = html;
-                    return;
+                    aiContent = renderAIProgress(data);
+                } else if (data.status === 'failed') {
+                    aiContent = '<p class="empty-state">AI analysis failed: ' + esc(data.error || 'unknown') + '</p>';
                 }
             }
-            if (!data.error || data.summary) {
-                html += renderAIAnalysis(data);
+            if (!aiContent && (!data.error || data.summary)) {
+                aiContent = renderAIAnalysis(data);
             }
+            html += '<div id="ai-content-host">' + aiContent + '</div>';
 
             container.innerHTML = html;
+            wireTradingButton();
             wireCompetitorLinks();
             loadCompetitorScores();
-            wireTradingButton();
+            if (data.status === 'running' || data.status === 'pending') {
+                pollAIStatus();
+            }
 
             // Poll if trading analysis is running
             if (tradingResult && !isFinished(tradingResult)) {
@@ -1989,24 +2015,29 @@
                 .then(function (r) { return r.json(); })
                 .then(function (status) {
                     if (currentTab !== 'ai') { stopAIPolling(); return; }
+                    // Swap the host's inner HTML, not the whole container —
+                    // the Deep Analysis header + button live above the host
+                    // and must survive every poll tick.
+                    var host = document.getElementById('ai-content-host');
                     if (status.status === 'complete') {
                         stopAIPolling();
                         fetch('/api/security/' + symbol + '/intelligence')
                             .then(function (r) { return r.json(); })
                             .then(function (data) {
                                 if (currentTab !== 'ai') return;
-                                container.innerHTML = renderAIAnalysis(data);
+                                var h = document.getElementById('ai-content-host');
+                                if (h) h.innerHTML = renderAIAnalysis(data);
                                 wireCompetitorLinks();
                                 loadCompetitorScores();
                             });
                     } else if (status.status === 'failed') {
                         stopAIPolling();
-                        if (currentTab === 'ai') {
-                            container.innerHTML = '<p class="empty-state">AI analysis failed: ' + esc(status.error || 'unknown error') + '</p>';
+                        if (currentTab === 'ai' && host) {
+                            host.innerHTML = '<p class="empty-state">AI analysis failed: ' + esc(status.error || 'unknown error') + '</p>';
                         }
                     } else {
-                        if (currentTab === 'ai') {
-                            container.innerHTML = renderAIProgress(status);
+                        if (currentTab === 'ai' && host) {
+                            host.innerHTML = renderAIProgress(status);
                         }
                     }
                 });

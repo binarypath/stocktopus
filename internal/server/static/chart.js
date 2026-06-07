@@ -308,7 +308,7 @@
                             position: 'aboveBar',
                             color: '#ffcc00',
                             shape: 'circle',
-                            text: count + ' article' + (count > 1 ? 's' : ''),
+                            text: String(count),
                         });
                     }
                 });
