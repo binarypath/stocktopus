@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [1.17.1](https://github.com/binarypath/stocktopus/compare/v1.17.0...v1.17.1) (2026-06-07)
+
+
+### Bug Fixes
+
+* bug round (header unification, financials totals, news read state, sector preview, etc.) ([#147](https://github.com/binarypath/stocktopus/issues/147)) ([994bda3](https://github.com/binarypath/stocktopus/commit/994bda3af893abf644326501e9083889178414dc))
+
 ## [1.17.0](https://github.com/binarypath/stocktopus/compare/v1.16.0...v1.17.0) (2026-06-01)
 
 
