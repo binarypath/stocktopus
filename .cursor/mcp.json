@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "graphify": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "graphify-mcp-tools",
+        "mcp",
+        "--graph",
+        "/Users/pete/git/stocktopus/graphify-out"
+      ]
+    }
+  }
+}

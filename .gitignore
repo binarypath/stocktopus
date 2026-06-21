@@ -97,3 +97,6 @@ Thumbs.db   # Windows
 .vscode/
 .idea/
 *.iml
+
+# --- Graphify (local knowledge graph — rebuild on demand, never commit) ---
+graphify-out/

@@ -4,7 +4,7 @@ The reference for Stocktopus' design system: tokens in `:root`, `st-*` primitive
 
 > **Status:** Phases 1–4 shipped in #139 and #141; Phase 4b layout-split + priority spacing pass and Phase 5 guardrail landed alongside this doc. The hex baseline in `internal/server/css_guard_test.go` ratchets one-way as stragglers migrate.
 
-**Primary stylesheet:** `internal/server/static/style.css`. Brand colours, spacing atoms, motion durations, and emphasis percentages all live in the `:root` block at the top of the file — anything else outside `:root` is a candidate for the next ratchet.
+**Primary stylesheet:** `internal/server/static/style.css` — single file including the Tron glow/panel layer (formerly `tron.css`). Brand colours, spacing atoms, motion durations, and emphasis percentages all live in the `:root` block at the top of the file — anything else outside `:root` is a candidate for the next ratchet.
 
 **User preferences (non-negotiable direction):**
 - Thin **bright** orange and blue **lines** (1–2px borders, rails, pane edges).
@@ -75,8 +75,10 @@ Do **not** reuse green for non-market badges (e.g. entity types) when unifying �
 | **1** | Line, rail, single stroke (thin orange/blue border) |
 | **3** | Spacing atom (`--u: 3px`), surface weight, strong fill |
 | **1 : 3** | Chrome : content (sidebar : main, filters : results) |
-| **1/3** | Minor column (~25% width), hints, muted emphasis |
+| **1/3** | Minor column (~25% width), hints, muted emphasis — **Overview price chart height** |
 | **3/1** | Hero dominance (price vs tags, chart vs toolbar) |
+
+**Overview tab (1 + 1:3):** one full-width graph panel (~⅓ viewport height), then two columns beneath at `--layout-split` (Key People · Description). The numbers **3** and **1** are intentional — graph is the single hero band; the row below is always 1fr : 3fr.
 
 **Commit:** ternary grid for spacing, hierarchy, and split layouts. **Avoid:** forcing chart columns or data tables into 1:3 when density needs flexibility—structure is ternary; data regions are fluid inside the **3fr** column.
 
@@ -159,50 +161,60 @@ Add or replace in `style.css` `:root` block. Starting hex values (tune on one re
 
 Add a dedicated section in `style.css` (e.g. `/* ── Design system primitives (st-*) ── */`). Pages adopt by adding classes alongside existing ones during migration (dual-write), then remove legacy rules.
 
-### 4.1 Tabs
+### 4.1 Tabs — sliding pill (selected / current)
+
+**Info panels (`#info-content`):** primary and sub nav share the **blue menu band** — soft `--panel-bg-soft` strip flush to the panel edge, active item = solid blue fill (no sliding pill, no underline). Wrapper: `.info-panel` > `.info-tabs.st-tab-row--blue` + `.info-sub-tabs`.
+
+**Elsewhere (watchlist, screener, graph range):** orange/blue sliding pill on `::before` as below.
+
+**Visual contract (sliding pill contexts):**
+- Strip row: neutral baseline only (`box-shadow: inset 0 -1px 0 var(--border)`).
+- Selected tab: **50% accent fill** on a `::before` pseudo-element (`--tab-selected-fill-orange` / `--tab-selected-fill-blue`).
+- **Slide animation:** fill scales `scaleX(0) → scaleX(1)` from the left on select; reverses on deselect.
+- Timing: `--duration-select` (180ms) + `--ease-select`.
+- `.tab-key` hotkey badge sits inside the pill (transparent background, inherits accent color).
+- Row/list `.vim-selected` uses `--duration-select` transitions on background/rail (not the tab pill).
+
+**Tokens (`:root`):**
 
 ```css
-.st-tab-row {
-    display: flex;
-    gap: 4px;
-    border-bottom: var(--line-default);
-    padding-bottom: 8px;
-    margin-bottom: 12px;
-}
-
-.st-tab {
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: var(--radius-md);
-    color: var(--text-secondary);
-    font-family: var(--font-mono);
-    font-size: var(--text-sm);
-    padding: 4px 12px;
-    cursor: pointer;
-}
-
-.st-tab:hover {
-    color: var(--text-primary);
-    background: var(--bg-tertiary);
-}
-
-.st-tab--active {
-    color: var(--accent-orange);
-    border: var(--line-accent-orange);
-    background: var(--accent-orange-surface);
-    box-shadow: inset 0 -2px 0 var(--accent-orange);
-}
-
-/* Secondary strip (sub-tabs, news sub-nav) */
-.st-tab-row--blue .st-tab--active {
-    color: var(--accent-blue);
-    border: var(--line-accent-blue);
-    background: var(--accent-blue-surface);
-    box-shadow: inset 0 -2px 0 var(--accent-blue);
-}
+--tab-selected-fill-orange: color-mix(in srgb, var(--accent-orange) 50%, transparent);
+--tab-selected-fill-blue: color-mix(in srgb, var(--accent-blue) 50%, transparent);
+--tab-row-focus-bg: color-mix(in srgb, var(--accent-orange) 10%, transparent);
+--tab-row-focus-bg-blue: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+--duration-select: var(--duration-2);   /* 180ms */
+--ease-select: cubic-bezier(0.4, 0, 0.2, 1);
 ```
 
-**Maps from:** `.info-tab`, `.info-sub-tab`, `.chart-range-btn`, `.economics-tab`, `.screener-preset` (preset variant may use smaller padding).
+**Implementation (`style.css`):**
+
+```css
+.st-tab::before,
+.info-tab::before,
+.info-sub-tab::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    z-index: -1;
+    background: var(--tab-selected-fill-orange);
+    transform: scaleX(0);
+    transform-origin: left center;
+    opacity: 0;
+    transition:
+        transform var(--duration-select) var(--ease-select),
+        opacity var(--duration-select) var(--ease-select);
+}
+
+.st-tab--active::before,
+.st-tab.vim-selected::before,
+.info-tab.active::before,
+.info-sub-tab.active::before { transform: scaleX(1); opacity: 1; }
+```
+
+**Accessibility:** honour `prefers-reduced-motion: reduce` — disable `::before` transitions on tabs.
+
+**Maps from:** `.info-tab`, `.info-sub-tab`, `.st-tab`, `.chart-range-btn` (when dual-written).
 
 ### 4.2 Table row selection
 
@@ -318,32 +330,44 @@ Add a dedicated section in `style.css` (e.g. `/* ── Design system primitives
 
 ### 4.8 Shared table chrome
 
+Tabular data inside `#info-content` (Estimates, Financials, peer tables, etc.) uses **`fin-table st-table`** dual-write.
+
+**Header row (always blue for tabular data):**
+- Background: `--tab-selected-fill-blue` (50% blue — same family as sub-tab pills).
+- Text: `--accent-blue`, uppercase, `--text-1`.
+- Bottom rule: `--line-accent-blue`.
+
+**Row selection:**
+- Add `data-vim-row` on each `<tr>`; vim j/k applies `.vim-selected` → orange rail + `--emphasis-2` surface (see §4.2).
+- Financial statement rows use `.fin-row` + `data-vim-row` (existing pattern).
+
+**Column selection:**
+- Add `data-vim-col` (or `data-col-idx`) on `<th>` and matching `<td>` cells.
+- Toggle `.st-col-selected` on the active column's `th` + all `td` in that column index.
+- Column highlight: `--emphasis-1` blue mix on body cells; `--emphasis-2` on header cell.
+- Keyboard: **h / l** (or existing vim column bindings) when focus is in `#info-content` table context.
+
 ```css
-.st-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--text-sm);
-}
-
 .st-table thead th {
-    text-align: left;
-    color: var(--text-secondary);
-    font-size: var(--text-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    padding: 6px 8px;
-    border-bottom: var(--line-default);
+    color: var(--accent-blue);
+    background: var(--tab-selected-fill-blue);
+    border-bottom: var(--line-accent-blue);
 }
 
-.st-table tbody td {
-    padding: 6px 8px;
-    border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+.st-table th.st-col-selected,
+.st-table td.st-col-selected {
+    background: color-mix(in srgb, var(--accent-blue) var(--emphasis-1), var(--bg-primary));
 }
-
-.st-table tbody tr:hover {
-    background: var(--bg-secondary);
+.st-table thead th.st-col-selected {
+    background: color-mix(in srgb, var(--accent-blue) var(--emphasis-2), var(--bg-primary));
 }
 ```
+
+**Acceptance (Info → Estimates example):**
+- [ ] `#info-content table.st-table thead` shows blue header band.
+- [ ] Rows are vim-selectable (`data-vim-row`).
+- [ ] Columns highlight together when `.st-col-selected` is applied.
+- [ ] No duplicate grey header styling on dual-written `.fin-table.st-table`.
 
 **Maps from:** `.quote-table`, `.screener-table`, `.fin-table`, peer comparison tables.
 
@@ -366,7 +390,7 @@ Use for all signed numeric columns (watchlist changes, screener Δ columns, etc.
 | **Shell** | `.terminal-header`, `.terminal-footer`, `.cmd-bar`, `.brand` | Orange brand text; cmd-bar focus = orange line; footer mode = `st-chip` semantic |
 | **Watchlist** | `.watchlist`, `.quote-table`, `.wl-tab`, `.wl-spark-cell` | `st-table`, `st-link-sym`, `st-tab` for tabs; market colors for deltas; 6M sparkline label uses `price-up`/`price-down` |
 | **Graph** | `.chart-range-bar`, `.chart-range-btn`, `.chart-toggle`, `.chart-container` | `st-tab` for range buttons; toggles: green only when “on” |
-| **Info** | `.info-tabs`, `.info-sub-tabs`, `.company-panel`, peer/SEC tables | Orange `st-tab-row`; blue `st-tab-row--blue` for sub-tabs; `st-row-selected` on tables |
+| **Info** | `.info-panel`, `.info-tabs`, `.info-sub-tabs`, `.company-panel`, peer/SEC tables | Blue menu band on all nav strips; `st-row-selected` on tables |
 | **Ideas** | `.ideas-layout`, `.ideas-sidebar`, `.ideas-main`, `.ideas-chart-host` | `st-pane-active`; chart series colors = token orange/blue; legend swatches match |
 | **Screener** | `.screener-layout`, `.screener-filters`, `#screener-table` | `st-input`, `st-section-title`, `st-pane-active`, `st-row-selected`, `price-up`/`price-down` on Δ columns |
 | **Economics** | `.economics-layout`, `.economics-tab` | `st-tab` / `st-tab-row` |
@@ -434,7 +458,11 @@ Use for all signed numeric columns (watchlist changes, screener Δ columns, etc.
 - [ ] No one-off active styles.
 
 ### Info
-- [ ] Primary tabs orange; sub-tabs blue.
+- [ ] Primary + sub nav: blue menu band (`.info-panel > .info-tabs`, `.info-sub-tabs`) — soft grey strip, blue active fill.
+- [ ] In-panel section headers (`.st-panel-band`, Key People, Sector, SEC, AI): same blue band chrome.
+- [ ] Tab select/deselect animates via `::before` scaleX slide (~180ms).
+- [ ] Overview: `.info-overview-chart` ~⅓ viewport; `.info-overview-top` at `--layout-split` (Key People · Description).
+- [ ] `#info-content` tabular data: blue `st-table` header; selectable rows (`data-vim-row`) and columns (`.st-col-selected`).
 - [ ] Sector selected row: orange left rail + surface (not outline-only).
 - [ ] Company panel symbol = blue, consistent with watchlist.
 
@@ -547,7 +575,8 @@ This section extends **§3** tokens and **§4** primitives. Implement in the sam
 | `.screener-layout` | `display: flex`; `.screener-filters { width: 280px }` | Same `grid` + `--layout-split` |
 | `.article-reader` | `width: 450px` | `width: min(33.333%, 450px);` (450 = 150×3; cap preserves today’s max) |
 | `.debug-panels` | `grid-template-columns: 280px 1fr` | `grid-template-columns: var(--layout-split)` |
-| `.info-overview-top` | `minmax(0, 1fr) minmax(0, 1.2fr)` | `minmax(0, 1fr) minmax(0, 3fr)` or `var(--layout-split)` |
+| `.info-overview-top` | `minmax(0, 1fr) minmax(0, 1.2fr)` | `var(--layout-split)` (1fr : 3fr) |
+| `.info-overview-chart` | — | `min(33vh, calc((100vh - 200px) / 3))` height |
 
 **Do not force 1:3 on:** `#screener-table` column widths, chart canvas, `repeat(4, 1fr)` stat grids, `minmax(80px, 1fr)` auto-fit blocks.
 
@@ -666,12 +695,16 @@ Optional: `.st-tab--active` inset bar `0 -3px 0` (ternary stroke) instead of `-2
 
 ---
 
-## 10. Related handoff files
+## 10. Related files
 
-- `watchlist-reader-ui-handoff.md` — original feature/UI content changes.
-- `watchlist-reader-ui-handoff-incremental.md` — follow-up items (screener, ideas, `1d` lowercase, etc.).
+| Path | Role |
+|------|------|
+| **`docs/design-system-export/`** | Visual reference kit from design export zip — HTML previews, `tron.css`, `_real-style.css`, `INTEGRATION.md`, `tweaks-panel.jsx`. Open previews locally to compare Tron on/off. |
+| **`docs/design-language.md`** | Written spec (this file) — tokens, primitives, rollout, ternary system. |
+| `watchlist-reader-ui-handoff.md` | Feature/UI content changes (when present in repo). |
+| `watchlist-reader-ui-handoff-incremental.md` | Follow-up items (screener, ideas, `1d` lowercase, etc.). |
 
-Implement design unification **in parallel** with incremental features where classes overlap; prefer adding `st-*` classes in templates during feature work rather than restyling twice.
+Implement design unification **in parallel** with incremental features where classes overlap; prefer adding `st-*` classes in templates during feature work rather than restyling twice. When previews and this doc disagree, treat **previews as visual target** and **this doc + live `style.css`** as implementation source of truth until reconciled.
 
 ---
 

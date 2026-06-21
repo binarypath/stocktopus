@@ -14,7 +14,34 @@
     /* ── Market semantics (unchanged) ── */
     --green: #00cc66;
     --red: #ff4444;
-    --yellow: #ccaa00;
+    --yellow: #ffcc00;
+
+    /* ── Tron canvas + glow + panel system ── */
+    --bg-deep: #060709;
+    --bg-void: #030405;
+    --glow-amber:  0 0 6px color-mix(in srgb, var(--accent-orange) 55%, transparent),
+                   0 0 18px color-mix(in srgb, var(--accent-orange) 28%, transparent);
+    --glow-cyan:   0 0 6px color-mix(in srgb, var(--accent-blue) 55%, transparent),
+                   0 0 18px color-mix(in srgb, var(--accent-blue) 28%, transparent);
+    --glow-green:  0 0 6px color-mix(in srgb, var(--green) 55%, transparent),
+                   0 0 16px color-mix(in srgb, var(--green) 26%, transparent);
+    --glow-red:    0 0 6px color-mix(in srgb, var(--red) 55%, transparent),
+                   0 0 16px color-mix(in srgb, var(--red) 26%, transparent);
+    --text-glow-amber: 0 0 8px color-mix(in srgb, var(--accent-orange) 70%, transparent);
+    --text-glow-cyan:  0 0 8px color-mix(in srgb, var(--accent-blue) 70%, transparent);
+    --text-glow-green: 0 0 8px color-mix(in srgb, var(--green) 70%, transparent);
+    --text-glow-red:   0 0 8px color-mix(in srgb, var(--red) 70%, transparent);
+    --rail-glow-amber: inset 2px 0 0 var(--accent-orange),
+                       inset 10px 0 14px -8px color-mix(in srgb, var(--accent-orange) 70%, transparent);
+    --rail-glow-cyan:  inset 2px 0 0 var(--accent-blue),
+                       inset 10px 0 14px -8px color-mix(in srgb, var(--accent-blue) 70%, transparent);
+    --panel-bg:       #16191c;
+    --panel-bg-soft:  #1b1f23;
+    --panel-border:   #2a2f34;
+    --panel-radius:   16px;
+    --control-radius: 9px;
+    --panel-gap:      9px;
+    --row-line:       rgba(255, 255, 255, 0.06);
 
     /* ── Brand accents (saturated). --orange / --blue are aliases for
        gradual migration; new code should reach for --accent-orange /
@@ -318,12 +345,13 @@
 }
 .st-table thead th {
     text-align: left;
-    color: var(--text-secondary);
+    color: var(--accent-blue);
     font-size: var(--text-1);
     text-transform: uppercase;
     letter-spacing: 0.3px;
     padding: var(--space-2) var(--space-3);
-    border-bottom: var(--line-default);
+    border-bottom: var(--line-accent-blue);
+    background: var(--tab-selected-fill-blue);
 }
 .st-table tbody td {
     padding: var(--space-2) var(--space-3);
@@ -331,6 +359,26 @@
 }
 .st-table tbody tr:hover {
     background: var(--bg-secondary);
+}
+
+/* Column highlight (vim h/l or click) — pairs with .st-col-selected on th+td. */
+.st-table th.st-col-selected,
+.st-table td.st-col-selected {
+    background: color-mix(in srgb, var(--accent-blue) var(--emphasis-1), var(--bg-primary));
+}
+.st-table thead th.st-col-selected {
+    background: color-mix(in srgb, var(--accent-blue) var(--emphasis-2), var(--bg-primary));
+    color: var(--accent-blue);
+}
+
+/* Numeric fin-table columns keep right alignment when st-table is dual-written. */
+.fin-table.st-table thead th:not(:first-child),
+.fin-table.st-table tbody td:not(.fin-label) {
+    text-align: right;
+}
+.fin-table.st-table thead th:first-child,
+.fin-table.st-table tbody td.fin-label {
+    text-align: left;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1173,8 +1221,70 @@ body {
 }
 
 .info-content {
-    max-height: calc(100vh - 200px);
     overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* Info shell — one rounded panel; primary + sub nav share blue band chrome. */
+.info-panel {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 200px);
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    overflow: hidden;
+}
+
+.info-panel > .info-content {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: var(--panel-gap) var(--panel-gap) 0 var(--panel-gap);
+}
+
+/* Blue band — in-panel section headers (same chrome as sub-tab strip). */
+.st-panel-band,
+.sector-header,
+.sector-section-title,
+.info-people-header,
+.kp-section-header,
+.ai-section-title,
+.trading-header {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    margin: 0 calc(var(--panel-gap) * -1) var(--panel-gap);
+    padding: var(--space-2) var(--space-4);
+    background: var(--panel-bg-soft);
+    border-bottom: 1px solid var(--panel-border);
+    font-size: var(--text-1);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent-blue);
+}
+
+.info-content > :first-child.st-panel-band,
+.info-content > .sector-view > .sector-header:first-child,
+.info-content > .trading-header:first-child {
+    margin-top: calc(var(--panel-gap) * -1);
+}
+
+.sector-header .sector-name { color: var(--accent-blue); }
+.sector-header .sector-industry,
+.sector-header .sector-hint,
+.info-people-meta,
+.kp-section-meta {
+    color: var(--text-muted);
+    font-weight: normal;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: var(--text-1);
 }
 
 .info-grid {
@@ -1193,11 +1303,12 @@ body {
 
 .info-stat-label {
     display: block;
-    font-size: 10px;
-    color: var(--text-muted);
+    font-size: var(--text-1);
+    color: var(--text-secondary);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 2px;
+    letter-spacing: 0.6px;
+    margin-bottom: var(--space-1);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 }
 
 .info-stat-value {
@@ -1379,25 +1490,20 @@ body {
 }
 
 .sector-header {
-    font-size: 14px;
-    font-weight: 700;
+    font-size: var(--text-1);
 }
 
 .sector-name {
-    color: var(--orange);
+    color: var(--accent-blue);
 }
 
 .sector-industry {
-    color: var(--text-secondary);
+    color: var(--text-muted);
     font-weight: 400;
 }
 
 .sector-section-title {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    /* band chrome from .st-panel-band group above */
 }
 
 /* ── /crypto/{symbol} page ── */
@@ -1575,12 +1681,8 @@ body {
 }
 
 .ai-section-title {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 8px;
+    /* band chrome from .st-panel-band group above */
+    margin-bottom: var(--panel-gap);
 }
 
 .ai-summary {
@@ -2544,9 +2646,6 @@ body {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 8px 0;
-    margin-bottom: 8px;
-    border-bottom: 1px solid var(--border);
 }
 
 .trading-btn {
@@ -2982,19 +3081,9 @@ body {
 /* Key People — section headers, current snapshot table, change timeline */
 
 .kp-section-header {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    margin: 14px 0 6px;
-    color: var(--text-primary);
-    font-size: 13px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 4px;
+    /* band chrome from .st-panel-band group above */
 }
-.kp-section-header:first-child { margin-top: 4px; }
+.kp-section-header:first-child { margin-top: calc(var(--panel-gap) * -1); }
 
 .kp-section-meta {
     color: var(--text-muted);
@@ -3333,14 +3422,39 @@ li.kp-row::before {
     letter-spacing: 0.3px;
 }
 
-/* Overview — two-column top split: Key People (left) + Description (right);
-   key indicators sit underneath. */
+/* Overview — ternary stack: graph (1/3 viewport) then Key People | Description (1:3). */
+
+.info-overview {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.info-overview-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    gap: var(--panel-gap);
+}
+
+.info-overview-chart {
+    flex: 0 0 min(33vh, calc((100vh - 200px) / 3));
+    min-height: 150px;
+    width: 100%;
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    background: var(--panel-bg);
+    overflow: hidden;
+}
 
 .info-overview-top {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-    gap: 24px;
-    margin-bottom: 20px;
+    grid-template-columns: var(--layout-split);
+    gap: var(--space-6);
+    flex: 1;
+    min-height: 0;
+    margin-bottom: 0;
 }
 
 .info-overview-left,
@@ -3370,12 +3484,8 @@ li.kp-row::before {
 }
 
 .info-people-header {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--text-primary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 8px;
+    /* band chrome from .st-panel-band group above */
+    margin-bottom: var(--space-3);
 }
 
 .info-people-meta {
@@ -3523,7 +3633,10 @@ a, [tabindex] {
 .info-grid-dense .info-stat {
     padding: 6px 8px;
 }
-.info-grid-dense .info-stat-label { font-size: 9px; }
+.info-grid-dense .info-stat-label {
+    font-size: var(--text-1);
+    color: color-mix(in srgb, var(--accent-blue) 28%, var(--text-secondary));
+}
 .info-grid-dense .info-stat-value { font-size: 13px; }
 
 @media (max-width: 1100px) {
@@ -4540,4 +4653,447 @@ details.screener-group > summary.vim-selected {
     font-size: 10px;
     border-radius: 2px;
 }
+
+
+/* ============================================================================
+   Tron glow + panel system (merged from tron.css)
+   ============================================================================ */
+
+/* ───────────────────────── BACKDROP ─────────────────────────
+   Deepen the canvas and lay a single centered glow well behind the content.
+   No grid lines — they fight tabular data. Subtle by design; foreground glow
+   should dominate. */
+body { background: var(--bg-deep); }
+
+.terminal-content {
+    flex: 1;
+    padding: 8px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background-color: var(--bg-deep);
+    background-image:
+        radial-gradient(120% 80% at 50% -10%,
+            color-mix(in srgb, var(--accent-blue) 8%, transparent) 0%,
+            transparent 55%);
+    background-attachment: local;
+}
+
+/* ───────────────────────── SHELL ─────────────────────────  */
+
+/* Underlit header rule — cyan→amber glowing edge beneath the chrome. */
+.terminal-header { position: relative; }
+.terminal-header::after {
+    content: '';
+    position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+    background: linear-gradient(90deg, transparent 0%,
+        color-mix(in srgb, var(--accent-blue) 55%, transparent) 30%,
+        color-mix(in srgb, var(--accent-orange) 55%, transparent) 70%, transparent 100%);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent-blue) 30%, transparent);
+    pointer-events: none;
+}
+.brand { text-shadow: var(--text-glow-amber); }
+
+/* Command bar ignites amber on focus. */
+.cmd-bar:focus-within { box-shadow: var(--glow-amber); }
+.cmd-prompt { text-shadow: var(--text-glow-amber); }
+
+/* Security selector ignites cyan on focus. */
+.security-input:focus { box-shadow: var(--glow-cyan); }
+
+/* Connection status — green bloom + brighter border when live. */
+.conn-status.connected {
+    border-color: color-mix(in srgb, var(--green) 60%, var(--border));
+    box-shadow: var(--glow-green);
+    text-shadow: var(--text-glow-green);
+}
+
+/* Footer mode + view ignite. */
+.footer-mode.normal { text-shadow: var(--text-glow-green); }
+.footer-mode.insert { text-shadow: var(--text-glow-amber); }
+.footer-view { text-shadow: var(--text-glow-amber); }
+
+/* ───────────────────────── TABS / NAV ─────────────────────────
+   The base draws a full-width baseline (inset 0 -1px 0 border) under every
+   tab/range row, plus a 50% pill fill on the active tab. That reads as an
+   ugly single underline with the pills "floating" on it. Here the nav
+   blends into the background: no baseline, no pill fill — the active tab is
+   just brighter amber/cyan text with a short underline tick beneath it. */
+
+/* 1 — kill the full-row baseline everywhere it's used as chrome, including
+        the runtime vim-focus + tab-row-focused variants that re-add it */
+.st-tab-row, .info-tabs, .chart-range-bar,
+.info-sub-tabs, .news-sub-tabs, .economics-tabs,
+.info-tabs.tab-row-focused, .st-tab-row.tab-row-focused,
+.st-tab-row[data-vim-row]:has(.vim-selected),
+.info-tabs[data-vim-row]:has(.vim-selected),
+.info-sub-tabs[data-vim-row]:has(.vim-selected),
+.news-sub-tabs[data-vim-row]:has(.vim-selected),
+.economics-tabs[data-vim-row]:has(.vim-selected) {
+    box-shadow: none !important;
+    border-bottom: none !important;
+}
+
+/* 2 — tabs never wrap, and give them room to breathe */
+.st-tab, .info-tab, .info-sub-tab, .chart-range-btn { white-space: nowrap; }
+
+/* 3 — primary + sub nav share one blue menu band (panel top or in-content). */
+.info-panel > .info-tabs,
+.info-sub-tabs, .news-sub-tabs {
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    border-radius: 0;
+    background: var(--panel-bg-soft);
+    border: none !important;
+    border-bottom: 1px solid var(--panel-border) !important;
+    box-shadow: none !important;
+}
+
+.info-panel > .info-tabs {
+    margin: 0;
+}
+
+.info-sub-tabs, .news-sub-tabs {
+    margin: calc(var(--panel-gap) * -1) calc(var(--panel-gap) * -1) var(--panel-gap);
+}
+
+.info-panel > .info-tabs .info-tab,
+.info-sub-tabs .info-sub-tab,
+.news-sub-tabs .info-sub-tab {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 0;
+    padding: var(--space-2) var(--space-4);
+}
+
+.info-panel > .info-tabs .info-tab::before,
+.info-sub-tabs .info-sub-tab::before,
+.news-sub-tabs .info-sub-tab::before { display: none !important; }
+
+.info-panel > .info-tabs .info-tab.active,
+.info-panel > .info-tabs .info-tab.vim-selected,
+.info-sub-tabs .info-sub-tab.active,
+.info-sub-tabs .info-sub-tab.vim-selected,
+.news-sub-tabs .info-sub-tab.active,
+.news-sub-tabs .info-sub-tab.vim-selected {
+    background: color-mix(in srgb, var(--accent-blue) 30%, transparent) !important;
+    color: var(--accent-blue);
+    text-shadow: var(--text-glow-cyan);
+    box-shadow: 0 0 16px -5px color-mix(in srgb, var(--accent-blue) 60%, transparent);
+}
+
+/* 4 — range / sub-tab labels ignite cyan when active */
+.st-tab--active, .st-tab.vim-selected,
+.economics-tab.active, .st-tab.active { text-shadow: var(--text-glow-amber); }
+.info-sub-tab.active, .info-sub-tab.vim-selected,
+.st-tab-row--blue .st-tab--active,
+.info-panel > .info-tabs .info-tab.active,
+.info-panel > .info-tabs .info-tab.vim-selected { text-shadow: var(--text-glow-cyan); }
+
+.info-content { overflow: hidden; }   /* clip nav bands to the panel's rounded corners */
+
+/* ───────────────────────── SELECTION ─────────────────────────
+   Subtle near-black row with a tiny neon left line — NOT a heavy fill. */
+.vim-selected, .st-row-selected {
+    background: color-mix(in srgb, var(--accent-orange) 6%, var(--bg-primary)) !important;
+    box-shadow: inset 2px 0 0 var(--accent-orange),
+                inset 7px 0 10px -7px color-mix(in srgb, var(--accent-orange) 45%, transparent) !important;
+}
+.info-sub-tabs .vim-selected, .news-sub-tabs .vim-selected,
+.info-panel > .info-tabs .vim-selected,
+.st-row-selected--blue {
+    background: color-mix(in srgb, var(--accent-blue) 6%, var(--bg-primary)) !important;
+    box-shadow: inset 2px 0 0 var(--accent-blue),
+                inset 7px 0 10px -7px color-mix(in srgb, var(--accent-blue) 45%, transparent) !important;
+}
+
+/* Active pane — add a top-edge amber bloom to the existing inset bar. */
+.st-pane-active,
+.ideas-sidebar.pane-focused, .ideas-main.pane-focused,
+.screener-filters.pane-focused, .screener-results.pane-focused {
+    box-shadow: inset 0 2px 0 var(--accent-orange),
+                inset 0 14px 18px -14px color-mix(in srgb, var(--accent-orange) 60%, transparent) !important;
+}
+
+/* ───────────────────────── IDENTITY & CHIPS ─────────────────────────  */
+
+/* Security symbols carry a faint cyan glow (identity = cyan). */
+.cpanel-sym, .idx-sym, .st-link-sym:hover, .sym-link:hover { text-shadow: var(--text-glow-cyan); }
+
+/* Solid chips bloom in their own colour. */
+.st-chip--orange { box-shadow: var(--glow-amber); }
+.st-chip--blue   { box-shadow: var(--glow-cyan); }
+
+/* ───────────────────────── MARKET DATA ─────────────────────────
+   Keep deltas matte in tables (density!), but let the hero price-change
+   and sparkline labels glow. */
+.cpanel-change.price-up, .wl-spark-label.price-up,
+.cpanel-change .price-up { text-shadow: var(--text-glow-green); }
+.cpanel-change.price-down, .wl-spark-label.price-down,
+.cpanel-change .price-down { text-shadow: var(--text-glow-red); }
+
+/* Stat labels — lifted contrast on dark panel cards; values glow white. */
+.info-stat-label {
+    color: color-mix(in srgb, var(--accent-blue) 22%, var(--text-secondary));
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6), 0 0 8px rgba(0, 0, 0, 0.35);
+}
+
+/* Stat values read as neon-white headline figures. */
+.info-stat-value {
+    color: #fff;
+    text-shadow: 0 0 2px rgba(255,255,255,0.85), 0 0 12px rgba(255,255,255,0.4),
+                 0 0 22px rgba(180,220,255,0.22);
+}
+.info-stat { transition: border-color var(--duration-2, 180ms), box-shadow var(--duration-2, 180ms); }
+.info-stat:hover {
+    border-color: color-mix(in srgb, var(--accent-blue) 40%, var(--border));
+    box-shadow: var(--glow-cyan);
+}
+
+/* ───────────────────────── TABLE CHROME ─────────────────────────
+   A whisper of amber along the top edge of data tables (echoes the
+   "neon-orange → black" gradient without hurting row legibility). */
+.quote-table, .screener-table, .st-table {
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent-orange) 28%, transparent);
+}
+
+/* Inputs ignite cyan on focus (single focused-control language). */
+.st-input:focus, .screener-form input:focus, .add-security-form input:focus {
+    box-shadow: var(--glow-cyan);
+}
+
+/* ───────────────────────── PANEL BOXES ─────────────────────────
+   Stadion-inspired: every bordered container shares ONE rounded-grey
+   treatment — same radius, same border, same grey. Big radius on cards/
+   panels; tighter --control-radius on bars/inputs/pills so the nav stays
+   elegant. Thin low-contrast line under each table row. */
+
+/* Container panels — big radius */
+.info-stat, .info-panel, .screener-filters,
+.screener-results, .ideas-sidebar, .ideas-main, .economics-panel,
+.idx-card, .reader-panel, .news-item, .info-grid > * {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+}
+
+/* Company panel — plain row (NOT a box): just spacing + a small left inset. */
+.company-panel {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    padding-left: 12px;
+}
+.company-panel .cpanel-name,
+.company-panel .cpanel-change { white-space: nowrap; }
+
+/* Info content — inner padding; shell chrome is on .info-panel. */
+.info-content {
+    overflow-x: hidden;
+}
+.info-content .crypto-name { white-space: nowrap; }
+
+/* Legacy pages without .info-panel wrapper still get panel chrome on content. */
+.info-panel > .info-content {
+    border: none;
+    background: transparent;
+}
+:not(.info-panel) > .info-content {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    padding: var(--panel-gap) var(--panel-gap) 0 var(--panel-gap);
+}
+
+/* Controls / nav — tighter radius */
+.cmd-bar, .security-input, .security-selector, .watchlist-picker,
+.conn-status, .add-security-form input, .screener-form input,
+.screener-form select, .chart-range-btn, .chart-toggle {
+    border-radius: var(--control-radius);
+}
+
+/* Thin row line under each table row (the small under-row lines) */
+.quote-table tbody tr, .screener-table tbody tr, .st-table tbody tr,
+.peer-table tbody tr, .fin-table tbody tr {
+    border-bottom: 1px solid var(--row-line);
+}
+
+/* Dense stat grid — roomier inner padding */
+.info-grid-dense .info-stat { padding: 8px 12px; }
+
+/* Consistent gap between stacked panels (matches Stadion's even spacing) */
+.info-grid { gap: var(--panel-gap, 16px); }
+.economics-layout, .ideas-layout, .screener-layout { gap: var(--panel-gap, 16px); }
+
+/* ── GLOBAL RULE — no box ever touches another ──
+   Every panel box keeps a consistent --panel-gap from its neighbour. Grid /
+   flex panel containers use `gap` (above); flow-stacked boxes (news list,
+   loose cards) use margin. Only chrome — the header & footer — may sit flush. */
+.news-item, .idx-card, .reader-para, .sec-filing-item, .estimate-row {
+    margin-bottom: var(--panel-gap);
+}
+.news-item:last-child, .idx-card:last-child,
+.reader-para:last-child, .sec-filing-item:last-child,
+.estimate-row:last-child { margin-bottom: 0; }
+
+/* Company profile description — was dim 12px muted grey; lift to readable
+   secondary text, larger, looser leading, with a comfortable line length. */
+.info-description {
+    font-size: 13px !important;
+    color: #b8b8b8 !important;
+    line-height: 1.75 !important;
+    max-width: 68ch;
+}
+/* Stacked profile paragraphs get breathing room between them. */
+.info-overview-right .info-description + .info-description { margin-top: var(--space-3) !important; }
+/* Neon drop-cap on the first paragraph — a fun, branded lead-in. */
+.info-overview-right .info-description:first-of-type::first-letter {
+    float: left;
+    font-size: 2.8em;
+    line-height: 0.82;
+    font-weight: 700;
+    padding: 2px 5px 0 0;
+    color: var(--accent-blue);
+    text-shadow: var(--text-glow-cyan);
+}
+
+/* News-item box — inner padding so headline/source/summary breathe inside the
+   rounded box (was relying on inline styles in the preview). Bottom gap comes
+   from the global no-touch rule above (--panel-gap). */
+.news-item {
+    padding: 12px 14px;
+}
+
+/* ───────────────────────── IDEAS PAGE ─────────────────────────
+   Design-love pass: route the Ideas components through the panel system —
+   rounded boxes, consistent gaps, neon-white prices, igniting cards. */
+
+/* The base ideas view sets padding:0 (panels would touch the header/edges).
+   Restore a gutter so no panel touches the chrome — a consistent --panel-gap
+   on every side, matching the gap between panels everywhere else. */
+.terminal-content[data-view="ideas"] {
+    padding: var(--panel-gap);
+}
+/* Same consistent gutter for the other padding:0 split views. */
+.terminal-content[data-view="screener"] {
+    padding: var(--panel-gap);
+}
+
+/* Info cards become first-class rounded panel boxes with a cyan hover glow. */
+.ideas-info-panels { gap: var(--panel-gap) !important; padding-top: var(--panel-gap); }
+.ideas-info-card {
+    background: var(--panel-bg) !important;
+    border: 1px solid var(--panel-border) !important;
+    border-radius: var(--panel-radius) !important;
+    padding: var(--space-4) var(--space-5) !important;
+    transition: border-color var(--duration-2), box-shadow var(--duration-2);
+}
+.ideas-info-card:hover {
+    border-color: color-mix(in srgb, var(--accent-blue) 45%, var(--panel-border)) !important;
+    box-shadow: var(--glow-cyan);
+}
+/* Symbol = amber identity for ideas (matches the app), with a faint glow. */
+.ideas-info-symbol { text-shadow: var(--text-glow-amber); }
+/* Headline price reads as a neon-white figure. */
+.ideas-info-price {
+    color: #fff;
+    text-shadow: 0 0 2px rgba(255,255,255,0.85), 0 0 12px rgba(255,255,255,0.4),
+                 0 0 22px rgba(180,220,255,0.22);
+}
+.ideas-info-pct.price-up   { text-shadow: var(--text-glow-green); }
+.ideas-info-pct.price-down { text-shadow: var(--text-glow-red); }
+/* News badge — hazard-yellow chip with a soft bloom. */
+.ideas-info-news-badge {
+    color: var(--yellow) !important;
+    border-color: color-mix(in srgb, var(--yellow) 50%, var(--border)) !important;
+    box-shadow: 0 0 10px -3px color-mix(in srgb, var(--yellow) 55%, transparent);
+    border-radius: var(--control-radius) !important;
+}
+
+/* Legend chips — control radius + unified panel border; the swatch glows. */
+.ideas-legend-row {
+    border: 1px solid var(--panel-border) !important;
+    border-radius: var(--control-radius) !important;
+    background: var(--panel-bg) !important;
+}
+.ideas-legend-swatch { box-shadow: 0 0 6px -1px currentColor; }
+
+/* Chart host — rounded framed panel that contains the chart cleanly. */
+.ideas-chart-host {
+    background: var(--panel-bg) !important;
+    border: 1px solid var(--panel-border) !important;
+    border-radius: var(--panel-radius);
+    overflow: hidden;
+}
+
+/* Sidebar list item — active sketch fills with the Tron-blue gradient,
+   bright at the cyan rail edge and fading right. Overrides the global
+   orange .vim-selected (which has !important). */
+.ideas-list-item.active, .ideas-list-item.vim-selected {
+    background: linear-gradient(90deg,
+        color-mix(in srgb, var(--accent-blue) 32%, var(--bg-primary)) 0%,
+        color-mix(in srgb, var(--accent-blue) 12%, var(--bg-primary)) 45%,
+        transparent 100%) !important;
+    border-left-color: var(--accent-blue) !important;
+    box-shadow: inset 2px 0 0 var(--accent-blue),
+                inset 10px 0 16px -10px color-mix(in srgb, var(--accent-blue) 70%, transparent) !important;
+}
+.ideas-list-item.active .ideas-list-name,
+.ideas-list-item.vim-selected .ideas-list-name {
+    color: #fff;
+    text-shadow: var(--text-glow-cyan);
+}
+/* subtitle (date) — lift it out of the gradient with a faint cyan glow */
+.ideas-list-item.active .ideas-list-meta,
+.ideas-list-item.vim-selected .ideas-list-meta {
+    color: color-mix(in srgb, var(--accent-blue) 55%, #fff);
+    text-shadow: 0 0 6px color-mix(in srgb, var(--accent-blue) 55%, transparent);
+}
+.ideas-list-name { color: var(--text-primary); }
+
+/* ───────────────────────── NEWS PAGE (full /news view) ─────────────────────────
+   The /news view uses .news-tab / .news-card classes the overlay didn't reach,
+   so it fell back to raw base style. Bring it into the system. */
+
+/* Tab strip — amber active with glow (consistent with info tabs). */
+.news-tab.active {
+    color: var(--accent-orange) !important;
+    border-color: var(--accent-orange) !important;
+    box-shadow: var(--glow-amber);
+    text-shadow: var(--text-glow-amber);
+    border-radius: var(--control-radius) !important;
+}
+.news-tab { border-radius: var(--control-radius) !important; white-space: nowrap; }
+
+/* Cards become rounded panel boxes with a consistent gap; cyan hover glow. */
+.news-cards { gap: var(--panel-gap) !important; padding-top: 2px; }
+.news-card {
+    background: var(--panel-bg) !important;
+    border: 1px solid var(--panel-border) !important;
+    border-left: 2px solid transparent !important;
+    border-radius: var(--panel-radius) !important;
+    padding: 12px 16px !important;
+    transition: border-color var(--duration-2), box-shadow var(--duration-2), opacity var(--duration-2);
+}
+.news-card:hover {
+    border-color: color-mix(in srgb, var(--accent-blue) 35%, var(--panel-border)) !important;
+    box-shadow: var(--glow-cyan);
+}
+/* Unread = thin amber left rail + soft inner bloom + full opacity (the
+   established unread indicator, restyled to the rail language). */
+.news-card.news-unread {
+    border-left-color: var(--accent-orange) !important;
+    box-shadow: inset 10px 0 16px -12px color-mix(in srgb, var(--accent-orange) 65%, transparent);
+}
+.news-card.news-unread .news-card-title a,
+.news-card.news-unread .news-card-title {
+    color: var(--accent-orange) !important;
+    text-shadow: var(--text-glow-amber);
+}
+/* Source symbol = cyan identity. */
+.news-card-meta .news-symbol { color: var(--accent-blue) !important; text-shadow: var(--text-glow-cyan); }
+
+/* View title (page header) reads as a primary heading. */
+.view-title { color: var(--text-primary); }
 

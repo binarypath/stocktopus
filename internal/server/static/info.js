@@ -263,6 +263,7 @@
     // ── Tab Loaders ──
 
     function loadTab(tab) {
+        destroyOverviewChart();
         container.innerHTML = '<p class="empty-state">Loading...</p>';
         try {
             switch (tab) {
@@ -291,12 +292,14 @@
             fetch('/api/security/' + symbol + '/profile').then(function (r) { return r.json(); }),
             fetch('/api/security/' + symbol + '/metrics').then(function (r) { return r.json(); }),
             fetch('/api/security/' + symbol + '/key-people').then(function (r) { return r.ok ? r.json() : []; }).catch(function () { return []; }),
+            fetch('/api/historical/price/' + encodeURIComponent(symbol)).then(function (r) { return r.json(); }).catch(function () { return []; }),
         ]).then(function (results) {
             var profile = results[0] && results[0][0] ? results[0][0] : {};
             var metricsData = results[1] || {};
             var metrics = metricsData.metrics && metricsData.metrics[0] ? metricsData.metrics[0] : {};
             var ratios = metricsData.ratios && metricsData.ratios[0] ? metricsData.ratios[0] : {};
             var people = (results[2] || []).filter(function (p) { return p.isCurrent; });
+            var hist = results[3] || [];
 
             var html = '<div class="info-overview">';
 
@@ -320,7 +323,9 @@
             html += stat('P/B', ratios.priceToBookRatioTTM ? ratios.priceToBookRatioTTM.toFixed(2) : '—');
             html += '</div>';
 
-            // ── Below: Key People (left) + Company description (right) ──
+            // ── Graph (1/3 viewport) + Key People | Description (1:3) ──
+            html += '<div class="info-overview-body">';
+            html += '<div id="info-overview-chart" class="info-overview-chart" data-vim-row data-vim-action="navigate" data-vim-href="/graph/' + encodeURIComponent(symbol) + '"></div>';
             html += '<div class="info-overview-top">';
 
             // Left: Key People — dedup across forms (form4 / 10-K / DEF 14A);
@@ -378,9 +383,12 @@
             html += '</div>';
 
             html += '</div>'; // close info-overview-top
+            html += '</div>'; // close info-overview-body
 
             html += '</div>';
             container.innerHTML = html;
+            renderOverviewChart(hist);
+            if (window.VimNav) window.VimNav.reset();
 
             // If we got nothing back the extraction is probably still running on
             // the server. Poll briefly so the strip fills in without a refresh.
@@ -388,6 +396,60 @@
         }).catch(function () {
             container.innerHTML = '<p class="empty-state">Failed to load overview</p>';
         });
+    }
+
+    var overviewChart = null;
+    var overviewChartResize = null;
+
+    function destroyOverviewChart() {
+        if (overviewChartResize) {
+            overviewChartResize.disconnect();
+            overviewChartResize = null;
+        }
+        if (overviewChart) {
+            try { overviewChart.remove(); } catch (e) {}
+            overviewChart = null;
+        }
+    }
+
+    function renderOverviewChart(hist) {
+        destroyOverviewChart();
+        var el = document.getElementById('info-overview-chart');
+        if (!el || !window.LightweightCharts || !hist || hist.length === 0) return;
+
+        var slice = hist.slice(0, Math.min(252, hist.length));
+        var data = slice.map(function (d) { return { time: d.date, value: d.price }; }).reverse();
+        if (!data.length) return;
+
+        var height = el.clientHeight || Math.round(window.innerHeight / 3);
+        overviewChart = LightweightCharts.createChart(el, {
+            width: el.clientWidth,
+            height: height,
+            layout: { background: { color: 'transparent' }, textColor: '#9ca3af', attributionLogo: false },
+            grid: { vertLines: { color: 'rgba(60,60,60,0.3)' }, horzLines: { color: 'rgba(60,60,60,0.3)' } },
+            rightPriceScale: { borderColor: 'rgba(80,80,80,0.5)' },
+            timeScale: { borderColor: 'rgba(80,80,80,0.5)' },
+        });
+        var first = data[0].value;
+        var last = data[data.length - 1].value;
+        var color = last >= first ? '#00cc66' : '#ff4444';
+        var series = overviewChart.addSeries(LightweightCharts.AreaSeries, {
+            lineColor: color,
+            topColor: color === '#00cc66' ? 'rgba(0, 204, 102, 0.2)' : 'rgba(255, 68, 68, 0.2)',
+            bottomColor: 'transparent',
+            lineWidth: 1,
+            priceLineVisible: false,
+        });
+        series.setData(data);
+        overviewChart.timeScale().fitContent();
+
+        if (typeof ResizeObserver !== 'undefined') {
+            overviewChartResize = new ResizeObserver(function () {
+                if (!overviewChart || !el.isConnected) return;
+                overviewChart.applyOptions({ width: el.clientWidth, height: el.clientHeight });
+            });
+            overviewChartResize.observe(el);
+        }
     }
 
     var overviewPollTimer = null;
@@ -1057,7 +1119,7 @@
                     ['EBITDA Est', 'ebitda-est'],
                     ['Net Income Est', 'net-income-est'],
                 ];
-                var html = '<table class="fin-table"><thead><tr>';
+                var html = '<table class="fin-table st-table"><thead><tr>';
                 estCols.forEach(function (col) {
                     var tip = col[1] && HELP[col[1]] ? '<span class="help-tip hidden">' + esc(HELP[col[1]]) + '</span>' : '';
                     html += '<th>' + col[0] + tip + '</th>';
@@ -1066,7 +1128,7 @@
 
                 data.forEach(function (d) {
                     var year = (d.date || '').substring(0, 4);
-                    html += '<tr>';
+                    html += '<tr data-vim-row>';
                     html += '<td class="fin-label">' + year + '</td>';
                     html += '<td>' + fmt(d.revenueAvg) + ' <span class="est-range">' + fmt(d.revenueLow) + '–' + fmt(d.revenueHigh) + '</span></td>';
                     html += '<td>' + (d.epsAvg != null ? d.epsAvg.toFixed(2) : '—') + ' <span class="est-range">' + (d.epsLow != null ? d.epsLow.toFixed(2) : '—') + '–' + (d.epsHigh != null ? d.epsHigh.toFixed(2) : '—') + '</span></td>';
