@@ -25,6 +25,134 @@
     var seriesByID = {};          // metricId → LineSeries handle (for cleanup)
     var sketches = [];            // sidebar list
     var listSelectedIdx = -1;
+    var dimmedMetrics = new Set(); // metric ids hidden from chart (persisted per sketch)
+    var infoSparkCharts = {};      // host element → chart handle
+
+    function metricCompanySymbol(m) {
+        if (!m) return '';
+        var id = String(m.identifier || '');
+        if (m.kind === 'price') return id.toUpperCase();
+        if (m.kind === 'financial') {
+            var dot = id.lastIndexOf('.');
+            if (dot > 0) return id.substring(0, dot).toUpperCase();
+        }
+        return '';
+    }
+
+    function loadDimmedForSketch(sketchId) {
+        dimmedMetrics = new Set();
+        if (!sketchId) return;
+        try {
+            var raw = localStorage.getItem('stocktopus-sketch-dimmed-' + sketchId);
+            if (raw) JSON.parse(raw).forEach(function (id) { dimmedMetrics.add(id); });
+        } catch (e) { /* keep empty */ }
+    }
+
+    function saveDimmedForSketch() {
+        if (!currentSketch || !currentSketch.id) return;
+        localStorage.setItem(
+            'stocktopus-sketch-dimmed-' + currentSketch.id,
+            JSON.stringify(Array.from(dimmedMetrics))
+        );
+    }
+
+    function isMetricDimmed(id) {
+        return dimmedMetrics.has(id);
+    }
+
+    function metricsFromSelection(sel) {
+        if (!sel || !currentSketch) return [];
+        if (sel.classList.contains('ideas-legend-row')) {
+            var mid = parseInt(sel.dataset.metricId, 10);
+            return mid ? [mid] : [];
+        }
+        if (sel.classList.contains('ideas-info-card')) {
+            var sym = (sel.dataset.symbol || '').toUpperCase();
+            if (!sym) return [];
+            return (currentSketch.metrics || []).filter(function (m) {
+                return metricCompanySymbol(m) === sym;
+            }).map(function (m) { return m.id; });
+        }
+        return [];
+    }
+
+    function toggleDimMetrics(ids) {
+        if (!ids.length) return false;
+        var anyUndim = ids.some(function (id) { return dimmedMetrics.has(id); });
+        ids.forEach(function (id) {
+            if (anyUndim) dimmedMetrics.delete(id);
+            else dimmedMetrics.add(id);
+        });
+        saveDimmedForSketch();
+        rebuildChart();
+        renderLegend();
+        return true;
+    }
+
+    function deleteMetrics(ids) {
+        if (!ids.length || !currentSketch || !currentSketch.id) return false;
+        return Promise.all(ids.map(function (id) {
+            return fetch('/api/sketches/' + currentSketch.id + '/metrics/' + id, { method: 'DELETE' });
+        })).then(function () {
+            ids.forEach(function (id) { dimmedMetrics.delete(id); });
+            saveDimmedForSketch();
+            return loadSketch(currentSketch.id);
+        });
+    }
+
+    function disposeInfoSparks() {
+        Object.keys(infoSparkCharts).forEach(function (key) {
+            try { infoSparkCharts[key].remove(); } catch (e) {}
+        });
+        infoSparkCharts = {};
+    }
+
+    // Canonical interval set lives in terminal.js (window.MINI_SPARK_SPECS) so
+    // a single change flows to every spark cluster. Fallback mirrors it.
+    var INFO_SPARK_SPECS = window.MINI_SPARK_SPECS || [
+        window.INTRADAY_2D_SPARK_SPEC || { key: '2d', label: '2d', intraday: '5min', fetchDays: 7, sessions: 2, eodFallbackDays: 14 },
+        { key: '6m', label: '6M', months: 6 },
+        { key: '1y', label: '1y', months: 12 },
+    ];
+
+    function renderInfoSparks() {
+        disposeInfoSparks();
+        if (!window.LightweightCharts || !window._loadMiniSpark) return;
+        document.querySelectorAll('.ideas-info-card[data-symbol]').forEach(function (card) {
+            var sym = card.dataset.symbol;
+            if (!sym) return;
+            card.querySelectorAll('.ideas-info-spark-wrap').forEach(function (wrap) {
+                var host = wrap.querySelector('.ideas-info-spark');
+                var labelEl = wrap.querySelector('.ideas-info-spark-label');
+                if (!host) return;
+                var spec = INFO_SPARK_SPECS.find(function (r) { return r.key === host.dataset.range; });
+                if (!spec) return;
+                var chartKey = host.id || (sym + '-' + spec.key);
+                window._loadMiniSpark(host, labelEl, sym, spec, undefined, {
+                    seriesType: 'line',
+                    lineWidth: 1,
+                    onChart: function (chart) { infoSparkCharts[chartKey] = chart; },
+                });
+            });
+        });
+    }
+
+    function resizeChart() {
+        if (!chart || !hostEl) return;
+        var w = hostEl.clientWidth;
+        var h = hostEl.clientHeight;
+        if (w > 0 && h > 0) {
+            chart.resize(w, h);
+            chart.timeScale().fitContent();
+        }
+    }
+
+    if (typeof ResizeObserver !== 'undefined' && hostEl) {
+        var chartResizeObs = new ResizeObserver(function () {
+            requestAnimationFrame(resizeChart);
+        });
+        chartResizeObs.observe(hostEl);
+    }
 
     function esc(s) {
         return String(s == null ? '' : s)
@@ -66,13 +194,13 @@
         // Per-sketch row: whole <li> is the navigable unit. Enter
         // calls .click() on it which fires the onclick wired below
         // → navigateToSketch.
-        var defaultRow = '<li class="ideas-list-item' + (currentSketch && !currentSketch.id ? ' active' : '') + '" data-sketch-id="" data-vim-row data-vim-action="click">'
+        var defaultRow = '<li class="ideas-list-item' + (currentSketch && !currentSketch.id ? ' active' : '') + '" data-sketch-id="">'
             + '<span class="ideas-list-name">Default</span>'
             + '<span class="ideas-list-meta">scratchpad</span></li>';
         listEl.innerHTML = defaultRow + sketches.map(function (sk) {
             var active = currentSketch && currentSketch.id === sk.id ? ' active' : '';
             var when = sk.updatedAt ? new Date(sk.updatedAt).toLocaleDateString() : '';
-            return '<li class="ideas-list-item' + active + '" data-sketch-id="' + sk.id + '" data-vim-row data-vim-action="click">'
+            return '<li class="ideas-list-item' + active + '" data-sketch-id="' + sk.id + '">'
                 + '<span class="ideas-list-name">' + esc(sk.name || '(untitled)') + '</span>'
                 + '<span class="ideas-list-meta">' + esc(when) + '</span>'
                 + '</li>';
@@ -84,6 +212,7 @@
                 navigateToSketch(sid);
             };
         });
+        syncListSelection();
     }
 
     function navigateToSketch(id) {
@@ -106,6 +235,7 @@
 
         if (!id) {
             currentSketch = { id: 0, name: '', metrics: [] };
+            dimmedMetrics = new Set();
             renderSketch();
             return;
         }
@@ -122,6 +252,7 @@
                     return;
                 }
                 currentSketch = sk;
+                loadDimmedForSketch(sk.id);
                 renderSketch();
                 return Promise.all((sk.metrics || []).map(fetchMetricData))
                     .then(rebuildChart);
@@ -137,6 +268,7 @@
         renderLegend();
         renderSidebar();
         refreshInfoPanels();
+        syncMainSelection();
     }
 
     // ── Company info panels ──
@@ -171,6 +303,8 @@
         if (!lastInfoPanels.length) {
             infoPanelsEl.hidden = true;
             infoPanelsEl.innerHTML = '';
+            disposeInfoSparks();
+            requestAnimationFrame(resizeChart);
             return;
         }
         infoPanelsEl.hidden = false;
@@ -185,7 +319,24 @@
                 var label = id.indexOf('.') >= 0 ? id.split('.').slice(1).join('.') : id;
                 return '<span class="ideas-info-chip">' + esc(label) + '</span>';
             }).join('');
-            return '<div class="ideas-info-card" data-vim-item data-vim-action="navigate" data-vim-href="/security/' + encodeURIComponent(p.symbol) + '">'
+            var sparkKey = String(p.symbol).replace(/[^a-zA-Z0-9]/g, '_');
+            var panelIds = (currentSketch.metrics || []).filter(function (m) {
+                return metricCompanySymbol(m) === String(p.symbol).toUpperCase();
+            }).map(function (m) { return m.id; });
+            var allDimmed = panelIds.length > 0 && panelIds.every(function (id) { return dimmedMetrics.has(id); });
+            return '<div class="ideas-info-card' + (allDimmed ? ' ideas-info-card-dimmed' : '') + '" data-symbol="' + esc(p.symbol) + '" data-vim-href="/security/' + encodeURIComponent(p.symbol) + '">'
+                +    '<div class="ideas-info-spark-bg">'
+                +      '<div class="ideas-info-spark-wrap">'
+                +        '<div class="ideas-info-spark" data-range="2d" id="ideas-spark-' + sparkKey + '-2d"></div>'
+                +      '</div>'
+                +      '<div class="ideas-info-spark-wrap">'
+                +        '<div class="ideas-info-spark" data-range="6m" id="ideas-spark-' + sparkKey + '-6m"></div>'
+                +      '</div>'
+                +      '<div class="ideas-info-spark-wrap">'
+                +        '<div class="ideas-info-spark" data-range="1y" id="ideas-spark-' + sparkKey + '-1y"></div>'
+                +      '</div>'
+                +    '</div>'
+                +    '<div class="ideas-info-card-body">'
                 +    '<div class="ideas-info-head">'
                 +      '<a class="ideas-info-symbol" href="/security/' + encodeURIComponent(p.symbol) + '">' + esc(p.symbol) + '</a>'
                 +      (p.companyName ? '<span class="ideas-info-name">' + esc(p.companyName) + '</span>' : '')
@@ -204,8 +355,14 @@
                 +      '<span><label>Vol</label>' + fmtVolume(p.volume) + '</span>'
                 +    '</div>'
                 +    (chips ? '<div class="ideas-info-chips">' + chips + '</div>' : '')
+                +    '</div>'
                 +  '</div>';
         }).join('');
+        syncMainSelection();
+        requestAnimationFrame(function () {
+            renderInfoSparks();
+            resizeChart();
+        });
     }
 
     function fmtPrice(n) {
@@ -254,16 +411,12 @@
                 rightHTML = '<span class="ideas-legend-val">' + esc(lastStr) + '</span>'
                     + '<span class="ideas-legend-pct ' + pctClass + '">' + pctStr + '</span>';
             }
-            return '<div class="ideas-legend-row' + (err ? ' ideas-legend-row-err' : '') + '" data-metric-id="' + m.id + '" data-vim-row>'
+            var dimmed = isMetricDimmed(m.id);
+            return '<div class="ideas-legend-row' + (err ? ' ideas-legend-row-err' : '') + (dimmed ? ' ideas-legend-row-dimmed' : '') + '" data-metric-id="' + m.id + '">'
                 + labelHTML
                 + rightHTML
-                + '<button class="ideas-legend-del" data-metric-id="' + m.id + '" title="remove">×</button>'
                 + '</div>';
         }).join('');
-
-        Array.from(legendEl.querySelectorAll('.ideas-legend-del')).forEach(function (btn) {
-            btn.onclick = function () { removeMetric(parseInt(btn.dataset.metricId, 10)); };
-        });
     }
 
     // ── Data fetch ──
@@ -382,7 +535,10 @@
 
         firstSeries = null;
         priceLines = [];
-        metrics.slice(0, MAX_SERIES).forEach(function (m, i) {
+        var plotted = 0;
+        metrics.forEach(function (m, i) {
+            if (isMetricDimmed(m.id)) return;
+            if (plotted >= MAX_SERIES) return;
             var data = seriesData[m.id] || [];
             if (data.length < 2) return;
             // Plot % change from start: (value - base) / |base| * 100.
@@ -405,7 +561,7 @@
             var rebased = data.slice(baseIdx).map(function (p) {
                 return { time: p.date, value: ((p.value - base) / absBase) * 100 };
             });
-            var color = m.color || SERIES_COLORS[i % SERIES_COLORS.length];
+            var color = m.color || SERIES_COLORS[plotted % SERIES_COLORS.length];
             var s = c.addSeries(LightweightCharts.LineSeries, {
                 color: color,
                 lineWidth: 2,
@@ -414,12 +570,14 @@
             s.setData(rebased);
             seriesByID[m.id] = s;
             if (!firstSeries) firstSeries = s;
+            plotted++;
         });
         // Add a baseline at 0 to make "no change" visible.
         if (firstSeries) {
             firstSeries.createPriceLine({ price: 0, color: '#444', lineWidth: 1, lineStyle: 1, axisLabelVisible: false });
         }
         c.timeScale().fitContent();
+        requestAnimationFrame(resizeChart);
 
         // Track the crosshair so 'h' can drop a horizontal line at the hovered price.
         c.subscribeCrosshairMove(function (param) {
@@ -638,50 +796,108 @@
         return (sketches || []).slice();
     };
 
-    // ── Two-pane vim navigation: list ↔ chart ──
+    // ── Two-pane vim navigation: list ↔ main ──
     //
     // Pane state machine:
     //   focus = 'list'  → j/k navigate sketches sidebar; Enter loads
-    //   focus = 'chart' → j/k navigate metrics in the legend; d removes
+    //   focus = 'main'  → j/k navigate main column (help, chart, legend,
+    //                     empty state, info cards); d removes metric
     //   h/l moves between panes; visual outline highlights the active one.
     var paneFocus = 'list';
-    var metricSelectedIdx = -1;
+    var mainSelectedIdx = -1;
+    var mainEl = document.getElementById('ideas-main');
+
+    function isNavVisible(el) {
+        if (!el) return false;
+        if (el.hidden) return false;
+        if (el.classList && el.classList.contains('hidden')) return false;
+        if (el.style && el.style.display === 'none') return false;
+        return true;
+    }
 
     function highlightPane() {
         document.getElementById('ideas-sidebar').classList.toggle('pane-focused', paneFocus === 'list');
-        document.getElementById('ideas-main').classList.toggle('pane-focused', paneFocus === 'chart');
+        mainEl.classList.toggle('pane-focused', paneFocus === 'main');
     }
 
-    function getMetricRows() {
-        return Array.from(document.querySelectorAll('#ideas-legend .ideas-legend-row'));
+    function getMainNavItems() {
+        var items = [];
+        var helpToggle = document.getElementById('ideas-help-toggle');
+        if (isNavVisible(helpToggle)) items.push(helpToggle);
+        var help = document.getElementById('ideas-help');
+        if (isNavVisible(help)) items.push(help);
+        if (isNavVisible(hostEl)) items.push(hostEl);
+        items = items.concat(Array.from(document.querySelectorAll('#ideas-info-panels .ideas-info-card')));
+        items = items.concat(Array.from(document.querySelectorAll('#ideas-legend .ideas-legend-row')));
+        if (isNavVisible(emptyEl)) items.push(emptyEl);
+        return items;
     }
-    function selectMetric(i) {
-        var rows = getMetricRows();
-        if (!rows.length) { metricSelectedIdx = -1; return; }
-        metricSelectedIdx = Math.max(0, Math.min(i, rows.length - 1));
-        rows.forEach(function (el, idx) { el.classList.toggle('vim-selected', idx === metricSelectedIdx); });
+
+    function clearMainSelection() {
+        getMainNavItems().forEach(function (el) { el.classList.remove('vim-selected'); });
+        mainSelectedIdx = -1;
     }
-    function clearMetricSelection() {
-        getMetricRows().forEach(function (el) { el.classList.remove('vim-selected'); });
-        metricSelectedIdx = -1;
+
+    function scrollMainItemIntoView(el) {
+        if (!mainEl || !el) return;
+        el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+
+    function selectMainItem(i) {
+        var items = getMainNavItems();
+        clearMainSelection();
+        if (!items.length) return;
+        mainSelectedIdx = Math.max(0, Math.min(i, items.length - 1));
+        items[mainSelectedIdx].classList.add('vim-selected');
+        scrollMainItemIntoView(items[mainSelectedIdx]);
+    }
+
+    function syncMainSelection() {
+        if (paneFocus !== 'main') return;
+        var items = getMainNavItems();
+        if (!items.length) {
+            clearMainSelection();
+            return;
+        }
+        if (mainSelectedIdx < 0) mainSelectedIdx = 0;
+        if (mainSelectedIdx >= items.length) mainSelectedIdx = items.length - 1;
+        selectMainItem(mainSelectedIdx);
+    }
+
+    function clearListSelection() {
+        Array.from(document.querySelectorAll('#ideas-list .ideas-list-item')).forEach(function (el) {
+            el.classList.remove('vim-selected');
+        });
+    }
+
+    function syncListSelection() {
+        if (paneFocus !== 'list') return;
+        var items = Array.from(document.querySelectorAll('#ideas-list .ideas-list-item'));
+        if (!items.length) {
+            listSelectedIdx = -1;
+            return;
+        }
+        if (listSelectedIdx < 0) listSelectedIdx = 0;
+        if (listSelectedIdx >= items.length) listSelectedIdx = items.length - 1;
+        items.forEach(function (el, i) { el.classList.toggle('vim-selected', i === listSelectedIdx); });
     }
 
     window._ideasMove = function (dir) {
         if (dir === 'h' || dir === 'l') {
-            // Cross-pane move
-            var order = ['list', 'chart'];
+            var order = ['list', 'main'];
             var idx = order.indexOf(paneFocus);
             if (dir === 'l') idx = Math.min(idx + 1, order.length - 1);
             else idx = Math.max(idx - 1, 0);
             var newFocus = order[idx];
             if (newFocus === paneFocus) return;
             paneFocus = newFocus;
-            // Keep selections intact when leaving — re-highlight on entry.
-            if (paneFocus === 'chart') {
-                if (metricSelectedIdx < 0) selectMetric(0);
-                else selectMetric(metricSelectedIdx);
+            if (paneFocus === 'main') {
+                clearListSelection();
+                if (mainSelectedIdx < 0) selectMainItem(0);
+                else syncMainSelection();
             } else {
-                clearMetricSelection();
+                clearMainSelection();
+                syncListSelection();
             }
             highlightPane();
             return;
@@ -690,15 +906,19 @@
             if (paneFocus === 'list') {
                 var items = Array.from(document.querySelectorAll('#ideas-list .ideas-list-item'));
                 if (!items.length) return;
+                if (listSelectedIdx < 0) listSelectedIdx = 0;
                 if (dir === 'j') listSelectedIdx = Math.min(listSelectedIdx + 1, items.length - 1);
                 else listSelectedIdx = Math.max(listSelectedIdx - 1, 0);
                 items.forEach(function (el, i) { el.classList.toggle('vim-selected', i === listSelectedIdx); });
                 if (items[listSelectedIdx]) items[listSelectedIdx].scrollIntoView({ block: 'nearest' });
-            } else if (paneFocus === 'chart') {
-                var rows = getMetricRows();
-                if (!rows.length) return;
-                var next = dir === 'j' ? metricSelectedIdx + 1 : metricSelectedIdx - 1;
-                selectMetric(next);
+            } else {
+                var mainItems = getMainNavItems();
+                if (!mainItems.length) return;
+                if (mainSelectedIdx < 0) mainSelectedIdx = 0;
+                var next = dir === 'j'
+                    ? Math.min(mainSelectedIdx + 1, mainItems.length - 1)
+                    : Math.max(mainSelectedIdx - 1, 0);
+                selectMainItem(next);
             }
         }
     };
@@ -709,31 +929,49 @@
             if (listSelectedIdx >= 0 && listSelectedIdx < items.length) {
                 navigateToSketch(items[listSelectedIdx].dataset.sketchId);
             }
+            return;
         }
-        // chart/notes have no Enter action right now — chart 'd' deletes,
-        // notes is text-edit only.
+        var mainItems = getMainNavItems();
+        if (mainSelectedIdx < 0 || mainSelectedIdx >= mainItems.length) return;
+        var el = mainItems[mainSelectedIdx];
+        if (el.id === 'ideas-help-toggle') {
+            window._ideasToggleHelp();
+        } else if (el.classList.contains('ideas-info-card')) {
+            var href = el.getAttribute('data-vim-href');
+            if (href) window.location.href = href;
+        }
+    };
+
+    window._ideasDimSelected = function () {
+        if (paneFocus !== 'main') return false;
+        var sel = document.querySelector('.vim-selected');
+        var ids = metricsFromSelection(sel);
+        if (!ids.length) return false;
+        var label = sel.classList.contains('ideas-info-card')
+            ? (sel.dataset.symbol || 'panel')
+            : (sel.querySelector('.ideas-legend-label') || {}).textContent || 'metric';
+        var undim = ids.some(function (id) { return dimmedMetrics.has(id); });
+        toggleDimMetrics(ids);
+        if (window._flash) {
+            window._flash(undim ? 'Restored ' + label + ' on chart' : 'Dimmed ' + label + ' (still on sketch — press d to restore)');
+        }
+        return true;
+    };
+
+    window._ideasRemoveSelected = function () {
+        if (paneFocus !== 'main') return false;
+        var sel = document.querySelector('.vim-selected');
+        var ids = metricsFromSelection(sel);
+        if (!ids.length) return false;
+        deleteMetrics(ids);
+        if (window._flash) window._flash('Removed from sketch');
+        return true;
     };
 
     window._ideasDeleteSelected = function () {
-        // Find the currently focused row via VimNav's .vim-selected class
-        // on a nested data-vim-item. Walk up to its data-vim-row container
-        // and dispatch by container type:
-        //   .ideas-list-item   → delete that sketch
-        //   .ideas-legend-row  → remove that metric from the sketch
         var sel = document.querySelector('.vim-selected');
-        var row = sel ? sel.closest('[data-vim-row]') : null;
-        if (!row) return false;
-
-        if (row.classList.contains('ideas-list-item')) {
-            return deleteSelectedSketchRow(row);
-        }
-        if (row.classList.contains('ideas-legend-row')) {
-            var metricId = parseInt(row.dataset.metricId, 10);
-            if (!metricId) return false;
-            removeMetric(metricId);
-            return true;
-        }
-        return false;
+        if (!sel || !sel.classList.contains('ideas-list-item')) return false;
+        return deleteSelectedSketchRow(sel);
     };
 
     // Delete the highlighted sketch from the sidebar. Skips the synthetic
@@ -765,10 +1003,7 @@
                 return loadSketches();
             })
             .then(function () {
-                // VimNav's MutationObserver re-scans the grid after
-                // loadSketches re-renders, restoring selection to a
-                // surviving element. If the deleted sketch was loaded,
-                // fall back to the Default scratchpad.
+                // Re-render restores sidebar selection via syncListSelection.
                 if (wasLoaded) {
                     var defaultRow = document.querySelector('#ideas-list .ideas-list-item[data-sketch-id=""]');
                     if (defaultRow) navigateToSketch('');
@@ -781,14 +1016,23 @@
     window._ideasToggleHelp = function () {
         var el = document.getElementById('ideas-help');
         if (el) el.classList.toggle('hidden');
+        if (paneFocus === 'main') syncMainSelection();
     };
 
     // Expose the legacy single-pane fns for backward compat with terminal.js
     window._ideasMoveList = function (dir) { window._ideasMove(dir); };
     window._ideasActivateList = function () { window._ideasActivate(); };
 
-    // Initial visual state
+    // Initial visual state — sidebar focused, first sketch selected when present.
     highlightPane();
+    syncListSelection();
+
+    var helpToggleEl = document.getElementById('ideas-help-toggle');
+    if (helpToggleEl) {
+        helpToggleEl.addEventListener('click', function () {
+            window._ideasToggleHelp();
+        });
+    }
 
     window._ideasSave = function (name) {
         return ensureSketch().then(function (sk) {

@@ -1,32 +1,39 @@
 {{template "layout" .}}
 {{define "content"}}
-<div class="page-header">
-    <h1>Watchlist</h1>
-    <form id="add-security-form" class="add-security-form">
-        <input type="text" id="wl-security-input" placeholder="Add security (search ticker or company name)" autocomplete="off" spellcheck="false">
-        <button type="submit">+</button>
-        <div id="wl-security-dropdown" class="security-dropdown hidden"></div>
-    </form>
-</div>
-<div id="watchlist-tabs" class="watchlist-tabs"></div>
-<div class="watchlist">
-    <table class="quote-table">
-        <thead>
-            <tr>
-                <th>Security</th>
-                <th>Price :live:</th>
-                <th>Change 1d</th>
-                <th>Change % 1d</th>
-                <th>Change 1w</th>
-                <th>Change % 1w</th>
-                <th>Change 6m</th>
-                <th>Volume</th>
-                <th>6m</th>
-            </tr>
-        </thead>
-        <tbody id="quote-body">
-        </tbody>
-    </table>
-    <p id="empty-state" class="empty-state">Add securities to start tracking</p>
+<div class="watchlist-layout st-split">
+    <aside class="watchlist-sidebar st-pane st-pane--nav" id="watchlist-sidebar">
+        <div class="watchlist-sidebar-header st-pane-header">
+            <span>Watchlists</span>
+        </div>
+        <ul class="watchlist-list st-nav-list" id="watchlist-tabs"></ul>
+    </aside>
+    <section class="watchlist-main st-pane st-pane--content pane-focused" id="watchlist-main">
+        <div class="watchlist-main-header">
+            <form id="add-security-form" class="add-security-form">
+                <input type="text" id="wl-security-input" placeholder="Add security — search ticker or company, ↵ to add" autocomplete="off" spellcheck="false">
+                <div id="wl-security-dropdown" class="security-dropdown hidden"></div>
+            </form>
+        </div>
+        <div class="watchlist-table-host">
+            <table class="quote-table">
+                <thead>
+                    <tr>
+                        <th>Security</th>
+                        <th>Price <span class="st-chip st-chip--live">live</span></th>
+                        <th class="wl-col-cycle" data-wl-cycle="day"><span class="wl-col-title">Change</span> <span class="wl-col-label">1d</span></th>
+                        <th class="wl-col-cycle" data-wl-cycle="day"><span class="wl-col-title">Change %</span> <span class="wl-col-label">1d</span></th>
+                        <th class="wl-col-cycle" data-wl-cycle="week"><span class="wl-col-title">Change</span> <span class="wl-col-label">1w</span></th>
+                        <th class="wl-col-cycle" data-wl-cycle="week"><span class="wl-col-title">Change %</span> <span class="wl-col-label">1w</span></th>
+                        <th class="wl-col-cycle" data-wl-cycle="mid"><span class="wl-col-title">Change</span> <span class="wl-col-label">6m</span></th>
+                        <th class="wl-col-cycle" data-wl-cycle="vol"><span class="wl-col-title">Volume</span> <span class="wl-col-label" hidden></span></th>
+                        <th>Trend</th>
+                    </tr>
+                </thead>
+                <tbody id="quote-body">
+                </tbody>
+            </table>
+            <p id="empty-state" class="empty-state">Add securities to start tracking</p>
+        </div>
+    </section>
 </div>
 {{end}}

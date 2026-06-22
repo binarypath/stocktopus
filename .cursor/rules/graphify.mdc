@@ -1,0 +1,11 @@
+---
+description: graphify knowledge graph context
+alwaysApply: true
+---
+
+This project uses a **local-only** graphify knowledge graph at `graphify-out/` (gitignored — rebuild on demand, never commit).
+
+- Before architecture questions, read `graphify-out/GRAPH_REPORT.md` if it exists and is recent
+- If the graph is missing or stale, run: `./scripts/graphify-refresh.sh` (or `graphify update .` then `npx graphify-mcp-tools index --graph ./graphify-out`)
+- Use MCP graph tools (`graph_search`, `graph_impact`, …) when enabled in Cursor
+- Do not add `graphify-out/` to git

@@ -84,16 +84,51 @@
         document.querySelectorAll(sel).forEach(function (el) {
             el.classList.remove(SELECTED_CLASS);
         });
+        syncTabRowGlow(false);
+    }
+
+    // Primary/sub tab strips get tab-row-focused when the vim cursor is
+    // on that row — drives the orange (primary) / cyan (sub) row glow.
+    function syncTabRowGlow(fromSelection) {
+        var activeRowEl = null;
+        if (fromSelection !== false && currentRow >= 0 && grid[currentRow]) {
+            activeRowEl = grid[currentRow].el;
+        }
+        document.querySelectorAll(
+            '#info-tabs, #fin-sub-tabs, #sec-filters, #news-sub-tabs, .economics-tabs'
+        ).forEach(function (rowEl) {
+            rowEl.classList.toggle('tab-row-focused', rowEl === activeRowEl);
+        });
+    }
+
+    // Broadcast the resolved selection so pages can react to it without
+    // polling the DOM (e.g. the sector perf chart emphasises the selected
+    // peer's line). detail.el is the selected element, or null when the
+    // selection clears. This is the canonical selection signal — prefer
+    // listening to it over MutationObserving .vim-selected per page.
+    function emitSelect(el) {
+        try {
+            document.dispatchEvent(new CustomEvent('vimnav:select', {
+                detail: { el: el || null },
+            }));
+        } catch (e) { /* CustomEvent unsupported — non-fatal */ }
     }
 
     function applySelection() {
         clearSelection();
-        if (currentRow < 0 || currentRow >= grid.length) return;
+        if (currentRow < 0 || currentRow >= grid.length) { emitSelect(null); return; }
         var row = grid[currentRow];
-        if (currentCol < 0 || currentCol >= row.items.length) return;
+        if (currentCol < 0 || currentCol >= row.items.length) { emitSelect(null); return; }
         var el = row.items[currentCol];
         el.classList.add(SELECTED_CLASS);
-        el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        // Tab strips sit in fixed panel chrome — scrolling them shifts
+        // sub-nav labels relative to the primary row when #info-content
+        // has been scrolled.
+        if (!el.closest('#info-tabs, #fin-sub-tabs, #sec-filters, #news-sub-tabs, .economics-tabs')) {
+            el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        }
+        syncTabRowGlow(true);
+        emitSelect(el);
     }
 
     function selectFirst() {
@@ -363,6 +398,7 @@
         currentRow = -1;
         currentCol = -1;
         clearSelection();
+        emitSelect(null);
     }
 
     // Auto-reset on DOM mutations to the main content area. Pages render

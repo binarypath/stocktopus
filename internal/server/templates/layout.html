@@ -5,11 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stocktopus — {{.Title}}</title>
     <link rel="stylesheet" href="/static/style.css?v={{.AssetVersion}}">
-    <link rel="stylesheet" href="/static/tron.css?v={{.AssetVersion}}">
 </head>
 <body>
     <header class="terminal-header">
-        <span class="brand">STOCKTOPUS</span>
+        <span class="brand" title="Stocktopus">
+            <svg class="brand-octopus" viewBox="0 0 40 24" role="img" aria-label="Stocktopus" fill="currentColor">
+                <path d="M5 16.5 C5 8.8 11 2.5 20 2.5 C29 2.5 35 8.8 35 16.5 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 Z"/>
+                <circle cx="15" cy="12.5" r="2" fill="var(--bg-secondary)"/>
+                <circle cx="25" cy="12.5" r="2" fill="var(--bg-secondary)"/>
+            </svg>
+        </span>
         <div class="cmd-bar">
             <span class="cmd-prompt">&gt;</span>
             <input id="cmd-input" class="cmd-input" type="text" placeholder="enter command..." autocomplete="off" spellcheck="false">

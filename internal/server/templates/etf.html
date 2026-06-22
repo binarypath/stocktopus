@@ -2,15 +2,17 @@
 {{define "content"}}
 <div id="company-panel" class="company-panel"></div>
 <span id="help-indicator" class="help-indicator hidden">? help on</span>
-<div class="info-tabs" id="info-tabs" data-vim-row>
-    <button class="info-tab active" data-tab="overview" data-vim-item>Overview</button>
-    <button class="info-tab" data-tab="holdings" data-vim-item>Holdings</button>
-    <button class="info-tab" data-tab="sectors" data-vim-item>Sectors</button>
-    <button class="info-tab" data-tab="news" data-vim-item>News</button>
-    <button class="info-tab" data-tab="ai" data-vim-item>AI Analysis</button>
+<div class="info-panel">
+<div class="info-tabs st-tab-row" id="info-tabs" data-vim-row>
+    <button class="info-tab st-tab active st-tab--active" data-tab="overview" data-vim-item>Overview</button>
+    <button class="info-tab st-tab" data-tab="holdings" data-vim-item>Holdings</button>
+    <button class="info-tab st-tab" data-tab="sectors" data-vim-item>Sectors</button>
+    <button class="info-tab st-tab" data-tab="news" data-vim-item>News</button>
+    <button class="info-tab st-tab" data-tab="ai" data-vim-item>AI Analysis</button>
 </div>
 <div id="info-content" class="info-content" data-symbol="{{.Symbol}}">
     <p class="empty-state">Loading...</p>
+</div>
 </div>
 <script src="/static/etf.js?v={{.AssetVersion}}"></script>
 {{end}}

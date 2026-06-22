@@ -246,8 +246,8 @@ window.onerror = function (msg, src, line, col, err) {
     }
 
     function initGraph() {
-        // Render company panel on graph page (no sparkline — chart IS the graph)
         var panel = document.getElementById('company-panel');
+        if (panel) panel.classList.remove('no-spark');
         if (panel && selectedSecurity && window._renderCompanyPanel) {
             window._renderCompanyPanel('company-panel', selectedSecurity);
         }
@@ -318,6 +318,70 @@ window.onerror = function (msg, src, line, col, err) {
     var watchlistData = []; // cached watchlist data
     var activeWatchlistId = parseInt(localStorage.getItem('stocktopus-watchlist-id') || '0');
     var watchlistBuffer = ''; // last symbol cut via 'd' on a watchlist row, ready to paste with 'p'
+    var watchlistPaneFocus = 'main'; // 'list' | 'main' — two-column vim nav like Ideas
+    var watchlistListSelectedIdx = -1;
+    var watchlistMetricsCache = {};
+    var watchlistColCycle = { day: 0, week: 0, mid: 0, vol: 0 };
+    var WL_CYCLE_OPTS = {
+        day: ['1d', '2d'],
+        week: ['1w', '2w'],
+        mid: ['6m', '1yr'],
+        vol: ['', 'avg vol/yr'],
+    };
+
+    function highlightWatchlistPane() {
+        var sidebar = document.getElementById('watchlist-sidebar');
+        var main = document.getElementById('watchlist-main');
+        if (sidebar) sidebar.classList.toggle('pane-focused', watchlistPaneFocus === 'list');
+        if (main) main.classList.toggle('pane-focused', watchlistPaneFocus === 'main');
+    }
+
+    function clearWatchlistListSelection() {
+        document.querySelectorAll('#watchlist-tabs .watchlist-list-item').forEach(function (el) {
+            el.classList.remove('vim-selected');
+        });
+    }
+
+    function syncWatchlistListSelection() {
+        if (watchlistPaneFocus !== 'list') return;
+        var items = document.querySelectorAll('#watchlist-tabs .watchlist-list-item');
+        if (!items.length) {
+            watchlistListSelectedIdx = -1;
+            return;
+        }
+        if (watchlistListSelectedIdx < 0) {
+            var activeIdx = watchlistData.findIndex(function (wl) { return wl.id === activeWatchlistId; });
+            watchlistListSelectedIdx = activeIdx >= 0 ? activeIdx : 0;
+        }
+        if (watchlistListSelectedIdx >= items.length) watchlistListSelectedIdx = items.length - 1;
+        Array.from(items).forEach(function (el, i) {
+            el.classList.toggle('vim-selected', i === watchlistListSelectedIdx);
+        });
+        if (items[watchlistListSelectedIdx]) {
+            items[watchlistListSelectedIdx].scrollIntoView({ block: 'nearest' });
+        }
+    }
+
+    function selectWatchlist(id) {
+        activeWatchlistId = id;
+        localStorage.setItem('stocktopus-watchlist-id', activeWatchlistId);
+        var idx = watchlistData.findIndex(function (wl) { return wl.id === id; });
+        if (idx >= 0) watchlistListSelectedIdx = idx;
+        renderWatchlistTabs();
+        renderWatchlistPicker();
+        filterWatchlistView();
+        if (watchlistPaneFocus === 'main') {
+            var rows = document.getElementById('quote-body');
+            var quoteItems = rows ? Array.from(rows.children).filter(function (row) {
+                return row.tagName === 'TR' && row.style.display !== 'none';
+            }) : [];
+            if (quoteItems.length > 0) {
+                vimSelect(quoteItems, Math.min(vimSelectedIndex < 0 ? 0 : vimSelectedIndex, quoteItems.length - 1));
+            } else {
+                clearVimSelection();
+            }
+        }
+    }
 
     // Cache of saved sketches for cross-page :add autocomplete. Lazy-filled on
     // first ':add' keystroke so we don't fetch unconditionally on every load.
@@ -336,7 +400,9 @@ window.onerror = function (msg, src, line, col, err) {
         const form = document.getElementById('add-security-form');
         if (form) initWatchlistAddForm(form);
 
-        // Re-render tabs (DOM is fresh on SPA navigation)
+        initWatchlistColumnCycles();
+        watchlistPaneFocus = 'main';
+        highlightWatchlistPane();
         renderWatchlistTabs();
 
         // Fetch batch quotes immediately
@@ -360,8 +426,8 @@ window.onerror = function (msg, src, line, col, err) {
             + '<td id="quote-' + safe + '-change1w" class="quote-na">—</td>'
             + '<td id="quote-' + safe + '-changepct1w" class="quote-na">—</td>'
             + '<td id="quote-' + safe + '-change6m" class="quote-na">—</td>'
-            + '<td class="quote-na">no data</td>'
-            + '<td></td>'
+            + '<td id="quote-' + safe + '-volume" class="quote-na">—</td>'
+            + '<td class="wl-spark-cell">' + buildWatchlistSparkClusterHtml(safe) + '</td>'
             + '</tr>';
         tbody.insertAdjacentHTML('beforeend', html);
         return document.getElementById('quote-' + symbol);
@@ -400,6 +466,12 @@ window.onerror = function (msg, src, line, col, err) {
                     var vol = q.volume ? formatWatchlistVolume(q.volume) : '';
                     var sym = q.symbol;
 
+                    if (!watchlistMetricsCache[sym]) watchlistMetricsCache[sym] = {};
+                    watchlistMetricsCache[sym].change1d = q.change;
+                    watchlistMetricsCache[sym].pct1d = q.changePercentage;
+                    watchlistMetricsCache[sym].volume = q.volume;
+                    watchlistMetricsCache[sym].volumeFmt = vol;
+
                     var existing = document.getElementById('quote-' + sym);
                     // Per-cell ids on the three live cells (price, change,
                     // change %) so the poller's per-cell OOB swaps land
@@ -414,11 +486,8 @@ window.onerror = function (msg, src, line, col, err) {
                         + '<td id="quote-' + sym + '-change1w" class="wl-static"></td>'
                         + '<td id="quote-' + sym + '-changepct1w" class="wl-static"></td>'
                         + '<td id="quote-' + sym + '-change6m" class="wl-static"></td>'
-                        + '<td>' + vol + '</td>'
-                        + '<td class="wl-spark-cell">'
-                        +   '<div id="quote-' + sym + '-spark" class="wl-spark"></div>'
-                        +   '<span id="quote-' + sym + '-spark-label" class="wl-spark-label">6m</span>'
-                        + '</td>'
+                        + '<td id="quote-' + sym + '-volume" class="wl-static">' + vol + '</td>'
+                        + '<td class="wl-spark-cell">' + buildWatchlistSparkClusterHtml(sym) + '</td>'
                         + '</tr>';
 
                     if (existing) {
@@ -430,10 +499,11 @@ window.onerror = function (msg, src, line, col, err) {
                     // Subscribe for live updates
                     subscribeSecurity(q.symbol);
 
-                    // Populate the static columns (1W / 6M / sparkline)
-                    // from EOD history. Fires once per row; not touched by
-                    // the poller's per-cell live swaps.
+                    // Populate the static columns (1W / 6M) from EOD history.
+                    // Spark cluster loads independently via the shared spec.
                     hydrateWatchlistHistorical(sym);
+                    hydrateWatchlistSparks(sym);
+                    applyWatchlistMetricsForSymbol(sym);
                 });
 
                 // Wire up clicks
@@ -468,47 +538,165 @@ window.onerror = function (msg, src, line, col, err) {
         return v;
     }
 
-    // ── Watchlist static columns (1W / 6M / sparkline) ──
+    // ── Watchlist static columns (1W / 6M) + spark cluster ──
     //
-    // Fired once per row at initial render. Pulls EOD history once, then
-    // populates the three change cells AND draws the inline 6M sparkline.
-    // The poller's per-cell OOB swaps never touch any of these cells, so a
-    // single fetch per symbol is enough until the user reloads the page.
+    // Fired once per row at initial render. Pulls EOD history once for the
+    // change cells; the 3-interval spark cluster loads via MINI_SPARK_SPECS.
     var watchlistSparkCharts = {};
+
+    function buildWatchlistSparkClusterHtml(symbol) {
+        var specs = window.MINI_SPARK_SPECS || [];
+        var hosts = specs.map(function (s) {
+            return '<div class="wl-spark" data-range="' + s.key + '"></div>';
+        }).join('');
+        return '<div class="wl-sparks" data-spark-sym="' + symbol + '">' + hosts + '</div>';
+    }
+
+    function hydrateWatchlistSparks(symbol) {
+        var cluster = document.querySelector('.wl-sparks[data-spark-sym="' + symbol + '"]');
+        if (!cluster) return;
+        var specs = window.MINI_SPARK_SPECS || [];
+        function run() {
+            if (!window.LightweightCharts) {
+                setTimeout(run, 200);
+                return;
+            }
+            if (!watchlistSparkCharts[symbol]) watchlistSparkCharts[symbol] = [];
+            specs.forEach(function (spec, i) {
+                var host = cluster.querySelector('.wl-spark[data-range="' + spec.key + '"]');
+                if (!host) return;
+                window._loadMiniSpark(host, null, symbol, spec, undefined, {
+                    onChart: function (chart) {
+                        watchlistSparkCharts[symbol][i] = chart;
+                    },
+                });
+            });
+        }
+        run();
+    }
+
+    function initWatchlistColumnCycles() {
+        document.querySelectorAll('.wl-col-cycle').forEach(function (th) {
+            if (th.dataset.wlCycleBound) return;
+            th.dataset.wlCycleBound = '1';
+            th.addEventListener('click', function () {
+                var group = th.dataset.wlCycle;
+                if (!group || !WL_CYCLE_OPTS[group]) return;
+                watchlistColCycle[group] = (watchlistColCycle[group] + 1) % WL_CYCLE_OPTS[group].length;
+                updateWatchlistColumnHeaders();
+                applyWatchlistMetricsAll();
+            });
+        });
+        updateWatchlistColumnHeaders();
+    }
+
+    function updateWatchlistColumnHeaders() {
+        Object.keys(WL_CYCLE_OPTS).forEach(function (group) {
+            var label = WL_CYCLE_OPTS[group][watchlistColCycle[group]];
+            document.querySelectorAll('.wl-col-cycle[data-wl-cycle="' + group + '"] .wl-col-label').forEach(function (el) {
+                if (group === 'vol') {
+                    el.textContent = label;
+                    el.hidden = !label;
+                } else {
+                    el.textContent = label;
+                }
+            });
+        });
+    }
+
+    function applyWatchlistMetricsAll() {
+        document.querySelectorAll('#quote-body tr[id^="quote-"]').forEach(function (row) {
+            applyWatchlistMetricsForSymbol(row.id.replace('quote-', ''));
+        });
+    }
+
+    function applyWatchlistMetricsForSymbol(sym) {
+        var m = watchlistMetricsCache[sym];
+        if (!m) return;
+
+        if (watchlistColCycle.day === 0) {
+            if (m.change1d != null) setWlCell(sym + '-change', formatSigned(m.change1d, 2), m.change1d);
+            if (m.pct1d != null) setWlCell(sym + '-changepct', formatSigned(m.pct1d, 2) + '%', m.change1d);
+        } else {
+            if (m.change2d != null) setWlCell(sym + '-change', formatSigned(m.change2d, 2), m.change2d);
+            if (m.pct2d != null) setWlCell(sym + '-changepct', formatSigned(m.pct2d, 2) + '%', m.change2d);
+        }
+
+        if (watchlistColCycle.week === 0) {
+            if (m.change1w != null) setWlCell(sym + '-change1w', formatSigned(m.change1w, 2), m.change1w);
+            if (m.pct1w != null) setWlCell(sym + '-changepct1w', formatSigned(m.pct1w, 2) + '%', m.change1w);
+        } else {
+            if (m.change2w != null) setWlCell(sym + '-change1w', formatSigned(m.change2w, 2), m.change2w);
+            if (m.pct2w != null) setWlCell(sym + '-changepct1w', formatSigned(m.pct2w, 2) + '%', m.change2w);
+        }
+
+        if (watchlistColCycle.mid === 0) {
+            if (m.change6m != null) setWlCell(sym + '-change6m', formatSigned(m.change6m, 2), m.change6m);
+        } else if (m.change1y != null) {
+            setWlCell(sym + '-change6m', formatSigned(m.change1y, 2), m.change1y);
+        }
+
+        var volEl = document.getElementById('quote-' + sym + '-volume');
+        if (volEl) {
+            volEl.textContent = watchlistColCycle.vol === 0
+                ? (m.volumeFmt || '')
+                : (m.avgVolYearFmt || '');
+        }
+    }
+
     function hydrateWatchlistHistorical(symbol) {
         var sym = symbol;
-        fetch('/api/historical/stock/' + encodeURIComponent(sym))
+        var to = new Date().toISOString().slice(0, 10);
+        var from = new Date(Date.now() - 420 * 86400000).toISOString().slice(0, 10);
+        fetch('/api/chart/eod/' + encodeURIComponent(sym) + '?from=' + from + '&to=' + to)
             .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
             .then(function (rows) {
                 if (!Array.isArray(rows) || rows.length === 0) return;
-                // FMP returns descending; flip to ascending and trim to 6M
-                // (~126 trading days) so sparkline + change values agree on
-                // the same window.
-                var asc = rows.slice().reverse();
-                if (asc.length > 126) asc = asc.slice(asc.length - 126);
-                var clean = [];
-                for (var i = 0; i < asc.length; i++) {
-                    var d = asc[i];
-                    var v = Number(d.price);
-                    if (d.date && !isNaN(v) && v > 0) clean.push({ time: d.date, value: v });
+                var bars = rows.slice().sort(function (a, b) {
+                    return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
+                });
+                var closes = [];
+                var vols = [];
+                for (var i = 0; i < bars.length; i++) {
+                    var c = Number(bars[i].close);
+                    if (!bars[i].date || isNaN(c) || c <= 0) continue;
+                    closes.push(c);
+                    vols.push(Number(bars[i].volume) || 0);
                 }
-                if (clean.length === 0) return;
+                if (closes.length === 0) return;
 
-                var last = clean[clean.length - 1].value;
-                var first = clean[0].value;
-                // 1W ≈ 5 trading days back. Fall back gracefully if the
-                // series is shorter than that.
-                var oneWIdx = Math.max(0, clean.length - 6);
-                var oneWBase = clean[oneWIdx].value;
+                var last = closes[closes.length - 1];
+                function chgAt(back) {
+                    var idx = Math.max(0, closes.length - 1 - back);
+                    var base = closes[idx];
+                    var delta = last - base;
+                    var pct = base > 0 ? (delta / base) * 100 : 0;
+                    return { delta: delta, pct: pct };
+                }
 
-                var c1w = last - oneWBase;
-                var c1wPct = oneWBase > 0 ? ((last - oneWBase) / oneWBase) * 100 : 0;
-                var c6m = last - first;
+                var c2d = chgAt(2);
+                var c1w = chgAt(5);
+                var c2w = chgAt(10);
+                var c6m = chgAt(126);
+                var c1y = chgAt(252);
+                var volYear = vols.slice(-Math.min(252, vols.length));
+                var avgVol = volYear.length
+                    ? volYear.reduce(function (a, b) { return a + b; }, 0) / volYear.length
+                    : 0;
 
-                setWlCell(sym + '-change1w', formatSigned(c1w, 2), c1w);
-                setWlCell(sym + '-changepct1w', formatSigned(c1wPct, 2) + '%', c1w);
-                setWlCell(sym + '-change6m', formatSigned(c6m, 2), c6m);
-                drawWlSparkline(sym, clean, c6m);
+                if (!watchlistMetricsCache[sym]) watchlistMetricsCache[sym] = {};
+                var mc = watchlistMetricsCache[sym];
+                mc.change2d = c2d.delta;
+                mc.pct2d = c2d.pct;
+                mc.change1w = c1w.delta;
+                mc.pct1w = c1w.pct;
+                mc.change2w = c2w.delta;
+                mc.pct2w = c2w.pct;
+                mc.change6m = c6m.delta;
+                mc.change1y = c1y.delta;
+                mc.avgVolYear = avgVol;
+                mc.avgVolYearFmt = avgVol > 0 ? formatWatchlistVolume(Math.round(avgVol)) : '';
+                applyWatchlistMetricsForSymbol(sym);
             })
             .catch(function () { /* leave cells empty on failure */ });
     }
@@ -542,56 +730,21 @@ window.onerror = function (msg, src, line, col, err) {
     // that don't notify.
     function resizeAllWatchlistSparklines() {
         Object.keys(watchlistSparkCharts).forEach(function (sym) {
-            var chart = watchlistSparkCharts[sym];
-            if (!chart) return;
-            var host = document.getElementById('quote-' + sym + '-spark');
-            if (!host) return;
-            var w = host.clientWidth;
-            var h = host.clientHeight;
-            if (w > 0 && h > 0) {
-                try { chart.resize(w, h, true); } catch (e) {}
-            }
+            var charts = watchlistSparkCharts[sym];
+            if (!charts) return;
+            var cluster = document.querySelector('.wl-sparks[data-spark-sym="' + sym + '"]');
+            if (!cluster) return;
+            var hosts = cluster.querySelectorAll('.wl-spark');
+            (Array.isArray(charts) ? charts : [charts]).forEach(function (chart, i) {
+                if (!chart || !hosts[i]) return;
+                var host = hosts[i];
+                var w = host.clientWidth;
+                var h = host.clientHeight;
+                if (w > 0 && h > 0) {
+                    try { chart.resize(w, h, true); } catch (e) {}
+                }
+            });
         });
-    }
-
-    function drawWlSparkline(symbol, series, direction) {
-        var host = document.getElementById('quote-' + symbol + '-spark');
-        var label = document.getElementById('quote-' + symbol + '-spark-label');
-        if (!host || !window.LightweightCharts) return;
-        var color = direction >= 0 ? '#00cc66' : '#ff4444';
-        if (label) {
-            label.style.color = color;
-        }
-        // Dispose any prior chart for this symbol (e.g. on re-renders).
-        if (watchlistSparkCharts[symbol]) {
-            try { watchlistSparkCharts[symbol].remove(); } catch (e) {}
-        }
-        var chart = LightweightCharts.createChart(host, {
-            // autoSize re-reads the host's bounding box whenever it changes,
-            // including when a hidden ancestor (row display:none) becomes
-            // visible again. Without this, lightweight-charts collapses the
-            // canvas to 0x0 on hide and never snaps back on show.
-            autoSize: true,
-            layout: { background: { color: 'transparent' }, textColor: '#888', attributionLogo: false },
-            grid: { vertLines: { color: 'transparent' }, horzLines: { color: 'transparent' } },
-            rightPriceScale: { visible: false },
-            leftPriceScale: { visible: false },
-            timeScale: { visible: false, fixLeftEdge: true, fixRightEdge: true },
-            handleScale: false,
-            handleScroll: false,
-            crosshair: { vertLine: { visible: false }, horzLine: { visible: false } },
-        });
-        var area = chart.addSeries(LightweightCharts.AreaSeries, {
-            lineColor: color,
-            topColor: color + '44',
-            bottomColor: color + '00',
-            lineWidth: 1,
-            priceLineVisible: false,
-            lastValueVisible: false,
-        });
-        area.setData(series);
-        chart.timeScale().fitContent();
-        watchlistSparkCharts[symbol] = chart;
     }
 
     function loadWatchlists() {
@@ -614,23 +767,30 @@ window.onerror = function (msg, src, line, col, err) {
     }
 
     function renderWatchlistTabs() {
-        var tabContainer = document.getElementById('watchlist-tabs');
-        if (!tabContainer) return;
+        var listEl = document.getElementById('watchlist-tabs');
+        if (!listEl) return;
 
-        tabContainer.innerHTML = watchlistData.map(function (wl) {
-            var active = wl.id === activeWatchlistId ? ' wl-tab-active' : '';
-            return '<span class="wl-tab' + active + '" data-id="' + wl.id + '" style="border-color:' + wl.color + ';color:' + wl.color + '">' + escapeHtml(wl.name) + ' (' + (wl.symbols ? wl.symbols.length : 0) + ')</span>';
+        listEl.innerHTML = watchlistData.map(function (wl) {
+            var active = wl.id === activeWatchlistId ? ' wl-tab-active active' : '';
+            var count = wl.symbols ? wl.symbols.length : 0;
+            return '<li class="watchlist-list-item wl-tab' + active + '" data-id="' + wl.id + '" style="--wl-color:' + wl.color + '">'
+                + '<span class="watchlist-list-name">' + escapeHtml(wl.name) + '</span>'
+                + '<span class="watchlist-list-meta">' + count + ' securities</span>'
+                + '</li>';
         }).join('');
 
-        tabContainer.querySelectorAll('.wl-tab').forEach(function (tab) {
+        listEl.querySelectorAll('.watchlist-list-item').forEach(function (tab) {
             tab.onclick = function () {
-                activeWatchlistId = parseInt(tab.dataset.id);
-                localStorage.setItem('stocktopus-watchlist-id', activeWatchlistId);
-                renderWatchlistTabs();
-                renderWatchlistPicker();
-                filterWatchlistView();
+                watchlistListSelectedIdx = watchlistData.findIndex(function (wl) {
+                    return wl.id === parseInt(tab.dataset.id, 10);
+                });
+                selectWatchlist(parseInt(tab.dataset.id, 10));
+                watchlistPaneFocus = 'main';
+                highlightWatchlistPane();
+                clearWatchlistListSelection();
             };
         });
+        syncWatchlistListSelection();
     }
 
     function renderWatchlistPicker() {
@@ -887,6 +1047,21 @@ window.onerror = function (msg, src, line, col, err) {
             if (!cell.id) return;
             var existing = document.getElementById(cell.id);
             if (!existing) return;
+
+            var idMatch = cell.id.match(/^quote-(.+)-(change|changepct)$/);
+            if (idMatch) {
+                var sym = idMatch[1];
+                var field = idMatch[2];
+                if (!watchlistMetricsCache[sym]) watchlistMetricsCache[sym] = {};
+                var mc = watchlistMetricsCache[sym];
+                var parsed = parseFloat(String(cell.textContent).replace(/[+%,]/g, ''));
+                if (!isNaN(parsed)) {
+                    if (field === 'change') mc.change1d = parsed;
+                    else mc.pct1d = parsed;
+                }
+                if (watchlistColCycle.day !== 0) return;
+            }
+
             // Strip the hx-swap-oob marker before insertion so it doesn't
             // accumulate on the DOM and confuse follow-up swaps.
             cell.removeAttribute('hx-swap-oob');
@@ -2243,6 +2418,18 @@ window.onerror = function (msg, src, line, col, err) {
         return true;
     };
 
+    function closeActiveReader() {
+        var reader = document.getElementById('article-reader');
+        if (!reader || reader.classList.contains('hidden')) return false;
+        var mode = reader.dataset.mode;
+        if (mode === 'fin-chart' && window._finCloseChart) window._finCloseChart();
+        else if (mode === 'eco-chart' && window._economicsClosePreview) window._economicsClosePreview();
+        else if (mode === 'price-chart' && window._closePricePreview) window._closePricePreview();
+        else if (window._closeReader) window._closeReader();
+        else reader.classList.add('hidden');
+        return true;
+    }
+
     function openPricePreview(symbol) {
         if (!symbol) return;
         var reader = document.getElementById('article-reader');
@@ -2257,7 +2444,7 @@ window.onerror = function (msg, src, line, col, err) {
         // shows symbol, name, day-change, and a 6M sparkline — replacing the
         // older one-line "AAPL · 252d · 200.21 → 310.85 (+55.3%)" meta string.
         readerBody.innerHTML = '<div id="price-preview-host" style="width:100%;height:280px"></div>'
-            + '<div id="price-preview-cpanel" class="cpanel" style="margin-top:8px"></div>';
+            + '<div id="price-preview-cpanel" class="company-panel company-panel--reader" style="margin-top:8px"></div>';
         if (window._renderCompanyPanel) {
             window._renderCompanyPanel('price-preview-cpanel', symbol);
         }
@@ -2301,6 +2488,10 @@ window.onerror = function (msg, src, line, col, err) {
                 });
                 line.setData(series);
                 pricePreviewChart.timeScale().fitContent();
+                var cpanel = document.getElementById('price-preview-cpanel');
+                if (cpanel && window._refreshCpanelSparks) {
+                    window._refreshCpanelSparks(cpanel, symbol);
+                }
             })
             .catch(function () {
                 readerBody.innerHTML = '<p class="empty-state">Failed to load price history for ' + symbol + '.</p>';
@@ -2319,6 +2510,9 @@ window.onerror = function (msg, src, line, col, err) {
             },
             deleteSelected: function () {
                 return window._ideasDeleteSelected ? window._ideasDeleteSelected() : false;
+            },
+            dimSelected: function () {
+                return window._ideasDimSelected ? window._ideasDimSelected() : false;
             },
             toggleHelp: function () {
                 if (window._ideasToggleHelp) window._ideasToggleHelp();
@@ -2346,26 +2540,58 @@ window.onerror = function (msg, src, line, col, err) {
             },
             move: function (dir) {
                 if (dir === 'h' || dir === 'l') {
-                    // Switch between watchlists
-                    if (watchlistData.length <= 1) return;
-                    var idx = watchlistData.findIndex(function (wl) { return wl.id === activeWatchlistId; });
-                    if (dir === 'l') idx = Math.min(idx + 1, watchlistData.length - 1);
+                    var order = ['list', 'main'];
+                    var idx = order.indexOf(watchlistPaneFocus);
+                    if (dir === 'l') idx = Math.min(idx + 1, order.length - 1);
                     else idx = Math.max(idx - 1, 0);
-                    activeWatchlistId = watchlistData[idx].id;
-                    localStorage.setItem('stocktopus-watchlist-id', activeWatchlistId);
-                    renderWatchlistTabs();
-                    renderWatchlistPicker();
-                    filterWatchlistView();
-                    clearVimSelection();
+                    var newFocus = order[idx];
+                    if (newFocus === watchlistPaneFocus) return;
+                    watchlistPaneFocus = newFocus;
+                    highlightWatchlistPane();
+                    if (watchlistPaneFocus === 'list') {
+                        clearVimSelection();
+                        syncWatchlistListSelection();
+                    } else {
+                        clearWatchlistListSelection();
+                        var items = this.getItems();
+                        if (items.length > 0) {
+                            if (vimSelectedIndex < 0) vimSelectedIndex = 0;
+                            vimSelect(items, vimSelectedIndex);
+                        }
+                    }
                     return;
                 }
-                var items = this.getItems();
-                if (items.length === 0) return;
-                if (dir === 'j') vimSelectedIndex = Math.min(vimSelectedIndex + 1, items.length - 1);
-                else if (dir === 'k') vimSelectedIndex = Math.max(vimSelectedIndex - 1, 0);
-                vimSelect(items, vimSelectedIndex);
+                if (dir === 'j' || dir === 'k') {
+                    if (watchlistPaneFocus === 'list') {
+                        if (!watchlistData.length) return;
+                        if (watchlistListSelectedIdx < 0) {
+                            var activeIdx = watchlistData.findIndex(function (wl) {
+                                return wl.id === activeWatchlistId;
+                            });
+                            watchlistListSelectedIdx = activeIdx >= 0 ? activeIdx : 0;
+                        }
+                        if (dir === 'j') {
+                            watchlistListSelectedIdx = Math.min(watchlistListSelectedIdx + 1, watchlistData.length - 1);
+                        } else {
+                            watchlistListSelectedIdx = Math.max(watchlistListSelectedIdx - 1, 0);
+                        }
+                        syncWatchlistListSelection();
+                        return;
+                    }
+                    var items = this.getItems();
+                    if (items.length === 0) return;
+                    if (dir === 'j') vimSelectedIndex = Math.min(vimSelectedIndex + 1, items.length - 1);
+                    else if (dir === 'k') vimSelectedIndex = Math.max(vimSelectedIndex - 1, 0);
+                    vimSelect(items, vimSelectedIndex);
+                }
             },
             activate: function () {
+                if (watchlistPaneFocus === 'list') {
+                    if (watchlistListSelectedIdx >= 0 && watchlistListSelectedIdx < watchlistData.length) {
+                        selectWatchlist(watchlistData[watchlistListSelectedIdx].id);
+                    }
+                    return;
+                }
                 var items = this.getItems();
                 if (vimSelectedIndex < 0 || vimSelectedIndex >= items.length) return;
                 var sym = items[vimSelectedIndex].querySelector('[data-symbol]');
@@ -2959,11 +3185,7 @@ window.onerror = function (msg, src, line, col, err) {
                 // chart instances get disposed properly (memory leak otherwise).
                 var reader = document.getElementById('article-reader');
                 if (reader && !reader.classList.contains('hidden')) {
-                    var mode = reader.dataset.mode;
-                    if (mode === 'fin-chart' && window._finCloseChart) window._finCloseChart();
-                    else if (mode === 'eco-chart' && window._economicsClosePreview) window._economicsClosePreview();
-                    else if (mode === 'price-chart' && window._closePricePreview) window._closePricePreview();
-                    else reader.classList.add('hidden');
+                    closeActiveReader();
                     return;
                 }
                 document.getElementById('cmd-input').focus();
@@ -2978,6 +3200,14 @@ window.onerror = function (msg, src, line, col, err) {
 
         var handler = vimHandlers[currentView];
 
+        // Company panel: w/W adds to watchlist when a spark or summary is
+        // highlighted — claim before VimNav's word-forward 'w'.
+        if (companyPanelHasSelection() && selectedSecurity && (e.key === 'w' || e.key === 'W')) {
+            e.preventDefault();
+            addCompanyToWatchlist(selectedSecurity);
+            return;
+        }
+
         // Declarative vim-nav takes precedence whenever the page has any
         // [data-vim-row] elements. It owns j/k/h/l/w/b/G/1-9/Enter and
         // handles gg via a 500ms timer; legacy keys (g, a, d, y, p, etc.)
@@ -2991,7 +3221,8 @@ window.onerror = function (msg, src, line, col, err) {
             var readerOpen = false;
             var readerEl = document.getElementById('article-reader');
             if (readerEl && !readerEl.classList.contains('hidden')) readerOpen = true;
-            if (!readerOpen && window.VimNav.handleKey(e.key, e)) return;
+            // Ideas and watchlist use custom two-column pane models.
+            if (!readerOpen && currentView !== 'ideas' && currentView !== 'watchlist' && window.VimNav.handleKey(e.key, e)) return;
         }
 
         switch (e.key) {
@@ -3083,10 +3314,20 @@ window.onerror = function (msg, src, line, col, err) {
                 if (window._infoToggleHelp) window._infoToggleHelp();
                 return;
             case 'd':
-                // View-level delete: ideas removes the focused metric, watchlist
-                // removes the selected symbol from the active list (idea #12).
+                // Ideas main pane: dim selected metric/panel. Watchlist / ideas
+                // sidebar: delete row / sketch via deleteSelected fallback.
+                if (handler && handler.dimSelected) {
+                    if (handler.dimSelected()) { e.preventDefault(); return; }
+                }
                 if (handler && handler.deleteSelected) {
                     if (handler.deleteSelected()) e.preventDefault();
+                }
+                return;
+            case 'x':
+                if (currentView === 'ideas' && window._ideasRemoveSelected) {
+                    e.preventDefault();
+                    window._ideasRemoveSelected();
+                    return;
                 }
                 return;
             case 'y':
@@ -3142,6 +3383,8 @@ window.onerror = function (msg, src, line, col, err) {
                 }
                 return;
             case 'p':
+                // 'p' toggles any open reader/preview slide-in closed first.
+                if (closeActiveReader()) { e.preventDefault(); return; }
                 // Watchlist: 'p' opens a price chart slide-in for the
                 // highlighted symbol. Cut/paste 'p' moved to capital 'P' so
                 // 'p' = preview is consistent across listings.
@@ -3208,6 +3451,12 @@ window.onerror = function (msg, src, line, col, err) {
                 }
                 return;
             case 'a':
+                // Company panel: prefills :add SYMBOL for the current security.
+                if (companyPanelHasSelection() && selectedSecurity) {
+                    e.preventDefault();
+                    prefillAddCommand(selectedSecurity);
+                    return;
+                }
                 // 'a' on a highlighted Financials row prefills :add SYMBOL.field
                 // in the command bar so the user can confirm + send to the sketchpad.
                 if (handler && handler.isFinTab && handler.isFinTab()) {
@@ -3666,26 +3915,329 @@ window.onerror = function (msg, src, line, col, err) {
     // collided when more than one company panel was on screen at once,
     // causing the sector-preview sparkline to render INTO the top
     // panel's spark host and stack up on every 'p' toggle.
+    function companyPanelHasSelection() {
+        return !!document.querySelector('#company-panel[data-vim-row] .vim-selected');
+    }
+
+    function prefillAddCommand(sym) {
+        var cmdInput = document.getElementById('cmd-input');
+        if (!cmdInput || !sym) return;
+        cmdInput.value = ':add ' + sym;
+        cmdInput.focus();
+        cmdInput.setSelectionRange(cmdInput.value.length, cmdInput.value.length);
+    }
+
+    function addCompanyToWatchlist(sym) {
+        if (!sym) return;
+        addToWatchlist(getActiveWatchlistId(), sym);
+        flashError('Added ' + sym + ' to watchlist');
+    }
+
+    // ── Shared mini sparklines (company panel, ideas cards, etc.) ──
+    window._sparkTrimSessions = function (data, sessions) {
+        if (!Array.isArray(data) || data.length === 0) return data;
+        var want = sessions || 2;
+        var keepDays = [];
+        var seen = {};
+        for (var i = data.length - 1; i >= 0 && keepDays.length < want; i--) {
+            var day = (data[i].date || '').slice(0, 10);
+            if (day && !seen[day]) {
+                seen[day] = true;
+                keepDays.push(day);
+            }
+        }
+        if (keepDays.length === 0) return data;
+        var set = {};
+        keepDays.forEach(function (d) { set[d] = true; });
+        return data.filter(function (d) { return set[(d.date || '').slice(0, 10)]; });
+    };
+
+    function paintSparkLabel(labelEl, spec, up) {
+        if (!labelEl || !spec || !spec.label) return;
+        labelEl.textContent = spec.label;
+        labelEl.classList.remove('price-up', 'price-down');
+        labelEl.classList.add(up ? 'price-up' : 'price-down');
+    }
+
+    function paintSparkDurationOnHost(host, spec, up) {
+        if (!host || !spec || !spec.label) return;
+        var overlay = host.querySelector('.spark-duration');
+        if (!overlay) {
+            overlay = document.createElement('span');
+            overlay.className = 'spark-duration';
+            overlay.setAttribute('aria-hidden', 'true');
+            host.appendChild(overlay);
+        }
+        overlay.textContent = spec.label;
+        overlay.classList.remove('price-up', 'price-down');
+        overlay.classList.add(up ? 'price-up' : 'price-down');
+    }
+
+    function sparkFmtDate(d) {
+        return d.getFullYear() + '-'
+            + String(d.getMonth() + 1).padStart(2, '0') + '-'
+            + String(d.getDate()).padStart(2, '0');
+    }
+
+    // Most recent weekday on or before `d` (handles Sat/Sun; holidays need backoff below).
+    function sparkLastMarketDay(d) {
+        var day = d ? new Date(d.getTime()) : new Date();
+        day.setHours(12, 0, 0, 0);
+        while (day.getDay() === 0 || day.getDay() === 6) {
+            day.setDate(day.getDate() - 1);
+        }
+        return day;
+    }
+
+    // Walk back N market days from a base date (holiday backoff uses this).
+    function sparkOffsetMarketDay(base, offset) {
+        var day = new Date(base.getTime());
+        for (var i = 0; i < offset; i++) {
+            day.setDate(day.getDate() - 1);
+            while (day.getDay() === 0 || day.getDay() === 6) {
+                day.setDate(day.getDate() - 1);
+            }
+        }
+        return day;
+    }
+
+    function renderMiniSparkChart(host, labelEl, symbol, spec, data, opts) {
+        if (!Array.isArray(data) || data.length < 2) return false;
+        if (!document.contains(host)) return false;
+        if (!window.LightweightCharts) return false;
+
+        var first = data[0].close;
+        var last = data[data.length - 1].close;
+        var up = last >= first;
+        var color = up ? '#00cc66' : '#ff4444';
+
+        host.innerHTML = '';
+        // Single source of truth for the range label: an inset badge that sits
+        // inside the chart box (bottom-left). Applies to every range, not just
+        // intraday — the old sibling .*-spark-label has been removed so the
+        // label never renders twice.
+        if (spec.label) {
+            var overlay = document.createElement('span');
+            overlay.className = 'spark-duration ' + (up ? 'price-up' : 'price-down');
+            overlay.setAttribute('aria-hidden', 'true');
+            overlay.textContent = spec.label;
+            host.appendChild(overlay);
+        }
+
+        var chart = LightweightCharts.createChart(host, {
+            autoSize: true,
+            layout: { background: { color: 'transparent' }, textColor: 'transparent', attributionLogo: false },
+            grid: { vertLines: { visible: false }, horzLines: { visible: false } },
+            rightPriceScale: { visible: false },
+            timeScale: { visible: false },
+            handleScroll: false, handleScale: false,
+            crosshair: { vertLine: { visible: false }, horzLine: { visible: false } },
+        });
+        var points = data.map(function (d) {
+            var t = d.date;
+            if (spec.intraday && t && (t.indexOf(' ') >= 0 || t.indexOf('T') >= 0)) {
+                t = Math.floor(new Date(t.replace(' ', 'T') + 'Z').getTime() / 1000);
+            }
+            return { time: t, value: d.close };
+        });
+        var lw = opts.lineWidth != null ? opts.lineWidth : (opts.seriesType === 'line' ? 1 : 2);
+        if (opts.seriesType === 'line') {
+            chart.addSeries(LightweightCharts.LineSeries, {
+                color: color,
+                lineWidth: lw,
+                priceLineVisible: false,
+                lastValueVisible: false,
+            }).setData(points);
+        } else {
+            chart.addSeries(LightweightCharts.AreaSeries, {
+                lineColor: color,
+                topColor: color + '33',
+                bottomColor: 'transparent',
+                lineWidth: lw,
+                priceLineVisible: false,
+                lastValueVisible: false,
+            }).setData(points);
+        }
+        chart.timeScale().fitContent();
+        if (opts.onChart) opts.onChart(chart);
+        return true;
+    }
+
+    function loadMiniSparkEodFallback(host, labelEl, symbol, spec, opts) {
+        var to = sparkLastMarketDay();
+        var from = new Date(to.getTime());
+        from.setDate(from.getDate() - (spec.eodFallbackDays || 14));
+        var url = '/api/chart/eod/' + encodeURIComponent(symbol)
+            + '?from=' + sparkFmtDate(from) + '&to=' + sparkFmtDate(to);
+        fetch(url)
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (!Array.isArray(data) || data.length < 2) return;
+                var eodSpec = { label: spec.label, intraday: false };
+                renderMiniSparkChart(host, labelEl, symbol, eodSpec, data.slice(-Math.max(5, (spec.sessions || 2) * 2)), opts);
+            })
+            .catch(function () {});
+    }
+
+    function loadMiniSparkIntraday(host, labelEl, symbol, spec, opts, fetchDays, endOffset) {
+        fetchDays = fetchDays || spec.fetchDays || 7;
+        endOffset = endOffset || 0;
+        var to = sparkOffsetMarketDay(sparkLastMarketDay(), endOffset);
+        var from = new Date(to.getTime());
+        from.setDate(from.getDate() - fetchDays);
+        var url = '/api/chart/intraday/' + spec.intraday + '/'
+            + encodeURIComponent(symbol)
+            + '?from=' + sparkFmtDate(from) + '&to=' + sparkFmtDate(to);
+
+        fetch(url)
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (!Array.isArray(data) || data.length < 2) {
+                    if (fetchDays < 12) {
+                        loadMiniSparkIntraday(host, labelEl, symbol, spec, opts, fetchDays + 3, endOffset);
+                        return;
+                    }
+                    if (endOffset < 6) {
+                        loadMiniSparkIntraday(host, labelEl, symbol, spec, opts, spec.fetchDays || 7, endOffset + 1);
+                        return;
+                    }
+                    loadMiniSparkEodFallback(host, labelEl, symbol, spec, opts);
+                    return;
+                }
+                data = window._sparkTrimSessions(data, spec.sessions || 2);
+                if (data.length < 2) {
+                    if (endOffset < 6) {
+                        loadMiniSparkIntraday(host, labelEl, symbol, spec, opts, fetchDays, endOffset + 1);
+                        return;
+                    }
+                    loadMiniSparkEodFallback(host, labelEl, symbol, spec, opts);
+                    return;
+                }
+                if (!renderMiniSparkChart(host, labelEl, symbol, spec, data, opts)) {
+                    loadMiniSparkEodFallback(host, labelEl, symbol, spec, opts);
+                }
+            })
+            .catch(function () {
+                loadMiniSparkEodFallback(host, labelEl, symbol, spec, opts);
+            });
+    }
+
+    // spec: { label, intraday?, fetchDays?, sessions?, months?, eodFallbackDays? }
+    // opts: { seriesType: 'area'|'line', lineWidth, onChart(chart) }
+    window._loadMiniSpark = function (host, labelEl, symbol, spec, intradayFetchDays, opts) {
+        if (!host || !symbol || !spec) return;
+        opts = opts || {};
+        // Inset range badge during the async load window (recoloured once data
+        // arrives in renderMiniSparkChart). The sibling side-label is gone.
+        if (spec.label) paintSparkDurationOnHost(host, spec, true);
+
+        if (spec.intraday) {
+            loadMiniSparkIntraday(host, labelEl, symbol, spec, opts, intradayFetchDays, 0);
+            return;
+        }
+
+        var to = new Date();
+        var from = new Date();
+        from.setMonth(from.getMonth() - (spec.months || 6));
+        var url = '/api/chart/eod/' + encodeURIComponent(symbol)
+            + '?from=' + sparkFmtDate(from) + '&to=' + sparkFmtDate(to);
+
+        fetch(url)
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (!Array.isArray(data) || data.length < 2) return;
+                renderMiniSparkChart(host, labelEl, symbol, spec, data, opts);
+            })
+            .catch(function () {});
+    };
+
+    window.INTRADAY_2D_SPARK_SPEC = {
+        key: '2d',
+        label: '2d',
+        intraday: '5min',
+        fetchDays: 7,
+        sessions: 2,
+        eodFallbackDays: 14,
+    };
+
+    // Canonical mini-sparkline interval set — the single source of truth for
+    // every spark cluster (company panel, ideas cards, sector peers). Change
+    // the ranges/labels here and they flow everywhere. Labels: 2d / 6M / 1y.
+    window.MINI_SPARK_SPECS = [
+        window.INTRADAY_2D_SPARK_SPEC,
+        { key: '6m', label: '6M', months: 6 },
+        { key: '1y', label: '1y', months: 12 },
+    ];
+
+    window._refreshCpanelSparks = function (panelEl, symbol) {
+        if (!panelEl || !symbol || panelEl.classList.contains('no-spark')) return;
+        var specs = window.MINI_SPARK_SPECS;
+        function run() {
+            if (!window.LightweightCharts) {
+                setTimeout(run, 200);
+                return;
+            }
+            panelEl.querySelectorAll('.cpanel-spark-wrap').forEach(function (wrap, i) {
+                var spec = specs[i];
+                if (!spec) return;
+                var spark = wrap.querySelector('.cpanel-spark');
+                var label = wrap.querySelector('.cpanel-spark-label');
+                if (!spark) return;
+                window._loadMiniSpark(spark, label, symbol, spec);
+            });
+        }
+        run();
+    };
+
     window._renderCompanyPanel = function (containerId, symbol) {
         var el = document.getElementById(containerId);
         if (!el || !symbol) return;
 
-        el.innerHTML = '<span class="cpanel-sym st-link-sym">' + symbol + '</span>'
+        var vimNav = containerId === 'company-panel' && !el.classList.contains('no-spark');
+        if (vimNav) el.setAttribute('data-vim-row', '');
+        else el.removeAttribute('data-vim-row');
+
+        var infoOpen = '<span class="cpanel-info"'
+            + (vimNav ? ' data-vim-item data-vim-action="none"' : '')
+            + '>';
+        var infoClose = '</span>';
+        var sparkVim = vimNav ? ' data-vim-item data-vim-action="click"' : '';
+
+        var sparksHtml = '';
+        if (!el.classList.contains('no-spark')) {
+            sparksHtml = '<div class="cpanel-sparks">'
+                + '<div class="cpanel-spark-wrap"' + sparkVim + ' data-chart-range="5m" title="Open 2d chart">'
+                +   '<div class="cpanel-spark"></div>'
+                + '</div>'
+                + '<div class="cpanel-spark-wrap"' + sparkVim + ' data-chart-range="6M" title="Open 6m chart">'
+                +   '<div class="cpanel-spark"></div>'
+                + '</div>'
+                + '<div class="cpanel-spark-wrap"' + sparkVim + ' data-chart-range="6M" title="Open 1y chart">'
+                +   '<div class="cpanel-spark"></div>'
+                + '</div>'
+                + '</div>';
+        }
+
+        el.innerHTML = infoOpen
+            + '<span class="cpanel-sym st-link-sym">' + symbol + '</span>'
             + '<span class="cpanel-name"></span>'
             + '<span class="cpanel-price"></span>'
             + '<span class="cpanel-change"></span>'
-            + '<div class="cpanel-spark-wrap"><span class="cpanel-spark-label">6m</span><div class="cpanel-spark"></div></div>';
+            + infoClose
+            + sparksHtml;
 
-        // Make sparkline clickable
-        var spark = el.querySelector('.cpanel-spark');
-        if (spark) {
-            spark.style.cursor = 'pointer';
-            spark.title = 'Open chart';
-            spark.addEventListener('click', function () {
-                localStorage.setItem('stocktopus-chart-range', '6M');
-                if (window._navigateToGraph) window._navigateToGraph(symbol);
-            });
+        function openSparkChart(wrap) {
+            var range = wrap.dataset.chartRange || '6M';
+            localStorage.setItem('stocktopus-chart-range', range);
+            if (window._navigateToGraph) window._navigateToGraph(symbol);
         }
+
+        el.querySelectorAll('.cpanel-spark-wrap').forEach(function (wrap) {
+            wrap.style.cursor = 'pointer';
+            wrap.addEventListener('click', function () { openSparkChart(wrap); });
+        });
+
+        if (vimNav && window.VimNav) window.VimNav.reset();
 
         // Fetch profile — falls back to EOD data for indices
         fetch('/api/security/' + symbol + '/profile')
@@ -3741,58 +4293,9 @@ window.onerror = function (msg, src, line, col, err) {
             }
         }
 
-        // Skip sparkline if container has no-spark class
-        if (!spark || el.classList.contains('no-spark')) return;
-
-        function renderSpark() {
-            if (!window.LightweightCharts) {
-                // Retry — library may still be loading from fragment script
-                setTimeout(renderSpark, 200);
-                return;
-            }
-            loadSparkData();
-        }
-
-        function loadSparkData() {
-            var from = new Date();
-            from.setMonth(from.getMonth() - 6);
-            var to = new Date();
-            fetch('/api/chart/eod/' + symbol + '?from=' + from.toISOString().slice(0, 10) + '&to=' + to.toISOString().slice(0, 10))
-                .then(function (r) { return r.ok ? r.json() : null; })
-                .then(function (data) {
-                    if (!Array.isArray(data) || data.length < 2) return;
-                    var first = data[0].close;
-                    var last = data[data.length - 1].close;
-                    var color = last >= first ? '#00cc66' : '#ff4444';
-
-                    var chart = LightweightCharts.createChart(spark, {
-                        width: 160, height: 40,
-                        layout: { background: { color: 'transparent' }, textColor: 'transparent', attributionLogo: false },
-                        grid: { vertLines: { visible: false }, horzLines: { visible: false } },
-                        rightPriceScale: { visible: false },
-                        timeScale: { visible: false },
-                        handleScroll: false, handleScale: false,
-                        crosshair: { vertLine: { visible: false }, horzLine: { visible: false } },
-                    });
-                    var series = chart.addSeries(LightweightCharts.AreaSeries, {
-                        lineColor: color,
-                        topColor: color.replace(')', ', 0.2)').replace('rgb', 'rgba'),
-                        bottomColor: 'transparent',
-                        lineWidth: 2,
-                        priceLineVisible: false, lastValueVisible: false,
-                    });
-                    series.setData(data.map(function (d) { return { time: d.date, value: d.close }; }));
-                    chart.timeScale().fitContent();
-
-                    // Colour the 6M label to match the sparkline. Scope
-                    // to this container so the preview's label doesn't
-                    // recolour the top panel's.
-                    var label = el.querySelector('.cpanel-spark-label');
-                    if (label) label.style.color = color;
-                });
-        }
-
-        renderSpark();
+        // Skip sparklines if container has no-spark class
+        if (el.classList.contains('no-spark')) return;
+        window._refreshCpanelSparks(el, symbol);
     };
 
     function init() {
