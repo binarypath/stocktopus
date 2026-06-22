@@ -28,7 +28,7 @@
             return;
         }
         ul.innerHTML = state.accounts.map((a) => {
-            const sel = a.id === state.activeAccountId ? ' selected' : '';
+            const sel = a.id === state.activeAccountId ? ' active' : '';
             const settled = a.settled ? ' · settled' : '';
             return `<li class="paper-account-item${sel}" data-id="${a.id}">
                 <div class="paper-account-name">${escape(a.name)}</div>

@@ -1,19 +1,19 @@
 {{template "layout" .}}
 {{define "content"}}
-<div class="ideas-layout">
-    <aside class="ideas-sidebar" id="ideas-sidebar">
-        <div class="ideas-sidebar-header">
+<div class="ideas-layout st-split">
+    <aside class="ideas-sidebar st-pane st-pane--nav" id="ideas-sidebar">
+        <div class="ideas-sidebar-header st-pane-header">
             <span>Sketches</span>
             <span class="ideas-sidebar-meta" id="ideas-sketch-count"></span>
         </div>
-        <ul class="ideas-list" id="ideas-list">
+        <ul class="ideas-list st-nav-list" id="ideas-list">
             <li class="empty-state">Loading…</li>
         </ul>
         <div class="ideas-sidebar-footer">
             <span class="ideas-hint"><kbd>:w &lt;name of Idea&gt;</kbd> to name &amp; persist</span>
         </div>
     </aside>
-    <section class="ideas-main" id="ideas-main">
+    <section class="ideas-main st-pane st-pane--content" id="ideas-main">
         <div class="ideas-header">
             <h2 class="ideas-title" id="ideas-title">Default Sketchpad</h2>
             <span class="ideas-meta" id="ideas-meta">no metrics yet</span>
@@ -22,7 +22,7 @@
         <div id="ideas-help" class="ideas-help hidden">
             <span class="ideas-help-row"><kbd>:add AAPL</kbd> · <kbd>:add AAPL.revenue</kbd> · <kbd>:add GCUSD</kbd> · <kbd>:add EURUSD</kbd> · <kbd>:add BTCUSD</kbd></span>
             <span class="ideas-help-row">Financials tab → <kbd>a</kbd> on a highlighted row prefills <kbd>:add SYMBOL.field</kbd></span>
-            <span class="ideas-help-row"><kbd>h</kbd>/<kbd>l</kbd> switch panes (list ↔ chart) · <kbd>j</kbd>/<kbd>k</kbd> within pane · <kbd>d</kbd> deletes the selected sketch (list) or metric (chart) · <kbd>\</kbd> drops a price line · <kbd>:cl</kbd> clears lines · <kbd>:w NAME</kbd></span>
+            <span class="ideas-help-row"><kbd>h</kbd>/<kbd>l</kbd> switch panes · <kbd>j</kbd>/<kbd>k</kbd> within pane · sidebar <kbd>d</kbd> deletes sketch · main <kbd>d</kbd> dims · <kbd>x</kbd> removes · <kbd>\</kbd> price line · <kbd>:cl</kbd> clear lines · <kbd>:w NAME</kbd></span>
         </div>
         <div id="ideas-chart-host" class="ideas-chart-host"></div>
         <div id="ideas-legend" class="ideas-legend"></div>
@@ -30,7 +30,7 @@
             <p>No metrics on this sketch yet.</p>
             <p class="empty-hint">Press <kbd>?</kbd> to see the keybindings.</p>
         </div>
-        <div id="ideas-info-panels" class="ideas-info-panels" data-vim-row hidden></div>
+        <div id="ideas-info-panels" class="ideas-info-panels" hidden></div>
     </section>
 </div>
 <script src="/static/ideas.js?v={{.AssetVersion}}" data-sketch-id="{{.SketchID}}"></script>

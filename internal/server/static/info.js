@@ -304,7 +304,7 @@
             var html = '<div class="info-overview">';
 
             // ── Top: dense Key Indicators block (8 wide × 2 rows) ──
-            html += '<div class="info-grid info-grid-dense">';
+            html += '<div class="info-grid info-grid-dense" data-vim-row>';
             html += stat('Market Cap', fmt(profile.marketCap));
             html += stat('P/E (TTM)', ratios.priceToEarningsRatioTTM ? ratios.priceToEarningsRatioTTM.toFixed(2) : '—');
             html += stat('EPS (TTM)', profile.eps ? profile.eps.toFixed(2) : '—');
@@ -350,7 +350,7 @@
                 html += '<ul class="info-people-list">';
                 top.forEach(function (p) {
                     var roleClass = 'kp-event-' + (p.eventType || 'other');
-                    html += '<li class="info-people-row">';
+                    html += '<li class="info-people-row" data-vim-row data-vim-action="none">';
                     html += '<span class="kp-event ' + roleClass + '">' + esc(p.eventType || 'officer') + '</span>';
                     html += '<span class="info-people-name">' + esc(p.name) + '</span>';
                     html += '<span class="info-people-title">' + esc(p.title || '') + '</span>';
@@ -476,7 +476,7 @@
     function stat(label, value) {
         var field = label.toLowerCase().replace(/[^a-z0-9]/g, '-');
         var tip = HELP[field] ? '<span class="help-tip hidden">' + esc(HELP[field]) + '</span>' : '';
-        return '<div class="info-stat"><span class="info-stat-label">' + label + tip + '</span><span class="info-stat-value" data-field="' + field + '">' + value + '</span></div>';
+        return '<div class="info-stat" data-vim-item data-vim-action="none"><span class="info-stat-label">' + label + tip + '</span><span class="info-stat-value" data-field="' + field + '">' + value + '</span></div>';
     }
 
     // ── Financials ──
@@ -1242,6 +1242,111 @@
     }
 
     var sectorPerfChart = null; // exposed for vim h/l
+    // symbol(uppercase) -> { series, color, baseWidth }. Lets the perf chart
+    // re-style an individual peer's line when that peer is vim-selected.
+    var sectorSeries = {};
+    var sectorHoverSym = null; // mouse-hover peer; takes priority over vim selection
+    var sectorChartRange = { from: '', to: '' };
+    var SECTOR_CHART_COLORS = ['#ffcc00', '#4499ff', '#ff6699', '#00cccc', '#99ff66', '#cc66ff', '#ff9966', '#66ffcc'];
+
+    function hexToRgba(hex, a) {
+        var h = (hex || '').replace('#', '');
+        if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+        var n = parseInt(h, 16);
+        if (isNaN(n)) return hex;
+        return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+    }
+
+    // Apply emphasis to one peer line — thick + full colour for target, dim
+    // the rest. sym null resets every line to its base style.
+    function applySectorEmphasis(sym) {
+        if (!sectorPerfChart) return;
+        var keys = Object.keys(sectorSeries);
+        if (keys.length === 0) return;
+        var target = sym ? sym.toUpperCase() : null;
+        var hasTarget = !!(target && sectorSeries[target]);
+        keys.forEach(function (key) {
+            var entry = sectorSeries[key];
+            if (!entry || !entry.series) return;
+            if (!hasTarget) {
+                entry.series.applyOptions({ color: entry.color, lineWidth: entry.baseWidth });
+            } else if (key === target) {
+                entry.series.applyOptions({ color: entry.color, lineWidth: 3 });
+            } else {
+                entry.series.applyOptions({ color: hexToRgba(entry.color, 0.18), lineWidth: 1 });
+            }
+        });
+    }
+
+    // Lazy-load a peer's EOD series when hovered but not yet charted.
+    function ensureSectorSeries(sym, done) {
+        sym = sym.toUpperCase();
+        if (sectorSeries[sym]) { if (done) done(); return; }
+        if (!sectorPerfChart || !sectorChartRange.from) { if (done) done(); return; }
+
+        var colorIdx = Object.keys(sectorSeries).length;
+        var color = SECTOR_CHART_COLORS[colorIdx % SECTOR_CHART_COLORS.length];
+        fetch('/api/chart/eod/' + sym + '?from=' + sectorChartRange.from + '&to=' + sectorChartRange.to)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || data.length < 2 || !sectorPerfChart) { if (done) done(); return; }
+                var basePrice = data[0].close;
+                var series = sectorPerfChart.addSeries(LightweightCharts.LineSeries, {
+                    color: color, lineWidth: 1,
+                    priceLineVisible: false, lastValueVisible: true, title: sym,
+                });
+                series.setData(data.map(function (d) {
+                    return { time: d.date, value: ((d.close - basePrice) / basePrice) * 100 };
+                }));
+                sectorSeries[sym] = { series: series, color: color, baseWidth: 1 };
+                if (done) done();
+            }).catch(function () { if (done) done(); });
+    }
+
+    // Hover takes priority over vim-selected peer; loads missing series on demand.
+    function refreshSectorChartEmphasis() {
+        var sym = sectorHoverSym;
+        if (!sym) {
+            var selRow = document.querySelector('.peer-row.vim-selected');
+            sym = selRow ? selRow.getAttribute('data-symbol') : null;
+        }
+        if (!sym) { applySectorEmphasis(null); return; }
+        if (sectorSeries[sym.toUpperCase()]) {
+            applySectorEmphasis(sym);
+        } else {
+            ensureSectorSeries(sym, function () { applySectorEmphasis(sym); });
+        }
+    }
+
+    // React to the canonical vim selection signal. When the cursor lands on
+    // a peer row, light up that peer in the chart (unless hover is active).
+    document.addEventListener('vimnav:select', function (ev) {
+        if (!sectorPerfChart || !document.getElementById('sector-perf-chart')) return;
+        if (sectorHoverSym) return;
+        var el = ev.detail && ev.detail.el;
+        var row = el && el.closest ? el.closest('.peer-row') : null;
+        applySectorEmphasis(row ? row.getAttribute('data-symbol') : null);
+    });
+
+    // Peer-row hover: emphasise the hovered security in the perf chart.
+    function wireSectorPeerHover() {
+        var view = document.querySelector('.sector-view');
+        if (!view || view.dataset.hoverWired) return;
+        view.dataset.hoverWired = '1';
+        view.addEventListener('mouseover', function (e) {
+            var row = e.target.closest('.peer-row');
+            if (!row || !view.contains(row)) return;
+            var sym = row.getAttribute('data-symbol');
+            if (sym && sym !== sectorHoverSym) {
+                sectorHoverSym = sym;
+                refreshSectorChartEmphasis();
+            }
+        });
+        view.addEventListener('mouseleave', function () {
+            sectorHoverSym = null;
+            refreshSectorChartEmphasis();
+        });
+    }
 
     function loadSector() {
         container.innerHTML = '<p class="empty-state">Loading sector data...</p>';
@@ -1271,14 +1376,24 @@
             html += '<span class="sector-hint"> j/k nav · i info · c chart · p preview</span>';
             html += '</div>';
 
+            // Performance chart — first content block in the panel
+            html += '<div class="sector-section-title">6m Performance Comparison</div>';
+            html += '<div id="sector-perf-chart" class="sector-perf-chart"></div>';
+
             // Peer comparison table with mini sparkline column
             if (peers.length > 0) {
                 peers.sort(function (a, b) { return (b.mktCap || b.marketCap || 0) - (a.mktCap || a.marketCap || 0); });
 
                 html += '<div class="sector-section-title st-section-title">Peer Comparison</div>';
                 html += '<table class="fin-table peer-table st-table" id="peer-table"><thead><tr>';
-                html += '<th>Security</th><th>Company</th><th>Price</th><th>Market Cap</th><th>1m</th>';
+                html += '<th>Security</th><th>Company</th><th>Price</th><th>Market Cap</th><th class="peer-sparks-head">Trend</th>';
                 html += '</tr></thead><tbody>';
+
+                // Canonical 3-interval spark cluster (2d / 6M / 1y), built from
+                // the shared spec set so it matches the company panel / ideas.
+                var sparkHosts = (window.MINI_SPARK_SPECS || []).map(function (s) {
+                    return '<div class="peer-spark" data-range="' + s.key + '"></div>';
+                }).join('');
 
                 // Current company
                 html += '<tr class="peer-row peer-current" data-symbol="' + esc(symbol) + '" data-vim-row data-vim-action="navigate" data-vim-href="/security/' + encodeURIComponent(symbol) + '">'
@@ -1286,7 +1401,7 @@
                     + '<td>' + esc(profile.companyName || '') + '</td>'
                     + '<td>' + (profile.price ? profile.price.toFixed(2) : '—') + '</td>'
                     + '<td>' + fmt(profile.marketCap) + '</td>'
-                    + '<td><div class="peer-spark" data-spark-sym="' + esc(symbol) + '"></div></td></tr>';
+                    + '<td><div class="peer-sparks" data-spark-sym="' + esc(symbol) + '">' + sparkHosts + '</div></td></tr>';
 
                 peers.forEach(function (p) {
                     var cap = p.mktCap || p.marketCap || 0;
@@ -1295,14 +1410,10 @@
                         + '<td>' + esc(p.companyName || '') + '</td>'
                         + '<td>' + (p.price ? p.price.toFixed(2) : '—') + '</td>'
                         + '<td>' + fmt(cap) + '</td>'
-                        + '<td><div class="peer-spark" data-spark-sym="' + esc(p.symbol) + '"></div></td></tr>';
+                        + '<td><div class="peer-sparks" data-spark-sym="' + esc(p.symbol) + '">' + sparkHosts + '</div></td></tr>';
                 });
                 html += '</tbody></table>';
             }
-
-            // Performance chart
-            html += '<div class="sector-section-title">6m Performance Comparison</div>';
-            html += '<div id="sector-perf-chart" class="sector-perf-chart"></div>';
 
             // Sector news
             html += '<div class="sector-section-title">Sector News</div>';
@@ -1310,12 +1421,16 @@
 
             html += '</div>';
             container.innerHTML = html;
+            sectorHoverSym = null;
+
+            // Load performance chart (before sparklines so chart paints first)
+            loadSectorPerfChart(symbol, peers.slice(0, 3));
 
             // Load mini sparklines
             loadPeerSparklines();
 
-            // Load performance chart
-            loadSectorPerfChart(symbol, peers.slice(0, 3));
+            // Hover emphasis on peer rows
+            wireSectorPeerHover();
 
             // Load sector news
             loadSectorNews(peers.slice(0, 5));
@@ -1326,38 +1441,21 @@
         });
     }
 
+    // Peer sparks reuse the shared mini-spark helper + canonical interval set
+    // so they render the same 3 ranges (2d / 6M / 1y), the same green/red
+    // series colour, and the same inset white-glow badge as everywhere else.
     function loadPeerSparklines() {
         function tryRender() {
-            if (!window.LightweightCharts) { setTimeout(tryRender, 200); return; }
-            var from = new Date(); from.setMonth(from.getMonth() - 1);
-            var fromStr = from.toISOString().slice(0, 10);
-            var toStr = new Date().toISOString().slice(0, 10);
-
-            document.querySelectorAll('.peer-spark').forEach(function (el) {
-                var sym = el.dataset.sparkSym;
+            if (!window.LightweightCharts || !window._loadMiniSpark) { setTimeout(tryRender, 200); return; }
+            var specs = window.MINI_SPARK_SPECS || [];
+            document.querySelectorAll('.peer-sparks').forEach(function (cluster) {
+                var sym = cluster.dataset.sparkSym;
                 if (!sym) return;
-                fetch('/api/chart/eod/' + sym + '?from=' + fromStr + '&to=' + toStr)
-                    .then(function (r) { return r.json(); })
-                    .then(function (data) {
-                        if (!data || data.length < 2) return;
-                        var first = data[0].close, last = data[data.length - 1].close;
-                        var color = last >= first ? '#00cc66' : '#ff4444';
-                        var chart = LightweightCharts.createChart(el, {
-                            width: 80, height: 24,
-                            layout: { background: { color: 'transparent' }, textColor: 'transparent', attributionLogo: false },
-                            grid: { vertLines: { visible: false }, horzLines: { visible: false } },
-                            rightPriceScale: { visible: false }, timeScale: { visible: false },
-                            handleScroll: false, handleScale: false,
-                            crosshair: { vertLine: { visible: false }, horzLine: { visible: false } },
-                        });
-                        var series = chart.addSeries(LightweightCharts.AreaSeries, {
-                            lineColor: color, topColor: color.replace(')', ',0.15)').replace('rgb', 'rgba'),
-                            bottomColor: 'transparent', lineWidth: 1,
-                            priceLineVisible: false, lastValueVisible: false,
-                        });
-                        series.setData(data.map(function (d) { return { time: d.date, value: d.close }; }));
-                        chart.timeScale().fitContent();
-                    }).catch(function () {});
+                cluster.querySelectorAll('.peer-spark').forEach(function (host) {
+                    var spec = specs.find(function (s) { return s.key === host.dataset.range; });
+                    if (!spec) return;
+                    window._loadMiniSpark(host, null, sym, spec, undefined, { seriesType: 'area', lineWidth: 1 });
+                });
             });
         }
         tryRender();
@@ -1373,8 +1471,8 @@
         var from = new Date(); from.setMonth(from.getMonth() - 6);
         var fromStr = from.toISOString().slice(0, 10);
         var toStr = new Date().toISOString().slice(0, 10);
+        sectorChartRange = { from: fromStr, to: toStr };
         var allSymbols = [mainSymbol].concat(topPeers.map(function (p) { return p.symbol; }));
-        var colors = ['#ffcc00', '#4499ff', '#ff6699', '#00cccc'];
 
         sectorPerfChart = LightweightCharts.createChart(chartEl, {
             width: chartEl.clientWidth, height: 200,
@@ -1388,6 +1486,7 @@
 
         // Expose for vim
         window._sectorChart = sectorPerfChart;
+        sectorSeries = {};
 
         allSymbols.forEach(function (sym, i) {
             fetch('/api/chart/eod/' + sym + '?from=' + fromStr + '&to=' + toStr)
@@ -1395,14 +1494,18 @@
                 .then(function (data) {
                     if (!data || data.length < 2) return;
                     var basePrice = data[0].close;
+                    var color = SECTOR_CHART_COLORS[i % SECTOR_CHART_COLORS.length];
+                    var baseWidth = i === 0 ? 2 : 1;
                     var series = sectorPerfChart.addSeries(LightweightCharts.LineSeries, {
-                        color: colors[i % colors.length], lineWidth: i === 0 ? 2 : 1,
+                        color: color, lineWidth: baseWidth,
                         priceLineVisible: false, lastValueVisible: true, title: sym,
                     });
                     series.setData(data.map(function (d) {
                         return { time: d.date, value: ((d.close - basePrice) / basePrice) * 100 };
                     }));
+                    sectorSeries[sym.toUpperCase()] = { series: series, color: color, baseWidth: baseWidth };
                     if (i === 0) sectorPerfChart.timeScale().fitContent();
+                    refreshSectorChartEmphasis();
                 }).catch(function () {});
         });
 
@@ -1425,7 +1528,7 @@
                 }
                 newsEl.innerHTML = items.map(function (n) {
                     var date = n.date ? new Date(n.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-                    return '<div class="sector-news-item" data-url="' + esc(n.url || '') + '" data-title="' + esc(n.title || '') + '">'
+                    return '<div class="sector-news-item" data-vim-row data-vim-action="open-reader" data-vim-url="' + esc(n.url || '') + '" data-vim-title="' + esc(n.title || '') + '" data-url="' + esc(n.url || '') + '" data-title="' + esc(n.title || '') + '">'
                         + '<a href="' + esc(n.url) + '" onclick="event.preventDefault();if(window._openReader)window._openReader(this.href,this.textContent)">'
                         + esc(n.title) + '</a>'
                         + '<span class="sector-news-meta">' + esc(n.symbol || '') + ' · ' + esc(n.source || '') + ' · ' + date + '</span>'
@@ -1476,7 +1579,12 @@
                 { key: 'registration', label: 'Registration' },
             ];
 
-            var html = '<div class="sec-view">';
+            // Emit the sub-nav + content as direct children of #info-content
+            // (no wrapper) so they inherit the canonical info-panel contract:
+            // the .info-sub-tabs strip stays flush with the primary nav edges
+            // and every other child gets padding-inline: var(--panel-gap).
+            // See style.css "Body content inset; sub-tab strips stay flush".
+            var html = '';
 
             // Sub-tab row: category filters + Key People view switcher
             html += '<div class="info-sub-tabs st-tab-row st-tab-row--blue" id="sec-filters" data-vim-row>';
@@ -1489,6 +1597,12 @@
             var peopleActive = secView === 'people' ? ' active st-tab--active' : '';
             html += '<button class="info-sub-tab st-tab' + peopleActive + '" data-view="people" data-vim-item>Key People</button>';
             html += '</div>';
+
+            // Content wrapper — mirrors the financials view (#fin-sub-tabs flush,
+            // #fin-table-container inset). As a non-subtab child of #info-content
+            // this picks up padding-inline: var(--panel-gap) so the table/people
+            // sit inset while the sub-nav strip stays flush with the nav edges.
+            html += '<div class="sec-content">';
 
             if (secView === 'filings') {
                 // Filing count

@@ -163,7 +163,12 @@ Add a dedicated section in `style.css` (e.g. `/* ── Design system primitives
 
 ### 4.1 Tabs — sliding pill (selected / current)
 
-**Info panels (`#info-content`):** primary and sub nav share the **blue menu band** — soft `--panel-bg-soft` strip flush to the panel edge, active item = solid blue fill (no sliding pill, no underline). Wrapper: `.info-panel` > `.info-tabs.st-tab-row--blue` + `.info-sub-tabs`.
+**Info panels (`#info-content`):** primary nav (`.info-panel > .info-tabs`) and sub nav (`.info-sub-tabs`) use a **mirrored tab-row contract**:
+- **Unfocused row:** steady `border-bottom` only — no row glow.
+- **Focused primary row / active primary tab:** row wash bleeds `--info-tab-bleed` downward via `::after` (only while sub nav is not engaged).
+- **Focused sub row / active sub tab:** `#info-content` stacks above `#info-tabs`; cyan wash bleeds upward from sub row `::before`. Orange seam bleed is suppressed — no brown overlap.
+- **Active primary tab:** orange top underline; **active sub tab:** cyan bottom underline + `::after` notch through the row baseline into content below.
+- Row and tab heights are fixed (`--info-tab-row-h` / `--info-tab-h`); focus glow never removes the bottom border (prevents 1px layout shift on j/k).
 
 **Elsewhere (watchlist, screener, graph range):** orange/blue sliding pill on `::before` as below.
 
@@ -314,7 +319,39 @@ Add a dedicated section in `style.css` (e.g. `/* ── Design system primitives
 
 **Maps from:** `.sym-link`, `.cpanel-sym`, `.idx-sym`, screener security column.
 
-### 4.7 Section title
+### 4.7 Company panel (quote + spark row)
+
+Shared mini header for a security: symbol, name, live price, day change, and three sparklines (**2d** / **6m** / **1y**).
+
+**Required shell class:** `.company-panel` — never bare `.cpanel` (no layout without it).
+
+**DOM contract:**
+
+```html
+<div class="company-panel">
+  <span class="cpanel-info">
+    <span class="cpanel-sym st-link-sym">SYM</span>
+    <span class="cpanel-name">Company Name</span>
+    <span class="cpanel-price">123.45</span>
+    <span class="cpanel-change price-up">+1.23 (1.0%)</span>
+  </span>
+  <div class="cpanel-sparks">
+    <div class="cpanel-spark-wrap">
+      <span class="cpanel-spark-label">2d</span>
+      <div class="cpanel-spark"></div>
+    </div>
+    <!-- 6m, 1y idem -->
+  </div>
+</div>
+```
+
+**Layout:** flex row — `.cpanel-info` grows/shrinks with ellipsis on name; `.cpanel-sparks` sits `margin-left: auto` with fixed-width spark hosts (100×40px).
+
+**Reader / price-preview variant:** add `.company-panel--reader` — wraps to two rows (quote full width, sparks `justify-content: space-between` at 72×32px). Used in `#price-preview-cpanel`.
+
+**Maps from:** `#company-panel`, `#price-preview-cpanel`, `_renderCompanyPanel()` in `terminal.js`.
+
+### 4.8 Section title
 
 ```css
 .st-section-title {
@@ -328,50 +365,36 @@ Add a dedicated section in `style.css` (e.g. `/* ── Design system primitives
 
 **Maps from:** `.screener-group h4`, filter group headers, page subheaders.
 
-### 4.8 Shared table chrome
+### 4.9 Shared table chrome
 
-Tabular data inside `#info-content` (Estimates, Financials, peer tables, etc.) uses **`fin-table st-table`** dual-write.
+All tabular surfaces (`.st-table`, `.fin-table`, `.quote-table`, `.screener-table`, `.economics-table`, `.paper-table`) share **one subtle language** via `--table-*` tokens:
 
-**Header row (always blue for tabular data):**
-- Background: `--tab-selected-fill-blue` (50% blue — same family as sub-tab pills).
-- Text: `--accent-blue`, uppercase, `--text-1`.
-- Bottom rule: `--line-accent-blue`.
+**Header row:** `--table-head-bg` (10% blue mix), `--table-head-text`, thin `--table-head-border` — not the 50% tab pill fill.
 
-**Row selection:**
-- Add `data-vim-row` on each `<tr>`; vim j/k applies `.vim-selected` → orange rail + `--emphasis-2` surface (see §4.2).
-- Financial statement rows use `.fin-row` + `data-vim-row` (existing pattern).
+**Row hover:** `--table-row-hover` (4% blue).
 
-**Column selection:**
-- Add `data-vim-col` (or `data-col-idx`) on `<th>` and matching `<td>` cells.
-- Toggle `.st-col-selected` on the active column's `th` + all `td` in that column index.
-- Column highlight: `--emphasis-1` blue mix on body cells; `--emphasis-2` on header cell.
-- Keyboard: **h / l** (or existing vim column bindings) when focus is in `#info-content` table context.
+**Row selection (vim j/k):** `--table-row-selected-bg` (5% blue) + thin left rail — **not** orange nav chrome. Applies to every `tbody tr.vim-selected`.
+
+**Column selection:** `--table-col-selected-bg` / `--table-col-head-selected-bg` (4–8% blue).
+
+Dual-write `fin-table st-table` on Info tables; legacy `.fin-table`-only pages inherit the same header/selection automatically.
+
+**Spacing:** tables in `#info-content` get `margin-top: var(--space-2)` below sub-nav so the grid has room to breathe when it is the only surface on the page.
 
 ```css
-.st-table thead th {
-    color: var(--accent-blue);
-    background: var(--tab-selected-fill-blue);
-    border-bottom: var(--line-accent-blue);
-}
-
-.st-table th.st-col-selected,
-.st-table td.st-col-selected {
-    background: color-mix(in srgb, var(--accent-blue) var(--emphasis-1), var(--bg-primary));
-}
-.st-table thead th.st-col-selected {
-    background: color-mix(in srgb, var(--accent-blue) var(--emphasis-2), var(--bg-primary));
-}
+--table-head-bg: color-mix(in srgb, var(--accent-blue) 10%, var(--panel-bg-soft));
+--table-row-selected-bg: color-mix(in srgb, var(--accent-blue) 5%, var(--bg-primary));
+--table-row-selected-rail: inset 2px 0 0 color-mix(in srgb, var(--accent-blue) 42%, transparent);
 ```
 
 **Acceptance (Info → Estimates example):**
-- [ ] `#info-content table.st-table thead` shows blue header band.
-- [ ] Rows are vim-selectable (`data-vim-row`).
-- [ ] Columns highlight together when `.st-col-selected` is applied.
-- [ ] No duplicate grey header styling on dual-written `.fin-table.st-table`.
+- [ ] Header band is a whisper of blue, not a saturated pill fill.
+- [ ] Selected row is a faint wash + thin left rail.
+- [ ] Same row/header/hover on watchlist, screener, economics, and fin tables.
 
 **Maps from:** `.quote-table`, `.screener-table`, `.fin-table`, peer comparison tables.
 
-### 4.9 Market delta colors (existing — keep names)
+### 4.10 Market delta colors (existing — keep names)
 
 ```css
 .price-up { color: var(--green); }
@@ -394,7 +417,7 @@ Use for all signed numeric columns (watchlist changes, screener Δ columns, etc.
 | **Ideas** | `.ideas-layout`, `.ideas-sidebar`, `.ideas-main`, `.ideas-chart-host` | `st-pane-active`; chart series colors = token orange/blue; legend swatches match |
 | **Screener** | `.screener-layout`, `.screener-filters`, `#screener-table` | `st-input`, `st-section-title`, `st-pane-active`, `st-row-selected`, `price-up`/`price-down` on Δ columns |
 | **Economics** | `.economics-layout`, `.economics-tab` | `st-tab` / `st-tab-row` |
-| **Reader** | `#article-reader`, `.reader-*` | `st-chip` for entities; `st-row-selected` for paragraph nav |
+| **Reader** | `#article-reader`, `.reader-*`, `.company-panel--reader` | `st-chip` for entities; `st-row-selected` for paragraph nav; company panel uses reader two-row layout |
 
 ---
 
@@ -458,7 +481,7 @@ Use for all signed numeric columns (watchlist changes, screener Δ columns, etc.
 - [ ] No one-off active styles.
 
 ### Info
-- [ ] Primary + sub nav: blue menu band (`.info-panel > .info-tabs`, `.info-sub-tabs`) — soft grey strip, blue active fill.
+- [ ] Primary nav: orange active fill + `--glow-amber` (`.info-panel > .info-tabs`); sub nav: blue band + cyan fill (`.info-sub-tabs`).
 - [ ] In-panel section headers (`.st-panel-band`, Key People, Sector, SEC, AI): same blue band chrome.
 - [ ] Tab select/deselect animates via `::before` scaleX slide (~180ms).
 - [ ] Overview: `.info-overview-chart` ~⅓ viewport; `.info-overview-top` at `--layout-split` (Key People · Description).

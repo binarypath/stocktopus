@@ -1,8 +1,8 @@
 {{template "layout" .}}
 {{define "content"}}
-<div class="screener-layout">
-    <aside class="screener-filters">
-        <div class="screener-filters-header">Filters</div>
+<div class="screener-layout st-split">
+    <aside class="screener-filters st-pane st-pane--nav">
+        <div class="screener-filters-header st-pane-header">Filters</div>
         <form id="screener-form" class="screener-form">
             <details class="screener-group">
                 <summary>Fundamentals</summary>
@@ -74,8 +74,8 @@
         </form>
     </aside>
 
-    <section class="screener-results">
-        <div class="screener-results-header">
+    <section class="screener-results st-pane st-pane--content">
+        <div class="screener-results-header st-pane-header">
             <h2>Results</h2>
             <span class="screener-results-meta" id="screener-results-meta">no screen run yet</span>
         </div>

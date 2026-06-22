@@ -1,18 +1,18 @@
 {{template "layout" .}}
 {{define "content"}}
-<div class="paper-layout">
-    <aside class="paper-sidebar">
-        <div class="paper-sidebar-header">
+<div class="paper-layout st-split">
+    <aside class="paper-sidebar st-pane st-pane--nav">
+        <div class="paper-sidebar-header st-pane-header">
             <span>Paper Accounts</span>
             <button id="paper-new-account" class="paper-btn-sm">+ New</button>
         </div>
-        <ul class="paper-account-list" id="paper-account-list">
+        <ul class="paper-account-list st-nav-list" id="paper-account-list">
             <li class="empty-state">Loading…</li>
         </ul>
         <div class="paper-account-summary" id="paper-account-summary"></div>
     </aside>
 
-    <section class="paper-main">
+    <section class="paper-main st-pane st-pane--content">
         <div class="paper-section">
             <h2>Trade Ticket</h2>
             <form id="paper-ticket-form" class="paper-ticket">
