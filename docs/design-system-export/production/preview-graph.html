@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_real-style.css">
+<link rel="stylesheet" href="tron.css" id="tron">
+<style>
+  body{font-family:'Fira Code',var(--font-mono)}
+  #t{position:fixed;top:6px;right:10px;z-index:9999;font:11px 'Fira Code',monospace;background:var(--bg-tertiary);color:var(--accent-orange);border:1px solid var(--accent-orange);border-radius:5px;padding:4px 9px;cursor:pointer}
+</style></head>
+<body>
+<button id="t" onclick="var x=document.getElementById('tron');x.disabled=!x.disabled;this.textContent=x.disabled?'tron OFF':'tron ON'">tron ON</button>
+<header class="terminal-header">
+  <span class="brand">STOCKTOPUS</span>
+  <div class="cmd-bar"><span class="cmd-prompt">&gt;</span><input class="cmd-input" placeholder="enter command..." value="" spellcheck="false"></div>
+  <div class="security-selector"><input class="security-input" value="KR" spellcheck="false"></div>
+  <span class="watchlist-picker">Default</span>
+  <div class="conn-status connected">CONNECTED</div>
+</header>
+<div class="terminal-body">
+  <main class="terminal-content" data-view="graph">
+    <div id="company-panel" class="company-panel">
+      <span class="cpanel-sym">KR</span>
+      <span class="cpanel-name">The Kroger Co.</span>
+      <span class="cpanel-price">56.61</span>
+      <span class="cpanel-change price-down">-5.21 (-8.43%)</span>
+      <span class="cpanel-spark-wrap"><span class="cpanel-spark-label price-down">6m</span></span>
+    </div>
+    <div class="chart-container-wrap">
+      <div class="chart-range-bar st-tab-row st-tab-row--blue" id="chart-range-bar">
+        <button class="chart-range-btn chart-intraday-btn st-tab" data-range="1m">1m</button>
+        <button class="chart-range-btn chart-intraday-btn st-tab" data-range="5m">5m</button>
+        <button class="chart-range-btn chart-intraday-btn st-tab" data-range="15m">15m</button>
+        <button class="chart-range-btn chart-intraday-btn st-tab" data-range="30m">30m</button>
+        <button class="chart-range-btn chart-intraday-btn st-tab" data-range="1h">1h</button>
+        <button class="chart-range-btn chart-intraday-btn st-tab" data-range="4h">4h</button>
+        <span class="chart-range-sep">|</span>
+        <button class="chart-range-btn chart-eod-btn st-tab" data-range="1W">1w</button>
+        <button class="chart-range-btn chart-eod-btn st-tab" data-range="1M">1m</button>
+        <button class="chart-range-btn chart-eod-btn st-tab" data-range="3M">3m</button>
+        <button class="chart-range-btn chart-eod-btn st-tab active st-tab--active" data-range="6M">6m</button>
+        <span class="chart-range-sep">|</span>
+        <button class="chart-toggle" data-indicator="sma">SMA</button>
+        <button class="chart-toggle" data-indicator="ema">EMA</button>
+        <button class="chart-toggle" data-indicator="macd">MACD</button>
+        <button class="chart-toggle" data-indicator="rsi">RSI</button>
+        <button class="chart-toggle" data-indicator="news">News</button>
+      </div>
+      <div class="chart-container" style="height:360px;display:flex;align-items:center;justify-content:center;color:var(--text-muted)">[ candlestick chart ]</div>
+    </div>
+  </main>
+</div>
+<footer class="terminal-footer">
+  <span class="footer-mode normal">NORMAL</span>
+  <span class="footer-view">graph</span>
+  <span class="footer-help">/ cmd &middot; s security &middot; hjkl nav &middot; : chart cmd</span>
+  <div class="footer-clocks"><span class="tz-block"><span class="tz-label">ET</span>09:41</span></div>
+</footer>
+</body></html>

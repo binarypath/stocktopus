@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stocktopus — Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c10;
+    --panel: #11151c;
+    --border: #1d2530;
+    --text: #c8d2dc;
+    --muted: #6b7886;
+    --orange: #ff9a1a;
+    --blue: #2db8ff;
+    --green: #00cc66;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(45,184,255,0.08), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, rgba(255,154,26,0.06), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: 'Fira Code', 'SF Mono', Consolas, monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 48px 24px 80px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 24px; margin-bottom: 32px; }
+  h1 {
+    font-size: 30px; margin: 0 0 6px; letter-spacing: 1px; color: #fff;
+    text-shadow: 0 0 10px rgba(45,184,255,0.45);
+  }
+  h1 .em { color: var(--blue); }
+  .sub { color: var(--muted); margin: 0; }
+  .snapshot {
+    display: inline-block; margin-top: 14px; padding: 4px 10px;
+    border: 1px solid color-mix(in srgb, var(--orange) 50%, var(--border));
+    border-radius: 4px; color: var(--orange); font-size: 12px;
+    box-shadow: 0 0 12px rgba(255,154,26,0.15);
+  }
+  .links { margin: 22px 0 0; display: flex; flex-wrap: wrap; gap: 12px; }
+  .links a {
+    color: var(--blue); text-decoration: none; border: 1px solid var(--border);
+    padding: 8px 14px; border-radius: 4px; transition: all .15s;
+  }
+  .links a:hover { border-color: var(--blue); box-shadow: 0 0 12px rgba(45,184,255,0.25); }
+  h2 {
+    font-size: 14px; text-transform: uppercase; letter-spacing: 1.5px;
+    color: var(--orange); margin: 40px 0 16px; font-weight: 600;
+  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  .card {
+    display: block; text-decoration: none; color: inherit;
+    background: var(--panel); border: 1px solid var(--border);
+    border-left: 2px solid transparent; border-radius: 6px;
+    padding: 16px 18px; transition: all .15s;
+  }
+  .card:hover {
+    border-color: color-mix(in srgb, var(--blue) 40%, var(--border));
+    border-left-color: var(--blue);
+    box-shadow: 0 0 16px rgba(45,184,255,0.18);
+    transform: translateY(-1px);
+  }
+  .card .name { color: #fff; font-weight: 600; font-size: 15px; }
+  .card .desc { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+  footer { margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+  footer a { color: var(--blue); text-decoration: none; }
+  code { background: #0f1319; border: 1px solid var(--border); border-radius: 3px; padding: 1px 6px; color: var(--green); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>STOCK<span class="em">TOPUS</span> · DESIGN SYSTEM</h1>
+    <p class="sub">Bloomberg-terminal-of-the-future aesthetic — neon "Tron" glow over a monospace dark terminal. Static preview pages and the written spec.</p>
+    <span class="snapshot">⬤ Preview snapshot: 2026-06-21</span>
+    <div class="links">
+      <a href="https://github.com/binarypath/stocktopus/blob/master/docs/design-language.md">📖 Design Language (written spec)</a>
+      <a href="https://github.com/binarypath/stocktopus/blob/master/docs/design-system-export/production/INTEGRATION.md">🔧 Tron integration notes</a>
+      <a href="https://github.com/binarypath/stocktopus/tree/master/docs/design-system-export">📦 Export kit (source)</a>
+    </div>
+  </header>
+
+  <h2>Security deep-dive</h2>
+  <div class="grid">
+    <a class="card" href="design-system-export/production/preview-avgo-overview.html"><div class="name">AVGO · Overview</div><div class="desc">Stat grid + Key People / company profile, 1:3 columns.</div></a>
+    <a class="card" href="design-system-export/production/preview-avgo-estimates.html"><div class="name">AVGO · Estimates</div><div class="desc">Analyst estimates with YoY comparison rows.</div></a>
+    <a class="card" href="design-system-export/production/preview-avgo-news.html"><div class="name">AVGO · News</div><div class="desc">Per-security news tab.</div></a>
+    <a class="card" href="design-system-export/production/preview-avgo-ai.html"><div class="name">AVGO · AI Analysis</div><div class="desc">AI analysis tab layout.</div></a>
+    <a class="card" href="design-system-export/production/preview-financials.html"><div class="name">Financials</div><div class="desc">Financial statements table + totals.</div></a>
+    <a class="card" href="design-system-export/production/preview-goog-sec.html"><div class="name">GOOG · Security page</div><div class="desc">Full security page composition.</div></a>
+  </div>
+
+  <h2>App views</h2>
+  <div class="grid">
+    <a class="card" href="design-system-export/production/preview-graph.html"><div class="name">Graph</div><div class="desc">Chart page with range controls.</div></a>
+    <a class="card" href="design-system-export/production/preview-ideas.html"><div class="name">Ideas · Sketchpad</div><div class="desc">Comparative metric graph + two-pane nav.</div></a>
+    <a class="card" href="design-system-export/production/preview-screener.html"><div class="name">Screener</div><div class="desc">Filter column + results, two-pane.</div></a>
+  </div>
+
+  <h2>Shared chrome</h2>
+  <div class="grid">
+    <a class="card" href="design-system-export/production/preview-info.html"><div class="name">Info panel</div><div class="desc">Tabbed info panel (blue menu band).</div></a>
+    <a class="card" href="design-system-export/production/preview-overview.html"><div class="name">Overview</div><div class="desc">Generic overview composition.</div></a>
+    <a class="card" href="design-system-export/production/preview-news.html"><div class="name">News (panel)</div><div class="desc">News inside the info panel.</div></a>
+    <a class="card" href="design-system-export/production/preview-news-page.html"><div class="name">News (full page)</div><div class="desc">Standalone /news view.</div></a>
+  </div>
+
+  <footer>
+    Tron overlay is merged into the live <code>internal/server/static/style.css</code>. These previews are an internally-consistent
+    snapshot (pre-Tron base + <code>tron.css</code> overlay) captured 2026-06-21 17:14 — they reflect the design intent at that
+    point, not necessarily the latest live build. Canonical rules live in the
+    <a href="https://github.com/binarypath/stocktopus/blob/master/docs/design-language.md">Design Language</a> spec.
+  </footer>
+</div>
+</body>
+</html>

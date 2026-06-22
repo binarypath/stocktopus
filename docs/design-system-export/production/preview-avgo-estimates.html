@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stocktopus — AVGO — Estimates (Tron preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_real-style.css">
+<link rel="stylesheet" href="tron.css" id="tron">
+<style>
+  body{font-family:'Fira Code',var(--font-mono)}
+  #t{position:fixed;top:6px;right:10px;z-index:9999;font:11px 'Fira Code',monospace;background:var(--bg-tertiary);color:var(--accent-orange);border:1px solid var(--accent-orange);border-radius:5px;padding:4px 9px;cursor:pointer}
+  .demo-spark{display:inline-block;vertical-align:middle;margin-left:8px}
+  /* growth heat / range layers sit behind the cell content */
+  .fin-table td{position:relative}
+  .est-mag{position:absolute;inset:0;z-index:0;pointer-events:none;transition:background var(--duration-2,180ms) ease}
+  .fin-table td > *{position:relative;z-index:1}
+  /* range visibility */
+  .fin-table.ranges-off .est-range{display:none}
+  /* range whisker bar (drawn under the value when ranges=bars) */
+  .est-whisker{position:absolute;left:8px;right:8px;bottom:4px;height:2px;border-radius:2px;background:color-mix(in srgb,var(--accent-blue) 22%,transparent);z-index:0}
+  .est-whisker::before{content:'';position:absolute;top:-1px;height:4px;border-radius:2px;background:var(--accent-blue);box-shadow:var(--glow-cyan)}
+  /* metric focus: dim non-focused metric columns */
+  .fin-table.focus-on td.dim,.fin-table.focus-on th.dim{opacity:.3}
+</style></head>
+<body>
+<button id="t" onclick="var x=document.getElementById('tron');x.disabled=!x.disabled;this.textContent=x.disabled?'tron OFF':'tron ON'">tron ON</button>
+
+<header class="terminal-header">
+  <span class="brand">STOCKTOPUS</span>
+  <div class="cmd-bar"><span class="cmd-prompt">&gt;</span><input class="cmd-input" placeholder="enter command..." spellcheck="false"></div>
+  <div class="security-selector"><input class="security-input" value="LEE" spellcheck="false"></div>
+  <span class="watchlist-picker">Default</span>
+  <div class="conn-status connected">CONNECTED</div>
+</header>
+
+<div class="terminal-body">
+  <main class="terminal-content" data-view="security">
+    <div class="company-panel">
+      <span class="cpanel-sym">AVGO</span>
+      <span class="cpanel-name">Broadcom Inc.</span>
+      <span class="cpanel-price">411.35</span>
+      <span class="cpanel-change price-up">+18.45 (4.70%)</span>
+      <span class="cpanel-spark-label">6m</span>
+      <svg class="demo-spark" width="150" height="34" viewBox="0 0 150 34">
+        <polyline fill="none" stroke="var(--green)" stroke-width="1.5"
+          points="0,24 12,22 24,25 36,20 48,21 60,17 72,19 84,14 96,16 108,9 116,12 124,7 132,10 140,8 150,9"/>
+      </svg>
+    </div>
+
+    <div class="info-tabs st-tab-row" id="info-tabs" data-vim-row>
+      <button class="info-tab st-tab" data-tab="overview"><span class="tab-key">1</span> Overview</button>
+      <button class="info-tab st-tab" data-tab="financials"><span class="tab-key">2</span> Financial Modeling</button>
+      <button class="info-tab st-tab active st-tab--active" data-tab="estimates"><span class="tab-key">3</span> Estimates</button>
+      <button class="info-tab st-tab" data-tab="news"><span class="tab-key">4</span> News</button>
+      <button class="info-tab st-tab" data-tab="ai"><span class="tab-key">5</span> AI Analysis</button>
+      <button class="info-tab st-tab" data-tab="sector"><span class="tab-key">6</span> Sector</button>
+      <button class="info-tab st-tab" data-tab="sec"><span class="tab-key">7</span> SEC</button>
+    </div>
+
+    <div id="info-content" class="info-content">
+      <table class="fin-table">
+        <thead><tr><th>Year</th><th class="num">Revenue Est</th><th class="num">EPS Est</th><th class="num">EBITDA Est</th><th class="num">Net Income Est</th></tr></thead>
+        <tbody>
+          <tr class="fin-row"><td class="fin-label">2026</td><td class="num">105.21B <span class="est-range">86.75B–109.41B</span></td><td class="num">11.57 <span class="est-range">11.08–13.72</span></td><td class="num">56.65B</td><td class="num">60.18B</td></tr>
+          <tr class="fin-row"><td class="fin-label">2027</td><td class="num">172.88B <span class="est-range">118.69B–191.29B</span></td><td class="num">19.43 <span class="est-range">16.46–22.68</span></td><td class="num">93.09B</td><td class="num">94.96B</td></tr>
+          <tr class="fin-row"><td class="fin-label">2028</td><td class="num">230.76B <span class="est-range">229.37B–232.15B</span></td><td class="num">25.95 <span class="est-range">18.49–30.60</span></td><td class="num">124.25B</td><td class="num">107.89B</td></tr>
+          <tr class="fin-row"><td class="fin-label">2029</td><td class="num">274.82B <span class="est-range">207.86B–301.79B</span></td><td class="num">22.27 <span class="est-range">15.22–25.11</span></td><td class="num">147.98B</td><td class="num">108.07B</td></tr>
+          <tr class="fin-row"><td class="fin-label">2030</td><td class="num">139.00B <span class="est-range">105.13B–152.64B</span></td><td class="num">35.00 <span class="est-range">23.91–39.47</span></td><td class="num">74.85B</td><td class="num">169.86B</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<footer class="terminal-footer">
+  <span class="footer-mode normal">NORMAL</span>
+  <span class="footer-view">INFO</span>
+  <span class="footer-help">1–7 tabs · h/l sub-tabs · j/k rows · a → ideas</span>
+  <div class="footer-clocks">
+    <span class="tz-block"><span class="tz-label">ET</span>23:03</span>
+    <span class="tz-block"><span class="tz-label">UTC</span>03:03</span>
+    <span class="tz-block"><span class="tz-label">JST</span>12:03</span>
+  </div>
+</footer>
+
+<!-- Tweaks: three expressive controls that reshape the estimates table -->
+<div id="tweaks-root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel">
+const { useEffect } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "ranges": "bars",
+  "growth": "yoy",
+  "focus": "all"
+}/*EDITMODE-END*/;
+
+const parseB = txt => {
+  const m = (txt || '').replace(/\u2212/g, '-').match(/^(-?\d+(?:\.\d+)?)\s*([BMK]?)/);
+  if (!m) return null;
+  let n = parseFloat(m[1]);
+  if (m[2] === 'B') n *= 1e9; else if (m[2] === 'M') n *= 1e6; else if (m[2] === 'K') n *= 1e3;
+  return n;
+};
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const COLS = ['Revenue Est', 'EPS Est', 'EBITDA Est', 'Net Income Est'];
+
+  // 1 — RANGES: low–high estimate spread as text, as a confidence whisker, or off
+  useEffect(() => {
+    const table = document.querySelector('.fin-table');
+    table.classList.toggle('ranges-off', t.ranges === 'off');
+    // whisker bars under the cells that carry a range
+    document.querySelectorAll('.fin-table tbody td .est-range').forEach(rng => {
+      const td = rng.closest('td');
+      let w = td.querySelector('.est-whisker');
+      if (t.ranges !== 'bars') { if (w) w.remove(); return; }
+      const m = rng.textContent.replace(/\u2212/g, '-').match(/([\d.]+)\s*[BMK]?\s*[–-]\s*([\d.]+)/);
+      const main = parseB(td.firstChild.textContent);
+      if (!m || main == null) return;
+      const lo = parseB(m[1]), hi = parseB(m[2]);
+      if (lo == null || hi == null || hi === lo) return;
+      if (!w) { w = document.createElement('span'); w.className = 'est-whisker';
+        const dot = document.createElement('span'); w.appendChild(dot); td.appendChild(w); }
+      const pos = Math.max(0, Math.min(100, ((main - lo) / (hi - lo)) * 100));
+      w.firstChild.style.left = pos.toFixed(1) + '%';
+      w.firstChild.style.width = '6px';
+      w.firstChild.style.transform = 'translateX(-50%)';
+    });
+  }, [t.ranges]);
+
+  // 2 — GROWTH: tint each value cell by year-over-year change (green up / red down)
+  useEffect(() => {
+    const rows = [...document.querySelectorAll('.fin-table tbody tr')];
+    // per-column previous value
+    const prev = {};
+    rows.forEach(r => {
+      [...r.children].forEach((td, ci) => {
+        if (ci === 0) return;
+        let layer = td.querySelector('.est-mag');
+        const v = parseB(td.firstChild.textContent);
+        if (t.growth === 'off' || v == null) { if (layer) layer.remove(); prev[ci] = v; return; }
+        const p = prev[ci];
+        if (p != null && p !== 0) {
+          const g = (v - p) / Math.abs(p);
+          const up = g >= 0, rgb = up ? '0,204,102' : '255,68,68';
+          const a = Math.min(0.34, Math.sqrt(Math.abs(g)) * 0.34);
+          if (!layer) { layer = document.createElement('span'); layer.className = 'est-mag'; td.insertBefore(layer, td.firstChild); }
+          layer.style.background = `rgba(${rgb},${a.toFixed(3)})`;
+        } else if (layer) layer.remove();
+        prev[ci] = v;
+      });
+    });
+  }, [t.growth]);
+
+  // 3 — FOCUS: spotlight one metric column, dim the rest
+  useEffect(() => {
+    const table = document.querySelector('.fin-table');
+    const idx = COLS.indexOf(t.focus); // -1 when "all"
+    table.classList.toggle('focus-on', idx >= 0);
+    document.querySelectorAll('.fin-table tr').forEach(tr => {
+      [...tr.children].forEach((cell, ci) => {
+        cell.classList.toggle('dim', idx >= 0 && ci !== 0 && ci !== idx + 1);
+      });
+    });
+  }, [t.focus]);
+
+  return (
+    <TweaksPanel>
+      <TweakSection label="Estimate spread" />
+      <TweakRadio label="Ranges" value={t.ranges}
+        options={['text', 'bars', 'off']}
+        onChange={(v) => setTweak('ranges', v)} />
+      <TweakRadio label="Growth heat" value={t.growth}
+        options={['off', 'yoy']}
+        onChange={(v) => setTweak('growth', v)} />
+      <TweakSection label="Metric" />
+      <TweakSelect label="Focus" value={t.focus}
+        options={['all', ...COLS]}
+        onChange={(v) => setTweak('focus', v)} />
+    </TweaksPanel>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('tweaks-root')).render(<App />);
+</script>
+</body></html>

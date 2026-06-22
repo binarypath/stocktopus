@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stocktopus — AVGO — AI Analysis (Tron preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_real-style.css">
+<link rel="stylesheet" href="tron.css" id="tron">
+<style>
+  body{font-family:'Fira Code',var(--font-mono)}
+  #t{position:fixed;top:6px;right:10px;z-index:9999;font:11px 'Fira Code',monospace;background:var(--bg-tertiary);color:var(--accent-orange);border:1px solid var(--accent-orange);border-radius:5px;padding:4px 9px;cursor:pointer}
+  .demo-spark{display:inline-block;vertical-align:middle;margin-left:8px}
+  /* tweakable: bull/bear lens — ignite one side, dim the other */
+  .ai-section{transition:opacity var(--duration-2,180ms) ease,box-shadow var(--duration-2,180ms) ease}
+  .ai-section.lens-dim{opacity:.38}
+  .ai-section.lens-hot-green{border-left:2px solid var(--green);padding-left:11px;box-shadow:inset 13px 0 20px -15px color-mix(in srgb,var(--green) 75%,transparent)}
+  .ai-section.lens-hot-green .ai-section-title{color:var(--green);text-shadow:var(--text-glow-green)}
+  .ai-section.lens-hot-red{border-left:2px solid var(--red);padding-left:11px;box-shadow:inset 13px 0 20px -15px color-mix(in srgb,var(--red) 75%,transparent)}
+  .ai-section.lens-hot-red .ai-section-title{color:var(--red);text-shadow:var(--text-glow-red)}
+  /* tweakable: score ignite — colour-code each gauge by meaning */
+  .ai-score.sg-green{box-shadow:var(--glow-green)}
+  .ai-score.sg-green .ai-score-value{color:var(--green);text-shadow:var(--text-glow-green)}
+  .ai-score.sg-green .ai-score-fill{background:var(--green);box-shadow:var(--glow-green)}
+  .ai-score.sg-amber{box-shadow:var(--glow-amber)}
+  .ai-score.sg-amber .ai-score-value{color:var(--accent-orange);text-shadow:var(--text-glow-amber)}
+  .ai-score.sg-amber .ai-score-fill{background:var(--accent-orange);box-shadow:var(--glow-amber)}
+  .ai-score.sg-cyan{box-shadow:var(--glow-cyan)}
+  .ai-score.sg-cyan .ai-score-value{color:var(--accent-blue);text-shadow:var(--text-glow-cyan)}
+  .ai-score.sg-cyan .ai-score-fill{background:var(--accent-blue);box-shadow:var(--glow-cyan)}
+  /* header: title left, actions right */
+  .trading-header{justify-content:space-between;align-items:center}
+  .trading-actions{display:flex;align-items:center;gap:12px}
+  /* summary + the three score gauges share one band */
+  .ai-top{display:flex;gap:16px;align-items:stretch;margin-bottom:16px}
+  .ai-top > .ai-section{flex:1;min-width:0;margin:0}
+  .ai-top > .ai-scores{flex:0 0 250px;display:flex;flex-direction:column;gap:9px;margin:0}
+  .ai-top > .ai-scores .ai-score{flex:1;display:flex;flex-direction:column;justify-content:center}
+</style></head>
+<body>
+<button id="t" onclick="var x=document.getElementById('tron');x.disabled=!x.disabled;this.textContent=x.disabled?'tron OFF':'tron ON'">tron ON</button>
+
+<header class="terminal-header">
+  <span class="brand">STOCKTOPUS</span>
+  <div class="cmd-bar"><span class="cmd-prompt">&gt;</span><input class="cmd-input" placeholder="enter command..." spellcheck="false"></div>
+  <div class="security-selector"><input class="security-input" value="LEE" spellcheck="false"></div>
+  <span class="watchlist-picker">Default</span>
+  <div class="conn-status connected">CONNECTED</div>
+</header>
+
+<div class="terminal-body">
+  <main class="terminal-content" data-view="security">
+    <div class="company-panel">
+      <span class="cpanel-sym">AVGO</span>
+      <span class="cpanel-name">Broadcom Inc.</span>
+      <span class="cpanel-price">411.35</span>
+      <span class="cpanel-change price-up">+18.45 (4.70%)</span>
+      <span class="cpanel-spark-label">6m</span>
+      <svg class="demo-spark" width="150" height="34" viewBox="0 0 150 34">
+        <polyline fill="none" stroke="var(--green)" stroke-width="1.5"
+          points="0,24 12,22 24,25 36,20 48,21 60,17 72,19 84,14 96,16 108,9 116,12 124,7 132,10 140,8 150,9"/>
+      </svg>
+    </div>
+
+    <div class="info-tabs st-tab-row" id="info-tabs" data-vim-row>
+      <button class="info-tab st-tab" data-tab="overview"><span class="tab-key">1</span> Overview</button>
+      <button class="info-tab st-tab" data-tab="financials"><span class="tab-key">2</span> Financial Modeling</button>
+      <button class="info-tab st-tab" data-tab="estimates"><span class="tab-key">3</span> Estimates</button>
+      <button class="info-tab st-tab" data-tab="news"><span class="tab-key">4</span> News</button>
+      <button class="info-tab st-tab active st-tab--active" data-tab="ai"><span class="tab-key">5</span> AI Analysis</button>
+      <button class="info-tab st-tab" data-tab="sector"><span class="tab-key">6</span> Sector</button>
+      <button class="info-tab st-tab" data-tab="sec"><span class="tab-key">7</span> SEC</button>
+    </div>
+
+    <div id="info-content" class="info-content">
+      <div class="trading-header" data-vim-row>
+        <span class="ai-section-title" style="margin:0">Deep Analysis — Multi-Agent Pipeline</span>
+        <div class="trading-actions">
+          <button class="trading-btn" id="trading-analyze-btn">Run Deep Analysis</button>
+          <span class="trading-cost">Est. $0.035</span>
+        </div>
+      </div>
+
+      <div class="ai-analysis">
+        <div class="ai-top">
+          <div class="ai-section">
+            <div class="ai-section-title">Executive Summary</div>
+            <p class="ai-summary">Broadcom (AVGO) is currently positioned as a dominant player in the AI infrastructure and semiconductor space, benefiting significantly from hyperscaler spending and booming data center demand. The company has seen massive stock appreciation, up over 139% over the past year, and is expanding strategic partnerships with tech giants like Google Cloud and Meta. With the introduction of its 2nm custom compute SoC, Broadcom is solidifying its moat, though its premium valuation and potential margin risks warrant careful monitoring.</p>
+          </div>
+
+          <div class="ai-scores">
+            <div class="ai-score">
+              <div class="ai-score-label">Sentiment</div>
+              <div class="ai-score-value price-up">0.8</div>
+              <div class="ai-score-bar"><div class="ai-score-fill" style="width:90%"></div></div>
+            </div>
+            <div class="ai-score">
+              <div class="ai-score-label">Risk</div>
+              <div class="ai-score-value">35.0</div>
+              <div class="ai-score-bar"><div class="ai-score-fill" style="width:35%"></div></div>
+            </div>
+            <div class="ai-score">
+              <div class="ai-score-label">Confidence</div>
+              <div class="ai-score-value">90.0</div>
+              <div class="ai-score-bar"><div class="ai-score-fill" style="width:90%"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ai-section">
+          <div class="ai-section-title">Key Risks</div>
+          <ul class="ai-list ai-risks">
+            <li>Valuation premium pricing in perfection after 139% 1-year surge</li>
+            <li>Potential margin compression risks ahead of upcoming earnings</li>
+            <li>Supply chain disruptions affecting custom compute SoC deliveries</li>
+          </ul>
+        </div>
+
+        <div class="ai-section">
+          <div class="ai-section-title">Opportunities</div>
+          <ul class="ai-list ai-opps">
+            <li>Expansion of AI server compute ASIC market share (targeting 60% by 2027)</li>
+            <li>Deepening hyperscaler partnerships with Google Cloud and Meta</li>
+            <li>First-mover advantage in shipping 2nm custom compute SoCs</li>
+          </ul>
+        </div>
+
+        <div class="ai-section">
+          <div class="ai-section-title">Competitors</div>
+          <div class="ai-competitors" id="ai-competitors">
+            <div class="ai-competitor-card" data-symbol="NVDA">
+              <span class="ai-competitor-sym">NVDA</span>
+              <span class="ai-competitor-scores"><span class="price-up">S:0.8</span> R:60</span>
+            </div>
+            <div class="ai-competitor-card" data-symbol="MU">
+              <span class="ai-competitor-sym">MU</span>
+              <span class="ai-competitor-scores"><span class="price-up">S:0.8</span> R:60</span>
+            </div>
+            <div class="ai-competitor-card" data-symbol="CRDO">
+              <span class="ai-competitor-sym">CRDO</span>
+              <span class="ai-competitor-scores"><button class="trading-btn" style="padding:1px 8px;font-size:10px">analyze</button></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<footer class="terminal-footer">
+  <span class="footer-mode normal">NORMAL</span>
+  <span class="footer-view">INFO</span>
+  <span class="footer-help">1–7 tabs · h/l sub-tabs · j/k rows · a → ideas</span>
+  <div class="footer-clocks">
+    <span class="tz-block"><span class="tz-label">ET</span>23:02</span>
+    <span class="tz-block"><span class="tz-label">UTC</span>03:02</span>
+    <span class="tz-block"><span class="tz-label">JST</span>12:02</span>
+  </div>
+</footer>
+
+<!-- Tweaks: three expressive controls that reframe the AI analysis -->
+<div id="tweaks-root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel">
+const { useEffect } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "lens": "bull",
+  "scores": "glow",
+  "depth": "full"
+}/*EDITMODE-END*/;
+
+// find the .ai-section that contains an element matching `sel`
+const sectionOf = sel => document.querySelector(sel)?.closest('.ai-section');
+const titleSection = txt => [...document.querySelectorAll('.ai-section')]
+  .find(s => (s.querySelector('.ai-section-title')?.textContent || '').trim() === txt);
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  // 1 — LENS: read the thesis bull, bear, or balanced — ignite one side, dim the other
+  useEffect(() => {
+    const risks = sectionOf('.ai-risks');
+    const opps = sectionOf('.ai-opps');
+    [risks, opps].forEach(s => s && s.classList.remove('lens-dim', 'lens-hot-green', 'lens-hot-red'));
+    if (t.lens === 'bull') {
+      opps && opps.classList.add('lens-hot-green');
+      risks && risks.classList.add('lens-dim');
+    } else if (t.lens === 'bear') {
+      risks && risks.classList.add('lens-hot-red');
+      opps && opps.classList.add('lens-dim');
+    }
+  }, [t.lens]);
+
+  // 2 — SCORES: plain bars, or ignite each gauge in its semantic colour
+  useEffect(() => {
+    const map = { 'Sentiment': 'sg-green', 'Risk': 'sg-amber', 'Confidence': 'sg-cyan' };
+    document.querySelectorAll('.ai-score').forEach(card => {
+      card.classList.remove('sg-green', 'sg-amber', 'sg-cyan');
+      if (t.scores === 'glow') {
+        const label = (card.querySelector('.ai-score-label')?.textContent || '').trim();
+        if (map[label]) card.classList.add(map[label]);
+      }
+    });
+  }, [t.scores]);
+
+  // 3 — DEPTH: full report, or brief (drop the prose summary + competitors)
+  useEffect(() => {
+    const summary = titleSection('Executive Summary');
+    const comp = titleSection('Competitors');
+    [summary, comp].forEach(s => { if (s) s.style.display = t.depth === 'brief' ? 'none' : ''; });
+  }, [t.depth]);
+
+  return (
+    <TweaksPanel>
+      <TweakSection label="Thesis" />
+      <TweakRadio label="Lens" value={t.lens}
+        options={['balanced', 'bull', 'bear']}
+        onChange={(v) => setTweak('lens', v)} />
+      <TweakRadio label="Depth" value={t.depth}
+        options={['full', 'brief']}
+        onChange={(v) => setTweak('depth', v)} />
+      <TweakSection label="Scores" />
+      <TweakRadio label="Gauges" value={t.scores}
+        options={['bars', 'glow']}
+        onChange={(v) => setTweak('scores', v)} />
+    </TweaksPanel>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('tweaks-root')).render(<App />);
+</script>
+</body></html>

@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stocktopus — Financials / Cash Flow (Tron preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_real-style.css">
+<link rel="stylesheet" href="tron.css" id="tron">
+<style>
+  body{font-family:'Fira Code',var(--font-mono)}
+  #t{position:fixed;top:6px;right:10px;z-index:9999;font:11px 'Fira Code',monospace;background:var(--bg-tertiary);color:var(--accent-orange);border:1px solid var(--accent-orange);border-radius:5px;padding:4px 9px;cursor:pointer}
+  /* tiny inline sparkline */
+  .demo-spark{display:inline-block;vertical-align:middle;margin-left:8px}
+  /* heatmap / bars magnitude layer sits behind the number */
+  .fin-table td{position:relative}
+  .fin-mag{position:absolute;inset:0;z-index:0;pointer-events:none;border-radius:2px;transition:background var(--duration-2,180ms) ease, opacity var(--duration-2,180ms) ease}
+  .fin-table td > *{position:relative;z-index:1}
+</style></head>
+<body>
+<button id="t" onclick="var x=document.getElementById('tron');x.disabled=!x.disabled;this.textContent=x.disabled?'tron OFF':'tron ON'">tron ON</button>
+
+<header class="terminal-header">
+  <span class="brand">STOCKTOPUS</span>
+  <div class="cmd-bar"><span class="cmd-prompt">&gt;</span><input class="cmd-input" placeholder="enter command..." spellcheck="false"></div>
+  <div class="security-selector"><input class="security-input" value="LEE" spellcheck="false"></div>
+  <span class="watchlist-picker">Default</span>
+  <div class="conn-status connected">CONNECTED</div>
+</header>
+
+<div class="terminal-body">
+  <main class="terminal-content" data-view="security">
+    <div class="company-panel">
+      <span class="cpanel-sym">LEE</span>
+      <span class="cpanel-name">Lee Enterprises, Incorporated</span>
+      <span class="cpanel-price">9.28</span>
+      <span class="cpanel-change price-up">+0.22 (2.43%)</span>
+      <span class="cpanel-spark-label">6m</span>
+      <svg class="demo-spark" width="150" height="34" viewBox="0 0 150 34">
+        <polyline fill="none" stroke="var(--green)" stroke-width="1.5"
+          points="0,26 12,25 24,27 36,24 48,23 60,24 72,21 84,22 96,19 108,18 116,9 124,12 132,11 140,10 150,11"/>
+      </svg>
+    </div>
+
+    <div class="info-tabs st-tab-row" id="info-tabs" data-vim-row style="gap: 22px">
+      <button class="info-tab st-tab" data-tab="overview" style="height: 32px; line-height: 3.55"><span class="tab-key">1</span> Overview</button>
+      <button class="info-tab st-tab active st-tab--active" data-tab="financials" style="padding: 1px 6px 0px; height: 29px"><span class="tab-key">2</span> Financial Modeling</button>
+      <button class="info-tab st-tab" data-tab="estimates"><span class="tab-key">3</span> Estimates</button>
+      <button class="info-tab st-tab" data-tab="news"><span class="tab-key">4</span> News</button>
+      <button class="info-tab st-tab" data-tab="ai"><span class="tab-key">5</span> AI Analysis</button>
+      <button class="info-tab st-tab" data-tab="sector"><span class="tab-key">6</span> Sector</button>
+      <button class="info-tab st-tab" data-tab="sec"><span class="tab-key">7</span> SEC</button>
+    </div>
+
+    <div id="info-content" class="info-content">
+      <div class="info-sub-tabs st-tab-row st-tab-row--blue" id="fin-sub-tabs" data-vim-row>
+        <button class="info-sub-tab st-tab" data-ftype="income">Income</button>
+        <button class="info-sub-tab st-tab" data-ftype="balance">Balance Sheet</button>
+        <button class="info-sub-tab st-tab active" data-ftype="cashflow">Cash Flow</button>
+        <button class="info-sub-tab st-tab" data-ftype="assumptions">Assumptions</button>
+        <button class="info-sub-tab st-tab" data-ftype="forecast">Forecast</button>
+      </div>
+      <div id="fin-table-container">
+        <table class="fin-table">
+          <thead><tr><th></th>
+            <th>2025</th><th>2024</th><th>2023</th><th>2022</th><th>2021</th>
+            <th>2020</th><th>2019</th><th>2018</th><th>2017</th><th>2016</th>
+          </tr></thead>
+          <tbody>
+            <tr class="fin-row fin-row--total"><td class="fin-label">Operating CF</td><td class="price-down">−5.54M</td><td>1.12M</td><td class="price-down">−2.52M</td><td>3.43M</td><td>50.08M</td><td>49.87M</td><td>57.68M</td><td>59.30M</td><td>72.28M</td><td>79.19M</td></tr>
+            <tr class="fin-row"><td class="fin-label">D&amp;A</td><td>18.84M</td><td>27.62M</td><td>30.62M</td><td>36.54M</td><td>42.84M</td><td>36.13M</td><td>29.33M</td><td>31.77M</td><td>41.28M</td><td>43.44M</td></tr>
+            <tr class="fin-row"><td class="fin-label">Stock-Based Comp</td><td>1.76M</td><td>1.75M</td><td>1.81M</td><td>1.34M</td><td>854.0K</td><td>1.29M</td><td>1.64M</td><td>1.86M</td><td>2.09M</td><td>2.31M</td></tr>
+            <tr class="fin-row"><td class="fin-label">Accounts Receivable</td><td class="price-down">−9.23M</td><td class="price-down">−5.49M</td><td class="price-down">−6.39M</td><td class="price-down">−2.61M</td><td class="price-down">−12.47M</td><td>26.91M</td><td>1.70M</td><td>4.42M</td><td>2.85M</td><td>6.93M</td></tr>
+            <tr class="fin-row"><td class="fin-label">Accounts Payable</td><td>4.21M</td><td class="price-down">−5.03M</td><td class="price-down">−26.16M</td><td class="price-down">−14.64M</td><td>4.73M</td><td class="price-down">−8.34M</td><td class="price-down">−3.68M</td><td class="price-down">−8.59M</td><td class="price-down">−6.39M</td><td class="price-down">−8.33M</td></tr>
+            <tr class="fin-row fin-row--total"><td class="fin-label">Investing CF</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+            <tr class="fin-row fin-row--total"><td class="fin-label">Financing CF</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+            <tr class="fin-row"><td class="fin-label">Debt Repayment</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+            <tr class="fin-row"><td class="fin-label">CapEx</td><td class="price-down">−1.54M</td><td class="price-down">−9.21M</td><td class="price-down">−5.11M</td><td class="price-down">−7.54M</td><td class="price-down">−7.48M</td><td class="price-down">−8.10M</td><td class="price-down">−5.90M</td><td class="price-down">−6.03M</td><td class="price-down">−4.08M</td><td class="price-down">−7.09M</td></tr>
+            <tr class="fin-row fin-row--total"><td class="fin-label">Free Cash Flow</td><td class="price-down">−7.08M</td><td class="price-down">−8.09M</td><td class="price-down">−7.63M</td><td class="price-down">−4.11M</td><td>42.60M</td><td>41.77M</td><td>51.77M</td><td>53.27M</td><td>68.20M</td><td>72.10M</td></tr>
+            <tr class="fin-row fin-row--total"><td class="fin-label">Net Change in Cash</td><td>391.0K</td><td class="price-down">−4.95M</td><td class="price-down">−1.64M</td><td class="price-down">−9.93M</td><td class="price-down">−7.62M</td><td>25.09M</td><td>3.27M</td><td class="price-down">−5.24M</td><td class="price-down">−6.36M</td><td>5.85M</td></tr>
+            <tr class="fin-row"><td class="fin-label">Dividends Paid</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+            <tr class="fin-row"><td class="fin-label">Share Buyback</td><td>0.00</td><td>0.00</td><td class="price-down">−279.0K</td><td>0.00</td><td>0.00</td><td class="price-down">−584.0K</td><td class="price-down">−473.0K</td><td class="price-down">−502.0K</td><td class="price-down">−34.0K</td><td>0.00</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<footer class="terminal-footer">
+  <span class="footer-mode normal">NORMAL</span>
+  <span class="footer-view">SECURITY</span>
+  <span class="footer-help">/ cmd · s security · hjkl nav · : chart cmd · h/l sub-tabs</span>
+  <div class="footer-clocks">
+    <span class="tz-block"><span class="tz-label">ET</span>22:14</span>
+    <span class="tz-block"><span class="tz-label">UTC</span>02:14</span>
+    <span class="tz-block"><span class="tz-label">JST</span>11:14</span>
+  </div>
+</footer>
+
+<!-- Tweaks: three expressive controls that reshape the feel of the statement -->
+<div id="tweaks-root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel">
+const { useEffect } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "magnitude": "off",
+  "glow": 60,
+  "recency": "flat"
+}/*EDITMODE-END*/;
+
+// ── parse "−5.54M" / "854.0K" / "1.2B" / "0.00" / "—" → number|null ──
+function parseVal(txt) {
+  if (!txt) return null;
+  let s = txt.trim().replace(/\u2212/g, '-').replace(/,/g, '');
+  if (s === '—' || s === '-' || s === '') return null;
+  const m = s.match(/^(-?\d+(?:\.\d+)?)([KMB]?)$/);
+  if (!m) return null;
+  let n = parseFloat(m[1]);
+  if (m[2] === 'K') n *= 1e3; else if (m[2] === 'M') n *= 1e6; else if (m[2] === 'B') n *= 1e9;
+  return n;
+}
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  // 1 — MAGNITUDE: turn a plain spreadsheet into bars or a thermal heatmap
+  useEffect(() => {
+    const rows = document.querySelectorAll('.fin-table tbody tr');
+    // global scale from all numeric cells (sqrt so small values still read)
+    let maxAbs = 1;
+    rows.forEach(r => [...r.children].forEach((td, i) => {
+      if (i === 0) return;
+      const v = parseVal(td.textContent);
+      if (v != null) maxAbs = Math.max(maxAbs, Math.abs(v));
+    }));
+    rows.forEach(r => [...r.children].forEach((td, i) => {
+      let layer = td.querySelector('.fin-mag');
+      if (i === 0) { if (layer) layer.remove(); return; }
+      const v = parseVal(td.textContent);
+      if (t.magnitude === 'off' || v == null) { if (layer) layer.remove(); return; }
+      if (!layer) { layer = document.createElement('span'); layer.className = 'fin-mag'; td.insertBefore(layer, td.firstChild); }
+      const intensity = Math.sqrt(Math.abs(v) / maxAbs);          // 0..1
+      const up = v >= 0;
+      const rgb = up ? '0,204,102' : '255,68,68';
+      if (t.magnitude === 'heat') {
+        layer.style.background = `rgba(${rgb},${(intensity * 0.42).toFixed(3)})`;
+        layer.style.boxShadow = intensity > 0.6 ? `inset 0 0 12px rgba(${rgb},${(intensity*0.35).toFixed(2)})` : 'none';
+      } else { // bars — grow from the right (numbers are right-aligned)
+        const pct = (intensity * 100).toFixed(1);
+        layer.style.background = `linear-gradient(to left, rgba(${rgb},0.30) 0%, rgba(${rgb},0.30) ${pct}%, transparent ${pct}%)`;
+        layer.style.boxShadow = 'none';
+      }
+    }));
+  }, [t.magnitude]);
+
+  // 2 — GLOW: scale the whole Tron neon from matte (0) to overdrive (150)
+  useEffect(() => {
+    const m = t.glow / 100;
+    const root = document.documentElement.style;
+    const box = (c, near, far) =>
+      `0 0 6px color-mix(in srgb, ${c} ${(near*m).toFixed(1)}%, transparent), 0 0 18px color-mix(in srgb, ${c} ${(far*m).toFixed(1)}%, transparent)`;
+    const txt = (c) => `0 0 8px color-mix(in srgb, ${c} ${(70*m).toFixed(1)}%, transparent)`;
+    root.setProperty('--glow-amber', box('var(--accent-orange)', 55, 28));
+    root.setProperty('--glow-cyan',  box('var(--accent-blue)', 55, 28));
+    root.setProperty('--glow-green', box('var(--green)', 55, 26));
+    root.setProperty('--glow-red',   box('var(--red)', 55, 26));
+    root.setProperty('--text-glow-amber', txt('var(--accent-orange)'));
+    root.setProperty('--text-glow-cyan',  txt('var(--accent-blue)'));
+    root.setProperty('--text-glow-green', txt('var(--green)'));
+    root.setProperty('--text-glow-red',   txt('var(--red)'));
+  }, [t.glow]);
+
+  // 3 — RECENCY: pull the eye to recent years (or spotlight only the latest)
+  useEffect(() => {
+    const rows = document.querySelectorAll('.fin-table tbody tr, .fin-table thead tr');
+    rows.forEach(r => [...r.children].forEach((cell, i) => {
+      let op = 1;
+      if (i >= 1) {
+        if (t.recency === 'recent') op = +(1 - (i - 1) / 10 * 0.62).toFixed(3);  // 2025→1.0, 2016→0.46
+        else if (t.recency === 'latest') op = i === 1 ? 1 : 0.26;                 // spotlight 2025
+      }
+      cell.style.opacity = op;
+      cell.style.transition = 'opacity var(--duration-2,180ms) ease';
+    }));
+  }, [t.recency]);
+
+  return (
+    <TweaksPanel>
+      <TweakSection label="Statement feel" />
+      <TweakRadio label="Magnitude" value={t.magnitude}
+        options={['off', 'bars', 'heat']}
+        onChange={(v) => setTweak('magnitude', v)} />
+      <TweakRadio label="Recency focus" value={t.recency}
+        options={['flat', 'recent', 'latest']}
+        onChange={(v) => setTweak('recency', v)} />
+      <TweakSection label="Terminal glow" />
+      <TweakSlider label="Neon" value={t.glow} min={0} max={150} unit="%"
+        onChange={(v) => setTweak('glow', v)} />
+    </TweaksPanel>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('tweaks-root')).render(<App />);
+</script>
+</body></html>

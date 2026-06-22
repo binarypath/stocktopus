@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_real-style.css">
+<link rel="stylesheet" href="tron.css" id="tron">
+<style>
+  body{font-family:'Fira Code',var(--font-mono)}
+  #t{position:fixed;top:6px;right:10px;z-index:9999;font:11px 'Fira Code',monospace;background:var(--bg-tertiary);color:var(--accent-orange);border:1px solid var(--accent-orange);border-radius:5px;padding:4px 9px;cursor:pointer}
+</style></head>
+<body>
+<button id="t" onclick="var x=document.getElementById('tron');x.disabled=!x.disabled;this.textContent=x.disabled?'tron OFF':'tron ON'">tron ON</button>
+<header class="terminal-header">
+  <span class="brand">STOCKTOPUS</span>
+  <div class="cmd-bar"><span class="cmd-prompt">&gt;</span><input class="cmd-input" placeholder="enter command..." value="" spellcheck="false"></div>
+  <div class="security-selector"><input class="security-input" value="KR" spellcheck="false"></div>
+  <span class="watchlist-picker">Default</span>
+  <div class="conn-status connected">CONNECTED</div>
+</header>
+<div class="terminal-body">
+  <main class="terminal-content" data-view="crypto">
+    <div id="company-panel" class="company-panel"></div>
+    <div class="info-tabs" id="info-tabs" data-vim-row>
+      <button class="info-tab active" data-tab="overview">Overview</button>
+      <button class="info-tab" data-tab="news">News</button>
+      <button class="info-tab" data-tab="ai">AI Analysis</button>
+      <button class="info-tab" data-tab="peers">Peer Coins</button>
+    </div>
+    <div id="info-content" class="info-content">
+      <div class="crypto-header">
+        <span class="crypto-name">The Kroger Co.</span>
+        <span class="crypto-exchange">NYSE</span>
+      </div>
+      <div class="crypto-price-row">
+        <span class="crypto-price">$56.6100</span>
+        <span class="crypto-change price-down">24h -8.43%</span>
+        <span class="crypto-change price-down">7d -10.13%</span>
+        <span class="crypto-change price-down">30d -14.24%</span>
+      </div>
+      <div class="crypto-stats">
+        <div class="crypto-stat"><span class="crypto-stat-label">Volume (24h)</span><span class="crypto-stat-value">26.63M</span></div>
+        <div class="crypto-stat"><span class="crypto-stat-label">Day Range</span><span class="crypto-stat-value">$56.3200 — $59.5500</span></div>
+        <div class="crypto-stat"><span class="crypto-stat-label">52W Range</span><span class="crypto-stat-value">$56.3200 — $76.5800</span></div>
+        <div class="crypto-stat"><span class="crypto-stat-label">Market Cap</span><span class="crypto-stat-value">$34.90B</span></div>
+        <div class="crypto-stat"><span class="crypto-stat-label">50-Day Avg</span><span class="crypto-stat-value">$65.7394</span></div>
+        <div class="crypto-stat"><span class="crypto-stat-label">200-Day Avg</span><span class="crypto-stat-value">$66.4658</span></div>
+      </div>
+      <div class="crypto-chart" style="height:230px;display:flex;align-items:center;justify-content:center;color:var(--text-muted)">[ price chart ]</div>
+      <div class="crypto-desc">The Kroger Co. functions as a significant retail entity throughout the United States, encompassing a varied collection of store formats. Its operations include integrated food and drug stores, which stock a broad range of products from natural and organic sections to pharmacies, general merchandise, pet centers, fresh seafood, and organic produce. Established in 1883, the company is headquartered in Cincinnati, Ohio.</div>
+    </div>
+  </main>
+</div>
+<footer class="terminal-footer">
+  <span class="footer-mode normal">NORMAL</span>
+  <span class="footer-view">crypto</span>
+  <span class="footer-help">/ cmd &middot; s security &middot; hjkl nav &middot; : chart cmd</span>
+  <div class="footer-clocks"><span class="tz-block"><span class="tz-label">ET</span>09:41</span></div>
+</footer>
+</body></html>

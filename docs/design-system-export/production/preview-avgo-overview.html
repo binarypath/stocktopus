@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stocktopus — AVGO — Overview (Tron preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_real-style.css">
+<link rel="stylesheet" href="tron.css" id="tron">
+<style>
+  body{font-family:'Fira Code',var(--font-mono)}
+  #t{position:fixed;top:6px;right:10px;z-index:9999;font:11px 'Fira Code',monospace;background:var(--bg-tertiary);color:var(--accent-orange);border:1px solid var(--accent-orange);border-radius:5px;padding:4px 9px;cursor:pointer}
+  .demo-spark{display:inline-block;vertical-align:middle;margin-left:8px}
+  /* tweakable: stat density */
+  .info-grid.density-compact{grid-template-columns:repeat(8,1fr)}
+  .info-grid.density-compact .info-stat{padding:6px 9px}
+  .info-grid.density-compact .info-stat-value{font-size:13px}
+  .info-grid.density-minimal .info-stat:nth-child(n+9){display:none}
+  /* tweakable: detail focus */
+  .info-overview-top.focus-people .info-overview-right{display:none}
+  .info-overview-top.focus-profile .info-overview-left{display:none}
+  /* tweakable: highlight ignite */
+  .info-stat.ignite-green{border-color:color-mix(in srgb,var(--green) 45%,var(--panel-border));box-shadow:var(--glow-green)}
+  .info-stat.ignite-green .info-stat-value{color:var(--green);text-shadow:var(--text-glow-green)}
+  .info-stat.ignite-amber{border-color:color-mix(in srgb,var(--accent-orange) 45%,var(--panel-border));box-shadow:var(--glow-amber)}
+  .info-stat.ignite-amber .info-stat-value{color:var(--accent-orange);text-shadow:var(--text-glow-amber)}
+</style></head>
+<body>
+<button id="t" onclick="var x=document.getElementById('tron');x.disabled=!x.disabled;this.textContent=x.disabled?'tron OFF':'tron ON'">tron ON</button>
+
+<header class="terminal-header">
+  <span class="brand">STOCKTOPUS</span>
+  <div class="cmd-bar"><span class="cmd-prompt">&gt;</span><input class="cmd-input" placeholder="enter command..." spellcheck="false"></div>
+  <div class="security-selector"><input class="security-input" value="LEE" spellcheck="false"></div>
+  <span class="watchlist-picker">Default</span>
+  <div class="conn-status connected">CONNECTED</div>
+</header>
+
+<div class="terminal-body">
+  <main class="terminal-content" data-view="security">
+    <div class="company-panel">
+      <span class="cpanel-sym">AVGO</span>
+      <span class="cpanel-name">Broadcom Inc.</span>
+      <span class="cpanel-price">411.35</span>
+      <span class="cpanel-change price-up">+18.45 (4.70%)</span>
+      <span class="cpanel-spark-label">6m</span>
+      <svg class="demo-spark" width="150" height="34" viewBox="0 0 150 34">
+        <polyline fill="none" stroke="var(--green)" stroke-width="1.5"
+          points="0,24 12,22 24,25 36,20 48,21 60,17 72,19 84,14 96,16 108,9 116,12 124,7 132,10 140,8 150,9"/>
+      </svg>
+    </div>
+
+    <div class="info-tabs st-tab-row" id="info-tabs" data-vim-row>
+      <button class="info-tab st-tab active st-tab--active" data-tab="overview"><span class="tab-key">1</span> Overview</button>
+      <button class="info-tab st-tab" data-tab="financials"><span class="tab-key">2</span> Financial Modeling</button>
+      <button class="info-tab st-tab" data-tab="estimates"><span class="tab-key">3</span> Estimates</button>
+      <button class="info-tab st-tab" data-tab="news"><span class="tab-key">4</span> News</button>
+      <button class="info-tab st-tab" data-tab="ai"><span class="tab-key">5</span> AI Analysis</button>
+      <button class="info-tab st-tab" data-tab="sector"><span class="tab-key">6</span> Sector</button>
+      <button class="info-tab st-tab" data-tab="sec"><span class="tab-key">7</span> SEC</button>
+    </div>
+
+    <div id="info-content" class="info-content">
+      <div class="info-overview">
+        <div class="info-grid info-grid-dense">
+          <div class="info-stat"><span class="info-stat-label">Market Cap</span><span class="info-stat-value">1.96T</span></div>
+          <div class="info-stat"><span class="info-stat-label">P/E (TTM)</span><span class="info-stat-value">66.45</span></div>
+          <div class="info-stat"><span class="info-stat-label">EPS (TTM)</span><span class="info-stat-value">—</span></div>
+          <div class="info-stat"><span class="info-stat-label">Dividend</span><span class="info-stat-value">$2.48</span></div>
+          <div class="info-stat"><span class="info-stat-label">Beta</span><span class="info-stat-value">1.433</span></div>
+          <div class="info-stat"><span class="info-stat-label">52w Range</span><span class="info-stat-value">246.46–495</span></div>
+          <div class="info-stat"><span class="info-stat-label">Volume</span><span class="info-stat-value">39.99M</span></div>
+          <div class="info-stat"><span class="info-stat-label">Avg Volume</span><span class="info-stat-value">25.69M</span></div>
+          <div class="info-stat"><span class="info-stat-label">EV/EBITDA</span><span class="info-stat-value">50.62</span></div>
+          <div class="info-stat"><span class="info-stat-label">EV/Sales</span><span class="info-stat-value">27.51</span></div>
+          <div class="info-stat"><span class="info-stat-label">Current Ratio</span><span class="info-stat-value">2.24</span></div>
+          <div class="info-stat"><span class="info-stat-label">Debt/Equity</span><span class="info-stat-value">0.74</span></div>
+          <div class="info-stat"><span class="info-stat-label">ROE</span><span class="info-stat-value">—</span></div>
+          <div class="info-stat"><span class="info-stat-label">Gross Margin</span><span class="info-stat-value">66.96%</span></div>
+          <div class="info-stat"><span class="info-stat-label">Net Margin</span><span class="info-stat-value">38.85%</span></div>
+          <div class="info-stat"><span class="info-stat-label">P/B</span><span class="info-stat-value">22.27</span></div>
+        </div>
+
+        <div class="info-overview-top">
+          <div class="info-overview-left">
+            <div class="info-people-header">Key People <span class="info-people-meta">25 on file · <a class="info-people-more">timeline →</a></span></div>
+            <ul class="info-people-list">
+              <li class="info-people-row"><span class="kp-event officer">officer</span><span class="info-people-name">Brazeal Mark David</span><span class="info-people-title">Chief Legal &amp; Corp Affairs Ofc</span></li>
+              <li class="info-people-row"><span class="kp-event officer">officer</span><span class="info-people-name">Charlie B. Kawwas, Ph.D.</span><span class="info-people-title">President, Semiconductor Solutions Group</span></li>
+              <li class="info-people-row"><span class="kp-event officer">officer</span><span class="info-people-name">Hock E. Tan</span><span class="info-people-title">President, Chief Executive Officer and Director</span></li>
+              <li class="info-people-row"><span class="kp-event officer">officer</span><span class="info-people-name">Kirsten M. Spears</span><span class="info-people-title">Chief Financial Officer and Chief Accounting Officer</span></li>
+              <li class="info-people-row"><span class="kp-event officer">officer</span><span class="info-people-name">Mark D. Brazeal</span><span class="info-people-title">Chief Legal and Corporate Affairs Officer</span></li>
+              <li class="info-people-row"><span class="kp-event both">both</span><span class="info-people-name">Tan Hock E</span><span class="info-people-title">President and CEO</span></li>
+              <li class="info-people-row"><span class="kp-event director">director</span><span class="info-people-name">Bryant Diane M</span><span class="info-people-title">Director</span></li>
+              <li class="info-people-row"><span class="kp-event director">director</span><span class="info-people-name">Check Kian Low</span><span class="info-people-title">Director</span></li>
+              <li class="info-people-row"><span class="kp-event director">director</span><span class="info-people-name">Diane M. Bryant</span><span class="info-people-title">Director</span></li>
+            </ul>
+            <div class="info-people-more-row"><a>+ 11 more on the SEC tab</a></div>
+          </div>
+          <div class="info-overview-right">
+            <div class="info-overview-meta">
+              <span class="info-overview-meta-item">Technology / Semiconductors</span>
+              <span class="info-overview-meta-item">CEO: Hock E. Tan</span>
+              <span class="info-overview-meta-item">37000 employees</span>
+              <span class="info-overview-meta-item">NASDAQ</span>
+              <span class="info-overview-meta-item"><a>https://www.broadcom.com</a></span>
+            </div>
+            <p class="info-description">Broadcom Inc. is a prominent global technology enterprise focused on the innovation, development, and supply of advanced semiconductor solutions and critical infrastructure software. The company's headquarters are situated in San Jose, California, and it maintains a significant team of 19,000 full-time staff.</p>
+            <p class="info-description">Its operations are segmented into four primary divisions: Wired Infrastructure, Wireless Communications, Enterprise Storage, and Industrial &amp; Other. Broadcom's diverse product range is integrated into numerous end-user technologies, including enterprise and data center networking, residential internet solutions, digital television receivers, telecommunications apparatus, mobile phones, data center servers and storage architectures, industrial automation, alternative and power generation systems, and electronic display technologies.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<footer class="terminal-footer">
+  <span class="footer-mode normal">NORMAL</span>
+  <span class="footer-view">INFO</span>
+  <span class="footer-help">1–7 tabs · h/l sub-tabs · j/k rows · a → ideas</span>
+  <div class="footer-clocks">
+    <span class="tz-block"><span class="tz-label">ET</span>23:02</span>
+    <span class="tz-block"><span class="tz-label">UTC</span>03:02</span>
+    <span class="tz-block"><span class="tz-label">JST</span>12:02</span>
+  </div>
+</footer>
+
+<!-- Tweaks: three expressive controls that reshape the Overview -->
+<div id="tweaks-root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel">
+const { useEffect } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "density": "cards",
+  "detail": "both",
+  "highlight": "margins"
+}/*EDITMODE-END*/;
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  // 1 — STAT DENSITY: dashboard cards → compact grid → at-a-glance minimal
+  useEffect(() => {
+    const grid = document.querySelector('.info-grid');
+    if (!grid) return;
+    grid.classList.remove('density-compact', 'density-minimal');
+    if (t.density === 'compact') grid.classList.add('density-compact');
+    else if (t.density === 'minimal') grid.classList.add('density-minimal');
+  }, [t.density]);
+
+  // 2 — DETAIL FOCUS: people + profile, or spotlight one of them
+  useEffect(() => {
+    const top = document.querySelector('.info-overview-top');
+    if (!top) return;
+    top.classList.remove('focus-people', 'focus-profile');
+    if (t.detail === 'people') top.classList.add('focus-people');
+    else if (t.detail === 'profile') top.classList.add('focus-profile');
+  }, [t.detail]);
+
+  // 3 — HIGHLIGHT: ignite a thematic set of metrics (margins / valuation)
+  useEffect(() => {
+    const MARGINS = ['gross margin', 'net margin', 'roe'];
+    const VALUE = ['p/e', 'ev/ebitda', 'ev/sales', 'p/b'];
+    document.querySelectorAll('.info-stat').forEach(s => {
+      s.classList.remove('ignite-green', 'ignite-amber');
+      const label = (s.querySelector('.info-stat-label')?.textContent || '').toLowerCase().trim();
+      if (t.highlight === 'margins' && MARGINS.includes(label)) s.classList.add('ignite-green');
+      if (t.highlight === 'valuation' && VALUE.includes(label)) s.classList.add('ignite-amber');
+    });
+  }, [t.highlight]);
+
+  return (
+    <TweaksPanel>
+      <TweakSection label="Metrics" />
+      <TweakRadio label="Density" value={t.density}
+        options={['cards', 'compact', 'minimal']}
+        onChange={(v) => setTweak('density', v)} />
+      <TweakRadio label="Highlight" value={t.highlight}
+        options={['none', 'margins', 'valuation']}
+        onChange={(v) => setTweak('highlight', v)} />
+      <TweakSection label="Detail" />
+      <TweakRadio label="Focus" value={t.detail}
+        options={['both', 'people', 'profile']}
+        onChange={(v) => setTweak('detail', v)} />
+    </TweaksPanel>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('tweaks-root')).render(<App />);
+</script>
+</body></html>

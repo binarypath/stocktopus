@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stocktopus — AVGO — News (Tron preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_real-style.css">
+<link rel="stylesheet" href="tron.css" id="tron">
+<style>
+  body{font-family:'Fira Code',var(--font-mono)}
+  #t{position:fixed;top:6px;right:10px;z-index:9999;font:11px 'Fira Code',monospace;background:var(--bg-tertiary);color:var(--accent-orange);border:1px solid var(--accent-orange);border-radius:5px;padding:4px 9px;cursor:pointer}
+  .demo-spark{display:inline-block;vertical-align:middle;margin-left:8px}
+</style></head>
+<body>
+<button id="t" onclick="var x=document.getElementById('tron');x.disabled=!x.disabled;this.textContent=x.disabled?'tron OFF':'tron ON'">tron ON</button>
+
+<header class="terminal-header">
+  <span class="brand">STOCKTOPUS</span>
+  <div class="cmd-bar"><span class="cmd-prompt">&gt;</span><input class="cmd-input" placeholder="enter command..." spellcheck="false"></div>
+  <div class="security-selector"><input class="security-input" value="LEE" spellcheck="false"></div>
+  <span class="watchlist-picker">Default</span>
+  <div class="conn-status connected">CONNECTED</div>
+</header>
+
+<div class="terminal-body">
+  <main class="terminal-content" data-view="security">
+    <div class="company-panel" style="padding: 0px 0px 0px 17px">
+      <span class="cpanel-sym">AVGO</span>
+      <span class="cpanel-name">Broadcom Inc.</span>
+      <span class="cpanel-price">411.35</span>
+      <span class="cpanel-change price-up">+18.45 (4.70%)</span>
+      <span class="cpanel-spark-label">6m</span>
+      <svg class="demo-spark" width="150" height="34" viewBox="0 0 150 34">
+        <polyline fill="none" stroke="var(--green)" stroke-width="1.5"
+          points="0,24 12,22 24,25 36,20 48,21 60,17 72,19 84,14 96,16 108,9 116,12 124,7 132,10 140,8 150,9"/>
+      </svg>
+    </div>
+
+    <div class="info-tabs st-tab-row" id="info-tabs" data-vim-row>
+      <button class="info-tab st-tab" data-tab="overview"><span class="tab-key">1</span> Overview</button>
+      <button class="info-tab st-tab" data-tab="financials"><span class="tab-key">2</span> Financial Modeling</button>
+      <button class="info-tab st-tab" data-tab="estimates"><span class="tab-key">3</span> Estimates</button>
+      <button class="info-tab st-tab active st-tab--active" data-tab="news"><span class="tab-key">4</span> News</button>
+      <button class="info-tab st-tab" data-tab="ai"><span class="tab-key">5</span> AI Analysis</button>
+      <button class="info-tab st-tab" data-tab="sector"><span class="tab-key">6</span> Sector</button>
+      <button class="info-tab st-tab" data-tab="sec"><span class="tab-key">7</span> SEC</button>
+    </div>
+
+    <div id="info-content" class="info-content" style="margin: 0px 7px 0px 9px">
+      <div class="info-sub-tabs news-sub-tabs st-tab-row st-tab-row--blue" id="news-sub-tabs" data-vim-row>
+        <button class="info-sub-tab st-tab active" data-cat="press">Press Releases</button>
+        <button class="info-sub-tab st-tab" data-cat="articles">Articles</button>
+        <button class="info-sub-tab st-tab" data-cat="stock">Stock</button>
+        <button class="info-sub-tab st-tab" data-cat="crypto">Crypto</button>
+        <button class="info-sub-tab st-tab" data-cat="forex">Forex</button>
+        <button class="info-sub-tab st-tab" data-cat="general">General</button>
+      </div>
+      <div class="news-cards" id="info-news-cards">
+        <div class="news-card">
+          <div class="news-card-title"><a>Broadcom Inc. Announces Results and Upsize of Offers to Purchase for Cash Certain of its Outstanding Debt Securities</a></div>
+          <div class="news-card-meta"><span>PRNewsWire</span><span>Jun 17, 2026</span></div>
+          <div class="news-card-text">PALO ALTO, Calif., June 17, 2026 /PRNewswire/ — Broadcom Inc. (NASDAQ: AVGO) ("Broadcom") today announced the expiration and results of its previously announced cash tender offers (collectively, the "Offers") to purchas…</div>
+        </div>
+        <div class="news-card news-unread" style="padding: 12px 15px 12px 16px; height: 115px; width: 1547px">
+          <div class="news-card-title"><a>Broadcom Inc. Announces Pricing Terms of Offers to Purchase for Cash Certain of its Outstanding Debt Securities</a></div>
+          <div class="news-card-meta"><span>PRNewsWire</span><span>Jun 17, 2026</span></div>
+          <div class="news-card-text">PALO ALTO, Calif., June 17, 2026 /PRNewswire/ — Broadcom Inc. (NASDAQ: AVGO) ("Broadcom") today announced the pricing terms of its previously announced cash tender offers (collectively, the "Offers") to purchase the out…</div>
+        </div>
+        <div class="news-card news-unread">
+          <div class="news-card-title"><a>Broadcom Inc. Commences Offers to Purchase for Cash Certain of its Outstanding Debt Securities</a></div>
+          <div class="news-card-meta"><span>PRNewsWire</span><span>Jun 11, 2026</span></div>
+          <div class="news-card-text">PALO ALTO, Calif., June 11, 2026 /PRNewswire/ — Broadcom Inc. (NASDAQ: AVGO) ("Broadcom") today announced that it has commenced cash tender offers (collectively, the "Offers") to purchase the outstanding notes described…</div>
+        </div>
+        <div class="news-card news-unread">
+          <div class="news-card-title"><a>Broadcom's Private Cloud Outlook 2026 Reveals an AI Tipping Point as Production Inference Shifts Decisively to Private Cloud</a></div>
+          <div class="news-card-meta"><span>GlobeNewsWire</span><span>Jun 9, 2026</span></div>
+          <div class="news-card-text">According to Broadcom's Private Cloud Outlook 2026 report, the private cloud is where enterprise AI workloads are being deployed for security and scale.</div>
+        </div>
+        <div class="news-card news-unread">
+          <div class="news-card-title"><a>Broadcom, Apollo, and Blackstone Establish Landmark Strategic Platform to Accelerate More Than 20 Gigawatts of Global AI Deployments</a></div>
+          <div class="news-card-meta"><span>PRNewsWire</span><span>Jun 9, 2026</span></div>
+          <div class="news-card-text">Platform Launches with $35 Billion Transaction for More Than 1 Gigawatt Led by Apollo in Partnership with Blackstone PALO ALTO, Calif. and NEW YORK, June 9, 2026 /PRNewswire/ — Broadcom Inc. (NASDAQ: AVGO), a global tec…</div>
+        </div>
+        <div class="news-card news-unread">
+          <div class="news-card-title"><a>The Redesign Group Achieves Pinnacle Partner Status in the Broadcom Advantage Partner Program</a></div>
+          <div class="news-card-meta"><span>Business Wire</span><span>Jun 9, 2026</span></div>
+          <div class="news-card-text">The Redesign Group today announced it has achieved Pinnacle Partner status, the highest tier in the Broadcom Advantage Partner Program, recognising its expertise across the VMware Cloud Foundation portfolio.</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<footer class="terminal-footer">
+  <span class="footer-mode normal">NORMAL</span>
+  <span class="footer-view">INFO</span>
+  <span class="footer-help">1–7 tabs · h/l sub-tabs · j/k rows · a → ideas</span>
+  <div class="footer-clocks">
+    <span class="tz-block"><span class="tz-label">ET</span>23:03</span>
+    <span class="tz-block"><span class="tz-label">UTC</span>03:03</span>
+    <span class="tz-block"><span class="tz-label">JST</span>12:03</span>
+  </div>
+</footer>
+</body></html>

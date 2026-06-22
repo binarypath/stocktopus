@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stocktopus — Tron overlay preview (real style.css)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- the REAL production stylesheet -->
+  <link rel="stylesheet" href="../internal/server/static/style.css">
+  <!-- the additive Tron overlay (toggle with the button) -->
+  <link rel="stylesheet" href="tron.css" id="tron">
+  <style>
+    body { font-family: 'Fira Code', var(--font-mono); }
+    #toggle {
+      position: fixed; top: 8px; right: 12px; z-index: 9999;
+      font-family: 'Fira Code', monospace; font-size: 11px;
+      background: var(--bg-tertiary); color: var(--accent-orange);
+      border: 1px solid var(--accent-orange); border-radius: 4px;
+      padding: 5px 10px; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <button id="toggle" onclick="var t=document.getElementById('tron');t.disabled=!t.disabled;this.textContent=t.disabled?'tron: OFF':'tron: ON';">tron: ON</button>
+
+  <header class="terminal-header">
+    <span class="brand">STOCKTOPUS</span>
+    <div class="cmd-bar">
+      <span class="cmd-prompt">&gt;</span>
+      <input class="cmd-input" type="text" placeholder="enter command..." value="info NVDA" spellcheck="false">
+    </div>
+    <div class="security-selector">
+      <input class="security-input" type="text" value="NVDA" spellcheck="false">
+    </div>
+    <span class="watchlist-picker">Default</span>
+    <div class="conn-status connected">CONNECTED</div>
+  </header>
+
+  <div class="terminal-body">
+    <main class="terminal-content" data-view="security">
+      <div class="company-panel">
+        <span class="cpanel-sym">NVDA</span>
+        <span class="cpanel-name">NVIDIA Corp.</span>
+        <span class="cpanel-price">$121.08</span>
+        <span class="cpanel-change price-up">+3.61 (+3.07%)</span>
+      </div>
+
+      <div class="info-tabs st-tab-row" id="info-tabs" data-vim-row>
+        <button class="info-tab st-tab active st-tab--active" data-tab="overview">Overview</button>
+        <button class="info-tab st-tab" data-tab="financials">Financial Modeling</button>
+        <button class="info-tab st-tab" data-tab="estimates">Estimates</button>
+        <button class="info-tab st-tab" data-tab="news">News</button>
+        <button class="info-tab st-tab" data-tab="ai">AI Analysis</button>
+        <button class="info-tab st-tab" data-tab="sector">Sector</button>
+        <button class="info-tab st-tab" data-tab="sec">SEC</button>
+      </div>
+
+      <div class="info-content">
+        <div class="info-grid">
+          <div class="info-stat"><span class="info-stat-label">Mkt Cap</span><span class="info-stat-value">2.98T</span></div>
+          <div class="info-stat"><span class="info-stat-label">P/E</span><span class="info-stat-value">54.7</span></div>
+          <div class="info-stat"><span class="info-stat-label">Beta</span><span class="info-stat-value">1.66</span></div>
+          <div class="info-stat"><span class="info-stat-label">Volume</span><span class="info-stat-value">288M</span></div>
+        </div>
+
+        <div style="margin:18px 0 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--accent-orange)">Technology — Peers</div>
+        <table class="quote-table">
+          <thead><tr><th>Security</th><th>Company</th><th>Price</th><th>Δ% 1d</th><th>Δ% 6m</th><th>Mkt Cap</th></tr></thead>
+          <tbody>
+            <tr class="vim-selected">
+              <td><span class="sym-link">NVDA</span></td><td>NVIDIA Corp.</td>
+              <td>121.08</td><td class="price-up">+3.07%</td><td class="price-up">+41.80%</td><td>2.98T</td>
+            </tr>
+            <tr>
+              <td><span class="sym-link">AAPL</span></td><td>Apple Inc.</td>
+              <td>187.42</td><td class="price-up">+1.24%</td><td class="price-up">+9.40%</td><td>2.94T</td>
+            </tr>
+            <tr>
+              <td><span class="sym-link">AMD</span></td><td>Advanced Micro Dev.</td>
+              <td>158.31</td><td class="price-up">+2.44%</td><td class="price-down">-3.10%</td><td>256B</td>
+            </tr>
+            <tr>
+              <td><span class="sym-link">MSFT</span></td><td>Microsoft Corp.</td>
+              <td>414.20</td><td class="price-flat">0.00%</td><td class="price-up">+7.90%</td><td>3.08T</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <footer class="terminal-footer">
+    <span class="footer-mode normal">NORMAL</span>
+    <span class="footer-view">SECURITY</span>
+    <span class="footer-help">/ cmd · s security · hjkl nav · : chart cmd</span>
+    <div class="footer-clocks">
+      <span class="tz-block"><span class="tz-label">ET</span>09:41:08</span>
+      <span class="tz-block"><span class="tz-label">UTC</span>13:41:08</span>
+      <span class="tz-block"><span class="tz-label">JST</span>22:41:08</span>
+    </div>
+  </footer>
+</body>
+</html>

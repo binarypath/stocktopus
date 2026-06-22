@@ -1,0 +1,541 @@
+/* ============================================================================
+   tron.css — Stocktopus "terminal of the future" enhancement layer
+   ----------------------------------------------------------------------------
+   ADDITIVE overlay. Include this AFTER style.css; it touches nothing structural
+   and overrides only paint (glow, ignite-on-active). Remove the one <link> to
+   fully revert. It reuses the tokens already defined in style.css :root
+   (--accent-orange, --accent-blue, --green, --red, surfaces, --emphasis-2,
+   --duration-*, --ease-select) and only adds a glow + Tron-backdrop layer.
+
+   Philosophy (unchanged from design-language-unification.md): default is matte
+   and muted; an element IGNITES — colour brightens + neon bloom — only when it
+   is active / selected / focused / live. Glow is the selection language.
+   ============================================================================ */
+
+:root {
+    /* Hotter hazard yellow (was #ccaa00) — brighter, more "danger". */
+    --yellow: #ffcc00;
+
+    /* Deeper Tron canvas. */
+    --bg-deep: #060709;
+    --bg-void: #030405;
+
+    /* Box-shadow glows (layered near + far bloom). */
+    --glow-amber:  0 0 6px color-mix(in srgb, var(--accent-orange) 55%, transparent),
+                   0 0 18px color-mix(in srgb, var(--accent-orange) 28%, transparent);
+    --glow-cyan:   0 0 6px color-mix(in srgb, var(--accent-blue) 55%, transparent),
+                   0 0 18px color-mix(in srgb, var(--accent-blue) 28%, transparent);
+    --glow-green:  0 0 6px color-mix(in srgb, var(--green) 55%, transparent),
+                   0 0 16px color-mix(in srgb, var(--green) 26%, transparent);
+    --glow-red:    0 0 6px color-mix(in srgb, var(--red) 55%, transparent),
+                   0 0 16px color-mix(in srgb, var(--red) 26%, transparent);
+
+    /* Text-shadow glows (igniting type). */
+    --text-glow-amber: 0 0 8px color-mix(in srgb, var(--accent-orange) 70%, transparent);
+    --text-glow-cyan:  0 0 8px color-mix(in srgb, var(--accent-blue) 70%, transparent);
+    --text-glow-green: 0 0 8px color-mix(in srgb, var(--green) 70%, transparent);
+    --text-glow-red:   0 0 8px color-mix(in srgb, var(--red) 70%, transparent);
+
+    /* Glowing left-rails for selected rows (solid edge + soft inner bloom). */
+    --rail-glow-amber: inset 2px 0 0 var(--accent-orange),
+                       inset 10px 0 14px -8px color-mix(in srgb, var(--accent-orange) 70%, transparent);
+    --rail-glow-cyan:  inset 2px 0 0 var(--accent-blue),
+                       inset 10px 0 14px -8px color-mix(in srgb, var(--accent-blue) 70%, transparent);
+
+    /* Panel-box system (Stadion-inspired): rounded grey boxes, thin row
+       lines, ONE consistent corner radius + gap. Tighter radius for
+       bars/inputs/controls so the nav reads elegant, not chunky. */
+    --panel-bg:       #16191c;
+    --panel-bg-soft:  #1b1f23;
+    --panel-border:   #2a2f34;
+    --panel-radius:   16px;
+    --control-radius: 9px;
+    --panel-gap:      9px;
+    --row-line:       rgba(255, 255, 255, 0.06);
+}
+
+/* ───────────────────────── BACKDROP ─────────────────────────
+   Deepen the canvas and lay a single centered glow well behind the content.
+   No grid lines — they fight tabular data. Subtle by design; foreground glow
+   should dominate. */
+body { background: var(--bg-deep); }
+
+.terminal-content {
+    flex: 1;
+    padding: 8px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background-color: var(--bg-deep);
+    background-image:
+        radial-gradient(120% 80% at 50% -10%,
+            color-mix(in srgb, var(--accent-blue) 8%, transparent) 0%,
+            transparent 55%);
+    background-attachment: local;
+}
+
+/* ───────────────────────── SHELL ─────────────────────────  */
+
+/* Underlit header rule — cyan→amber glowing edge beneath the chrome. */
+.terminal-header { position: relative; }
+.terminal-header::after {
+    content: '';
+    position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+    background: linear-gradient(90deg, transparent 0%,
+        color-mix(in srgb, var(--accent-blue) 55%, transparent) 30%,
+        color-mix(in srgb, var(--accent-orange) 55%, transparent) 70%, transparent 100%);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent-blue) 30%, transparent);
+    pointer-events: none;
+}
+.brand { text-shadow: var(--text-glow-amber); }
+
+/* Command bar ignites amber on focus. */
+.cmd-bar:focus-within { box-shadow: var(--glow-amber); }
+.cmd-prompt { text-shadow: var(--text-glow-amber); }
+
+/* Security selector ignites cyan on focus. */
+.security-input:focus { box-shadow: var(--glow-cyan); }
+
+/* Connection status — green bloom + brighter border when live. */
+.conn-status.connected {
+    border-color: color-mix(in srgb, var(--green) 60%, var(--border));
+    box-shadow: var(--glow-green);
+    text-shadow: var(--text-glow-green);
+}
+
+/* Footer mode + view ignite. */
+.footer-mode.normal { text-shadow: var(--text-glow-green); }
+.footer-mode.insert { text-shadow: var(--text-glow-amber); }
+.footer-view { text-shadow: var(--text-glow-amber); }
+
+/* ───────────────────────── TABS / NAV ─────────────────────────
+   The base draws a full-width baseline (inset 0 -1px 0 border) under every
+   tab/range row, plus a 50% pill fill on the active tab. That reads as an
+   ugly single underline with the pills "floating" on it. Here the nav
+   blends into the background: no baseline, no pill fill — the active tab is
+   just brighter amber/cyan text with a short underline tick beneath it. */
+
+/* 1 — kill the full-row baseline everywhere it's used as chrome, including
+        the runtime vim-focus + tab-row-focused variants that re-add it */
+.st-tab-row, .info-tabs, .chart-range-bar,
+.info-sub-tabs, .news-sub-tabs, .economics-tabs,
+.info-tabs.tab-row-focused, .st-tab-row.tab-row-focused,
+.st-tab-row[data-vim-row]:has(.vim-selected),
+.info-tabs[data-vim-row]:has(.vim-selected),
+.info-sub-tabs[data-vim-row]:has(.vim-selected),
+.news-sub-tabs[data-vim-row]:has(.vim-selected),
+.economics-tabs[data-vim-row]:has(.vim-selected) {
+    box-shadow: none !important;
+    border-bottom: none !important;
+}
+
+/* 2 — tabs never wrap, and give them room to breathe */
+.st-tab, .info-tab, .info-sub-tab, .chart-range-btn { white-space: nowrap; }
+
+/* 3 — primary nav: inactive tabs blend into the background; the ACTIVE tab
+        is a full-height amber-tinted block that fills the entire nav band
+        (top info panel → lower content panel), with equal breathing room
+        above and below. Each tab keeps a numbered key badge (generated via
+        a counter, so no template change is needed). */
+.info-tabs {
+    counter-reset: tabnum;
+    align-items: stretch;          /* tabs fill the band height */
+    margin: var(--panel-gap) 0;    /* equidistant gap to the panels */
+}
+.info-tabs .info-tab {
+    counter-increment: tabnum;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    position: relative;
+    padding-top: var(--space-3);
+    padding-bottom: var(--space-3);
+    border-radius: 0;   /* main nav tabs are square — no rounded corners */
+}
+/* repurpose the base sliding-pill ::before as the key badge */
+.info-tabs .info-tab::before {
+    content: counter(tabnum) !important;
+    position: static !important;
+    inset: auto !important;
+    transform: none !important;
+    opacity: 1 !important;
+    background: transparent !important;
+    border: 1px solid var(--panel-border) !important;
+    border-radius: 4px !important;
+    color: var(--text-tertiary);
+    font-size: 10px;
+    line-height: 1;
+    padding: 2px 4px;
+    z-index: 1;
+    box-shadow: none !important;
+}
+/* active / vim-selected = highlighted like a selected data row: a 2px orange
+   rail at the left with a horizontal orange gradient fading right into black,
+   amber text + neon bloom. Matches .vim-selected rows. */
+.info-tabs .info-tab.active,
+.info-tabs .info-tab.vim-selected {
+    color: #fff;
+    text-shadow: var(--text-glow-amber);
+    background: linear-gradient(90deg,
+        color-mix(in srgb, var(--accent-orange) 34%, var(--bg-primary)) 0%,
+        color-mix(in srgb, var(--accent-orange) 13%, var(--bg-primary)) 45%,
+        transparent 100%) !important;
+    box-shadow: inset 2px 0 0 var(--accent-orange),
+                inset 10px 0 16px -10px color-mix(in srgb, var(--accent-orange) 70%, transparent),
+                0 0 14px -4px color-mix(in srgb, var(--accent-orange) 55%, transparent) !important;
+}
+.info-tabs .info-tab.active::before,
+.info-tabs .info-tab.vim-selected::before {
+    color: var(--accent-orange);
+    border-color: color-mix(in srgb, var(--accent-orange) 55%, var(--panel-border)) !important;
+}
+
+/* 4 — range / sub-tab strips keep their base fill but ignite the active
+        label; no extra full-width underline */
+.st-tab--active, .st-tab.vim-selected,
+.economics-tab.active, .st-tab.active { text-shadow: var(--text-glow-amber); }
+.info-sub-tab.active, .info-sub-tab.vim-selected,
+.st-tab-row--blue .st-tab--active { text-shadow: var(--text-glow-cyan); }
+
+/* 5 — Sub-tab strip (news / financials / SEC) IS the top of the info panel:
+        a full-bleed navigation band flush to the panel's top + side edges,
+        clipped to the panel's rounded top corners. The active sub-tab fills
+        it in blue, full height, edge to edge. */
+.info-content { overflow: hidden; }   /* clip the band to the panel's rounded top */
+/* The SEC view wraps its band in .sec-view; flatten it for layout so the band
+   bleeds to the panel top exactly like the news/financials bands (direct child). */
+.info-content > .sec-view { display: contents; }
+.info-sub-tabs, .news-sub-tabs {
+    align-items: stretch;          /* tabs fill the band height */
+    gap: 0;
+    /* bleed out over the panel's top + side padding so the whole top of the
+       container reads as the navigation */
+    margin: calc(var(--panel-gap) * -1) calc(var(--panel-gap) * -1) var(--panel-gap);
+    padding: 0;
+    border-radius: 0;              /* the panel's overflow:hidden rounds the corners */
+    background: var(--panel-bg-soft);
+    border: none !important;
+    border-bottom: 1px solid var(--panel-border) !important;
+}
+.info-sub-tabs .info-sub-tab,
+.news-sub-tabs .info-sub-tab {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 0;
+    padding: var(--space-2) var(--space-4);
+}
+/* neutralise the base sliding pill so the solid full-height fill is clean */
+.info-sub-tabs .info-sub-tab::before,
+.news-sub-tabs .info-sub-tab::before { display: none !important; }
+/* the active fill — solid blue, full height, edge to edge */
+.info-sub-tabs .info-sub-tab.active,
+.info-sub-tabs .info-sub-tab.vim-selected,
+.news-sub-tabs .info-sub-tab.active,
+.news-sub-tabs .info-sub-tab.vim-selected {
+    background: color-mix(in srgb, var(--accent-blue) 30%, transparent) !important;
+    color: var(--accent-blue);
+    box-shadow: 0 0 16px -5px color-mix(in srgb, var(--accent-blue) 60%, transparent);
+}
+
+/* ───────────────────────── SELECTION ─────────────────────────
+   Orange glow gradient — bright at the rail edge, fading to black across the
+   row (mirrors the cyan ideas-list treatment). No flat brown wash. */
+.vim-selected, .st-row-selected {
+    background: linear-gradient(90deg,
+        color-mix(in srgb, var(--accent-orange) 32%, var(--bg-primary)) 0%,
+        color-mix(in srgb, var(--accent-orange) 12%, var(--bg-primary)) 45%,
+        transparent 100%) !important;
+    box-shadow: inset 2px 0 0 var(--accent-orange),
+                inset 10px 0 16px -10px color-mix(in srgb, var(--accent-orange) 70%, transparent) !important;
+}
+.info-sub-tabs .vim-selected, .news-sub-tabs .vim-selected,
+.st-row-selected--blue {
+    background: linear-gradient(90deg,
+        color-mix(in srgb, var(--accent-blue) 32%, var(--bg-primary)) 0%,
+        color-mix(in srgb, var(--accent-blue) 12%, var(--bg-primary)) 45%,
+        transparent 100%) !important;
+    box-shadow: inset 2px 0 0 var(--accent-blue),
+                inset 10px 0 16px -10px color-mix(in srgb, var(--accent-blue) 70%, transparent) !important;
+}
+
+/* Active pane — add a top-edge amber bloom to the existing inset bar. */
+.st-pane-active,
+.ideas-sidebar.pane-focused, .ideas-main.pane-focused,
+.screener-filters.pane-focused, .screener-results.pane-focused {
+    box-shadow: inset 0 2px 0 var(--accent-orange),
+                inset 0 14px 18px -14px color-mix(in srgb, var(--accent-orange) 60%, transparent) !important;
+}
+
+/* ───────────────────────── IDENTITY & CHIPS ─────────────────────────  */
+
+/* Security symbols carry a faint cyan glow (identity = cyan). */
+.cpanel-sym, .idx-sym, .st-link-sym:hover, .sym-link:hover { text-shadow: var(--text-glow-cyan); }
+
+/* Solid chips bloom in their own colour. */
+.st-chip--orange { box-shadow: var(--glow-amber); }
+.st-chip--blue   { box-shadow: var(--glow-cyan); }
+
+/* ───────────────────────── MARKET DATA ─────────────────────────
+   Keep deltas matte in tables (density!), but let the hero price-change
+   and sparkline labels glow. */
+.cpanel-change.price-up, .wl-spark-label.price-up,
+.cpanel-change .price-up { text-shadow: var(--text-glow-green); }
+.cpanel-change.price-down, .wl-spark-label.price-down,
+.cpanel-change .price-down { text-shadow: var(--text-glow-red); }
+
+/* Stat values read as neon-white headline figures. */
+.info-stat-value {
+    color: #fff;
+    text-shadow: 0 0 2px rgba(255,255,255,0.85), 0 0 12px rgba(255,255,255,0.4),
+                 0 0 22px rgba(180,220,255,0.22);
+}
+.info-stat { transition: border-color var(--duration-2, 180ms), box-shadow var(--duration-2, 180ms); }
+.info-stat:hover {
+    border-color: color-mix(in srgb, var(--accent-blue) 40%, var(--border));
+    box-shadow: var(--glow-cyan);
+}
+
+/* ───────────────────────── TABLE CHROME ─────────────────────────
+   A whisper of amber along the top edge of data tables (echoes the
+   "neon-orange → black" gradient without hurting row legibility). */
+.quote-table, .screener-table, .st-table {
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent-orange) 28%, transparent);
+}
+
+/* Inputs ignite cyan on focus (single focused-control language). */
+.st-input:focus, .screener-form input:focus, .add-security-form input:focus {
+    box-shadow: var(--glow-cyan);
+}
+
+/* ───────────────────────── PANEL BOXES ─────────────────────────
+   Stadion-inspired: every bordered container shares ONE rounded-grey
+   treatment — same radius, same border, same grey. Big radius on cards/
+   panels; tighter --control-radius on bars/inputs/pills so the nav stays
+   elegant. Thin low-contrast line under each table row. */
+
+/* Container panels — big radius */
+.info-stat, .info-content, .screener-filters,
+.screener-results, .ideas-sidebar, .ideas-main, .economics-panel,
+.idx-card, .reader-panel, .news-item, .info-grid > * {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+}
+
+/* Company panel — plain row (NOT a box): just spacing + a small left inset. */
+.company-panel {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    padding-left: 12px;
+}
+.company-panel .cpanel-name,
+.company-panel .cpanel-change { white-space: nowrap; }
+
+/* Info / overview panel — inner padding (fixes left-edge crowding) and a
+   clean horizontal cut-off at the rounded right edge (kept, as liked).
+   Vertical scroll from the base rule is preserved. */
+/* Info / overview panel — inner padding equals the global --panel-gap so any
+   nested box (sub-tab band, etc.) sits in a consistent gap. Clean horizontal
+   cut-off at the rounded right edge is kept. */
+.info-content {
+    padding: var(--panel-gap) var(--panel-gap) 0 var(--panel-gap);
+    overflow-x: hidden;
+}
+.info-content .crypto-name { white-space: nowrap; }
+
+/* Primary nav sits midway between the panel above and the panel below
+   with equal breathing room, blending into the background. */
+.info-tabs { margin: var(--panel-gap) 0; }
+
+/* Controls / nav — tighter radius */
+.cmd-bar, .security-input, .security-selector, .watchlist-picker,
+.conn-status, .add-security-form input, .screener-form input,
+.screener-form select, .chart-range-btn, .chart-toggle {
+    border-radius: var(--control-radius);
+}
+
+/* Thin row line under each table row (the small under-row lines) */
+.quote-table tbody tr, .screener-table tbody tr, .st-table tbody tr,
+.peer-table tbody tr, .fin-table tbody tr {
+    border-bottom: 1px solid var(--row-line);
+}
+
+/* Dense stat grid — roomier inner padding */
+.info-grid-dense .info-stat { padding: 8px 12px; }
+
+/* Consistent gap between stacked panels (matches Stadion's even spacing) */
+.info-grid { gap: var(--panel-gap, 16px); }
+.economics-layout, .ideas-layout, .screener-layout { gap: var(--panel-gap, 16px); }
+
+/* ── GLOBAL RULE — no box ever touches another ──
+   Every panel box keeps a consistent --panel-gap from its neighbour. Grid /
+   flex panel containers use `gap` (above); flow-stacked boxes (news list,
+   loose cards) use margin. Only chrome — the header & footer — may sit flush. */
+.news-item, .idx-card, .reader-para, .sec-filing-item, .estimate-row {
+    margin-bottom: var(--panel-gap);
+}
+.news-item:last-child, .idx-card:last-child,
+.reader-para:last-child, .sec-filing-item:last-child,
+.estimate-row:last-child { margin-bottom: 0; }
+
+/* Company profile description — was dim 12px muted grey; lift to readable
+   secondary text, larger, looser leading, with a comfortable line length. */
+.info-description {
+    font-size: 13px !important;
+    color: #b8b8b8 !important;
+    line-height: 1.75 !important;
+    max-width: 68ch;
+}
+/* Stacked profile paragraphs get breathing room between them. */
+.info-overview-right .info-description + .info-description { margin-top: var(--space-3) !important; }
+/* Neon drop-cap on the first paragraph — a fun, branded lead-in. */
+.info-overview-right .info-description:first-of-type::first-letter {
+    float: left;
+    font-size: 2.8em;
+    line-height: 0.82;
+    font-weight: 700;
+    padding: 2px 5px 0 0;
+    color: var(--accent-blue);
+    text-shadow: var(--text-glow-cyan);
+}
+
+/* News-item box — inner padding so headline/source/summary breathe inside the
+   rounded box (was relying on inline styles in the preview). Bottom gap comes
+   from the global no-touch rule above (--panel-gap). */
+.news-item {
+    padding: 12px 14px;
+}
+
+/* ───────────────────────── IDEAS PAGE ─────────────────────────
+   Design-love pass: route the Ideas components through the panel system —
+   rounded boxes, consistent gaps, neon-white prices, igniting cards. */
+
+/* The base ideas view sets padding:0 (panels would touch the header/edges).
+   Restore a gutter so no panel touches the chrome — a consistent --panel-gap
+   on every side, matching the gap between panels everywhere else. */
+.terminal-content[data-view="ideas"] {
+    padding: var(--panel-gap);
+}
+/* Same consistent gutter for the other padding:0 split views. */
+.terminal-content[data-view="screener"] {
+    padding: var(--panel-gap);
+}
+
+/* Info cards become first-class rounded panel boxes with a cyan hover glow. */
+.ideas-info-panels { gap: var(--panel-gap) !important; padding-top: var(--panel-gap); }
+.ideas-info-card {
+    background: var(--panel-bg) !important;
+    border: 1px solid var(--panel-border) !important;
+    border-radius: var(--panel-radius) !important;
+    padding: var(--space-4) var(--space-5) !important;
+    transition: border-color var(--duration-2), box-shadow var(--duration-2);
+}
+.ideas-info-card:hover {
+    border-color: color-mix(in srgb, var(--accent-blue) 45%, var(--panel-border)) !important;
+    box-shadow: var(--glow-cyan);
+}
+/* Symbol = amber identity for ideas (matches the app), with a faint glow. */
+.ideas-info-symbol { text-shadow: var(--text-glow-amber); }
+/* Headline price reads as a neon-white figure. */
+.ideas-info-price {
+    color: #fff;
+    text-shadow: 0 0 2px rgba(255,255,255,0.85), 0 0 12px rgba(255,255,255,0.4),
+                 0 0 22px rgba(180,220,255,0.22);
+}
+.ideas-info-pct.price-up   { text-shadow: var(--text-glow-green); }
+.ideas-info-pct.price-down { text-shadow: var(--text-glow-red); }
+/* News badge — hazard-yellow chip with a soft bloom. */
+.ideas-info-news-badge {
+    color: var(--yellow) !important;
+    border-color: color-mix(in srgb, var(--yellow) 50%, var(--border)) !important;
+    box-shadow: 0 0 10px -3px color-mix(in srgb, var(--yellow) 55%, transparent);
+    border-radius: var(--control-radius) !important;
+}
+
+/* Legend chips — control radius + unified panel border; the swatch glows. */
+.ideas-legend-row {
+    border: 1px solid var(--panel-border) !important;
+    border-radius: var(--control-radius) !important;
+    background: var(--panel-bg) !important;
+}
+.ideas-legend-swatch { box-shadow: 0 0 6px -1px currentColor; }
+
+/* Chart host — rounded framed panel that contains the chart cleanly. */
+.ideas-chart-host {
+    background: var(--panel-bg) !important;
+    border: 1px solid var(--panel-border) !important;
+    border-radius: var(--panel-radius);
+    overflow: hidden;
+}
+
+/* Sidebar list item — active sketch fills with the Tron-blue gradient,
+   bright at the cyan rail edge and fading right. Overrides the global
+   orange .vim-selected (which has !important). */
+.ideas-list-item.active, .ideas-list-item.vim-selected {
+    background: linear-gradient(90deg,
+        color-mix(in srgb, var(--accent-blue) 32%, var(--bg-primary)) 0%,
+        color-mix(in srgb, var(--accent-blue) 12%, var(--bg-primary)) 45%,
+        transparent 100%) !important;
+    border-left-color: var(--accent-blue) !important;
+    box-shadow: inset 2px 0 0 var(--accent-blue),
+                inset 10px 0 16px -10px color-mix(in srgb, var(--accent-blue) 70%, transparent) !important;
+}
+.ideas-list-item.active .ideas-list-name,
+.ideas-list-item.vim-selected .ideas-list-name {
+    color: #fff;
+    text-shadow: var(--text-glow-cyan);
+}
+/* subtitle (date) — lift it out of the gradient with a faint cyan glow */
+.ideas-list-item.active .ideas-list-meta,
+.ideas-list-item.vim-selected .ideas-list-meta {
+    color: color-mix(in srgb, var(--accent-blue) 55%, #fff);
+    text-shadow: 0 0 6px color-mix(in srgb, var(--accent-blue) 55%, transparent);
+}
+.ideas-list-name { color: var(--text-primary); }
+
+/* ───────────────────────── NEWS PAGE (full /news view) ─────────────────────────
+   The /news view uses .news-tab / .news-card classes the overlay didn't reach,
+   so it fell back to raw base style. Bring it into the system. */
+
+/* Tab strip — amber active with glow (consistent with info tabs). */
+.news-tab.active {
+    color: var(--accent-orange) !important;
+    border-color: var(--accent-orange) !important;
+    box-shadow: var(--glow-amber);
+    text-shadow: var(--text-glow-amber);
+    border-radius: var(--control-radius) !important;
+}
+.news-tab { border-radius: var(--control-radius) !important; white-space: nowrap; }
+
+/* Cards become rounded panel boxes with a consistent gap; cyan hover glow. */
+.news-cards { gap: var(--panel-gap) !important; padding-top: 2px; }
+.news-card {
+    background: var(--panel-bg) !important;
+    border: 1px solid var(--panel-border) !important;
+    border-left: 2px solid transparent !important;
+    border-radius: var(--panel-radius) !important;
+    padding: 12px 16px !important;
+    transition: border-color var(--duration-2), box-shadow var(--duration-2), opacity var(--duration-2);
+}
+.news-card:hover {
+    border-color: color-mix(in srgb, var(--accent-blue) 35%, var(--panel-border)) !important;
+    box-shadow: var(--glow-cyan);
+}
+/* Unread = thin amber left rail + soft inner bloom + full opacity (the
+   established unread indicator, restyled to the rail language). */
+.news-card.news-unread {
+    border-left-color: var(--accent-orange) !important;
+    box-shadow: inset 10px 0 16px -12px color-mix(in srgb, var(--accent-orange) 65%, transparent);
+}
+.news-card.news-unread .news-card-title a,
+.news-card.news-unread .news-card-title {
+    color: var(--accent-orange) !important;
+    text-shadow: var(--text-glow-amber);
+}
+/* Source symbol = cyan identity. */
+.news-card-meta .news-symbol { color: var(--accent-blue) !important; text-shadow: var(--text-glow-cyan); }
+
+/* View title (page header) reads as a primary heading. */
+.view-title { color: var(--text-primary); }
+

@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stocktopus — GOOG — SEC (Tron preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_real-style.css">
+<link rel="stylesheet" href="tron.css" id="tron">
+<style>
+  body{font-family:'Fira Code',var(--font-mono)}
+  #t{position:fixed;top:6px;right:10px;z-index:9999;font:11px 'Fira Code',monospace;background:var(--bg-tertiary);color:var(--accent-orange);border:1px solid var(--accent-orange);border-radius:5px;padding:4px 9px;cursor:pointer}
+  .demo-spark{display:inline-block;vertical-align:middle;margin-left:8px}
+  /* tweakable: category lens — tint each filing row by its form category */
+  .sec-table tbody tr{position:relative;transition:background var(--duration-2,180ms) ease,opacity var(--duration-2,180ms) ease}
+  .sec-table.cat-colour tr[data-cat]{background:linear-gradient(90deg,var(--cat-rgb-a) 0%,transparent 60%);box-shadow:inset 2px 0 0 var(--cat-rgb)}
+  .sec-table.cat-spot tr.cat-dim{opacity:.28}
+  .sec-table.cat-spot tr.cat-hot{background:linear-gradient(90deg,var(--cat-rgb-a) 0%,transparent 60%);box-shadow:inset 2px 0 0 var(--cat-rgb)}
+  /* tweakable: density */
+  .sec-table.density-compact td{padding-top:3px;padding-bottom:3px}
+  .sec-table.density-dense td{padding-top:1px;padding-bottom:1px;font-size:11px}
+  /* tweakable: freshness heat layer */
+  .sec-fresh{position:absolute;inset:0;z-index:0;pointer-events:none}
+  .sec-table td{position:relative}.sec-table td>*{position:relative;z-index:1}
+</style></head>
+<body>
+<button id="t" onclick="var x=document.getElementById('tron');x.disabled=!x.disabled;this.textContent=x.disabled?'tron OFF':'tron ON'">tron ON</button>
+
+<header class="terminal-header">
+  <span class="brand">STOCKTOPUS</span>
+  <div class="cmd-bar"><span class="cmd-prompt">&gt;</span><input class="cmd-input" placeholder="enter command..." spellcheck="false"></div>
+  <div class="security-selector"><input class="security-input" value="LEE" spellcheck="false"></div>
+  <span class="watchlist-picker">Default</span>
+  <div class="conn-status connected">CONNECTED</div>
+</header>
+
+<div class="terminal-body">
+  <main class="terminal-content" data-view="info">
+    <div class="company-panel">
+      <span class="cpanel-sym">GOOG</span>
+      <span class="cpanel-name">Alphabet Inc.</span>
+      <span class="cpanel-price">367.46</span>
+      <span class="cpanel-change price-up">+5.36 (1.48%)</span>
+      <span class="cpanel-spark-label">6m</span>
+      <svg class="demo-spark" width="150" height="34" viewBox="0 0 150 34">
+        <polyline fill="none" stroke="var(--green)" stroke-width="1.5"
+          points="0,24 12,22 24,25 36,20 48,21 60,17 72,19 84,14 96,16 108,9 116,12 124,7 132,10 140,8 150,9"/>
+      </svg>
+    </div>
+
+    <div class="info-tabs st-tab-row" id="info-tabs" data-vim-row>
+      <button class="info-tab st-tab" data-tab="overview"><span class="tab-key">1</span> Overview</button>
+      <button class="info-tab st-tab" data-tab="financials"><span class="tab-key">2</span> Financial Modeling</button>
+      <button class="info-tab st-tab" data-tab="estimates"><span class="tab-key">3</span> Estimates</button>
+      <button class="info-tab st-tab" data-tab="news"><span class="tab-key">4</span> News</button>
+      <button class="info-tab st-tab" data-tab="ai"><span class="tab-key">5</span> AI Analysis</button>
+      <button class="info-tab st-tab" data-tab="sector"><span class="tab-key">6</span> Sector</button>
+      <button class="info-tab st-tab active st-tab--active" data-tab="sec"><span class="tab-key">7</span> SEC</button>
+    </div>
+
+    <div id="info-content" class="info-content">
+      <div class="sec-view">
+        <div class="info-sub-tabs st-tab-row st-tab-row--blue" id="sec-filters" data-vim-row>
+          <button class="info-sub-tab st-tab active st-tab--active" data-cat="all" data-view="filings">All</button>
+          <button class="info-sub-tab st-tab" data-cat="periodic" data-view="filings">Periodic</button>
+          <button class="info-sub-tab st-tab" data-cat="events" data-view="filings">Events</button>
+          <button class="info-sub-tab st-tab" data-cat="ownership" data-view="filings">Ownership</button>
+          <button class="info-sub-tab st-tab" data-cat="proxy" data-view="filings">Proxy</button>
+          <button class="info-sub-tab st-tab" data-cat="registration" data-view="filings">Registration</button>
+          <span class="sec-tab-sep" aria-hidden="true">|</span>
+          <button class="info-sub-tab st-tab" data-view="people">Key People</button>
+        </div>
+        <div class="sec-count">50 filings</div>
+        <table class="fin-table sec-table" id="sec-table">
+          <thead><tr><th>Date</th><th>Form</th><th>Description</th><th>Link</th></tr></thead>
+          <tbody>
+            <tr class="sec-row" data-cat="ownership" data-vim-row><td class="sec-date">2026-06-18</td><td><span class="sec-badge sec-cat-ownership">4</span></td><td class="sec-desc">Statement of Changes in Beneficial Ownership</td><td><a class="sec-link">&#8599;</a></td></tr>
+            <tr class="sec-row" data-cat="ownership" data-vim-row><td class="sec-date">2026-06-18</td><td><span class="sec-badge sec-cat-ownership">4</span></td><td class="sec-desc">Statement of Changes in Beneficial Ownership</td><td><a class="sec-link">&#8599;</a></td></tr>
+            <tr class="sec-row" data-cat="ownership" data-vim-row><td class="sec-date">2026-06-18</td><td><span class="sec-badge sec-cat-ownership">4</span></td><td class="sec-desc">Statement of Changes in Beneficial Ownership</td><td><a class="sec-link">&#8599;</a></td></tr>
+            <tr class="sec-row" data-cat="ownership" data-vim-row><td class="sec-date">2026-06-17</td><td><span class="sec-badge sec-cat-ownership">4</span></td><td class="sec-desc">Statement of Changes in Beneficial Ownership</td><td><a class="sec-link">&#8599;</a></td></tr>
+            <tr class="sec-row" data-cat="ownership" data-vim-row><td class="sec-date">2026-06-17</td><td><span class="sec-badge sec-cat-ownership">4</span></td><td class="sec-desc">Statement of Changes in Beneficial Ownership</td><td><a class="sec-link">&#8599;</a></td></tr>
+            <tr class="sec-row" data-cat="events" data-vim-row><td class="sec-date">2026-06-11</td><td><span class="sec-badge sec-cat-events">8-K</span></td><td class="sec-desc">Current Report</td><td><a class="sec-link">&#8599;</a></td></tr>
+            <tr class="sec-row" data-cat="other" data-vim-row><td class="sec-date">2026-06-08</td><td><span class="sec-badge sec-cat-other">CERT</span></td><td class="sec-desc">CERT</td><td><a class="sec-link">&#8599;</a></td></tr>
+            <tr class="sec-row" data-cat="ownership" data-vim-row><td class="sec-date">2026-06-05</td><td><span class="sec-badge sec-cat-ownership">3</span></td><td class="sec-desc">Initial Statement of Beneficial Ownership</td><td><a class="sec-link">&#8599;</a></td></tr>
+            <tr class="sec-row" data-cat="registration" data-vim-row><td class="sec-date">2026-06-05</td><td><span class="sec-badge sec-cat-registration">8-A12B</span></td><td class="sec-desc">8-A12B</td><td><a class="sec-link">&#8599;</a></td></tr>
+            <tr class="sec-row" data-cat="events" data-vim-row><td class="sec-date">2026-06-05</td><td><span class="sec-badge sec-cat-events">8-K</span></td><td class="sec-desc">Current Report</td><td><a class="sec-link">&#8599;</a></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<footer class="terminal-footer">
+  <span class="footer-mode normal">NORMAL</span>
+  <span class="footer-view">INFO</span>
+  <span class="footer-help">/ cmd · s security · hjkl nav · : chart cmd</span>
+  <div class="footer-clocks">
+    <span class="tz-block"><span class="tz-label">ET</span>14:40</span>
+    <span class="tz-block"><span class="tz-label">UTC</span>18:40</span>
+    <span class="tz-block"><span class="tz-label">JST</span>03:40</span>
+  </div>
+</footer>
+
+<!-- Tweaks: three expressive controls that reshape the SEC filings feel -->
+<div id="tweaks-root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel">
+const { useEffect } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "lens": "mono",
+  "focus": "ownership",
+  "density": "comfortable",
+  "freshness": "off"
+}/*EDITMODE-END*/;
+
+// category → brand rgb (cyan/amber/green/yellow/red/grey)
+const CAT_RGB = {
+  ownership: '45,184,255', events: '255,154,26', periodic: '0,204,102',
+  proxy: '255,204,0', registration: '255,68,68', other: '120,120,120',
+};
+function paintCat(td_tr) {
+  const c = td_tr.dataset.cat || 'other';
+  const rgb = CAT_RGB[c] || CAT_RGB.other;
+  td_tr.style.setProperty('--cat-rgb', `rgb(${rgb})`);
+  td_tr.style.setProperty('--cat-rgb-a', `rgba(${rgb},0.26)`);
+}
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const table = () => document.querySelector('.sec-table');
+  const CATS = ['ownership', 'events', 'periodic', 'proxy', 'registration', 'other'];
+
+  // 1 — CATEGORY LENS: mono / colour-code every row / spotlight one category
+  useEffect(() => {
+    const tb = table();
+    tb.classList.remove('cat-colour', 'cat-spot');
+    const rows = [...tb.querySelectorAll('tbody tr')];
+    rows.forEach(r => { r.classList.remove('cat-dim', 'cat-hot'); paintCat(r); });
+    if (t.lens === 'colour') tb.classList.add('cat-colour');
+    else if (t.lens === 'spotlight') {
+      tb.classList.add('cat-spot');
+      rows.forEach(r => r.classList.add(r.dataset.cat === t.focus ? 'cat-hot' : 'cat-dim'));
+    }
+  }, [t.lens, t.focus]);
+
+  // 2 — DENSITY: comfortable / compact / dense
+  useEffect(() => {
+    const tb = table();
+    tb.classList.remove('density-compact', 'density-dense');
+    if (t.density !== 'comfortable') tb.classList.add('density-' + t.density);
+  }, [t.density]);
+
+  // 3 — FRESHNESS: tint rows by recency (newest = brightest amber bloom)
+  useEffect(() => {
+    const rows = [...table().querySelectorAll('tbody tr')];
+    const dates = rows.map(r => Date.parse(r.querySelector('.sec-date').textContent));
+    const max = Math.max(...dates), min = Math.min(...dates), span = (max - min) || 1;
+    rows.forEach((r, i) => {
+      const firstTd = r.querySelector('td');
+      let layer = r.querySelector('.sec-fresh');
+      if (t.freshness === 'off') { if (layer) layer.remove(); return; }
+      const recency = (dates[i] - min) / span; // 0 old → 1 fresh
+      if (!layer) { layer = document.createElement('span'); layer.className = 'sec-fresh'; firstTd.appendChild(layer); }
+      const a = (recency * 0.22).toFixed(3);
+      layer.style.background = `linear-gradient(90deg, rgba(255,154,26,${a}) 0%, transparent 70%)`;
+      layer.style.boxShadow = recency > 0.75 ? `inset 2px 0 0 rgba(255,154,26,${(recency).toFixed(2)})` : 'none';
+    });
+  }, [t.freshness]);
+
+  return (
+    <TweaksPanel>
+      <TweakSection label="Filing category" />
+      <TweakRadio label="Lens" value={t.lens}
+        options={['mono', 'colour', 'spotlight']}
+        onChange={(v) => setTweak('lens', v)} />
+      <TweakSelect label="Spotlight" value={t.focus}
+        options={CATS}
+        onChange={(v) => setTweak('focus', v)} />
+      <TweakSection label="Table" />
+      <TweakRadio label="Density" value={t.density}
+        options={['comfortable', 'compact', 'dense']}
+        onChange={(v) => setTweak('density', v)} />
+      <TweakRadio label="Freshness" value={t.freshness}
+        options={['off', 'heat']}
+        onChange={(v) => setTweak('freshness', v)} />
+    </TweaksPanel>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('tweaks-root')).render(<App />);
+</script>
+</body></html>

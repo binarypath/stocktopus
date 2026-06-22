@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stocktopus — Ideas (Tron preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_real-style.css">
+<link rel="stylesheet" href="tron.css" id="tron">
+<style>
+  body{font-family:'Fira Code',var(--font-mono)}
+  #t{position:fixed;top:6px;right:10px;z-index:9999;font:11px 'Fira Code',monospace;background:var(--bg-tertiary);color:var(--accent-orange);border:1px solid var(--accent-orange);border-radius:5px;padding:4px 9px;cursor:pointer}
+  /* right-axis price labels on the chart */
+  .axis-pill{position:absolute;right:0;transform:translateY(-50%);font-size:11px;font-weight:600;padding:2px 6px;border-radius:3px;font-variant-numeric:tabular-nums}
+  /* tweakable: layout + info-card density */
+  .ideas-layout{transition:grid-template-columns var(--duration-3,270ms) var(--ease-glow,ease)}
+  .ideas-sidebar{transition:opacity var(--duration-2,180ms) ease}
+  .ideas-info-panels.cards-compact .ideas-info-stats,
+  .ideas-info-panels.cards-compact .ideas-info-chips{display:none}
+  .ideas-info-panels.cards-hidden{display:none}
+</style></head>
+<body>
+<button id="t" onclick="var x=document.getElementById('tron');x.disabled=!x.disabled;this.textContent=x.disabled?'tron OFF':'tron ON'">tron ON</button>
+
+<header class="terminal-header">
+  <span class="brand">STOCKTOPUS</span>
+  <div class="cmd-bar"><span class="cmd-prompt">&gt;</span><input class="cmd-input" placeholder="enter command..." spellcheck="false"></div>
+  <div class="security-selector"><input class="security-input" value="DJTWW" spellcheck="false"></div>
+  <span class="watchlist-picker">Default</span>
+  <div class="conn-status connected">CONNECTED</div>
+</header>
+
+<div class="terminal-body">
+  <main class="terminal-content" data-view="ideas" style="padding: 4px 9px 9px">
+    <div class="ideas-layout">
+      <!-- ───────── SKETCHES SIDEBAR ───────── -->
+      <aside class="ideas-sidebar" id="ideas-sidebar">
+        <div class="ideas-sidebar-header">
+          <span>Sketches</span>
+          <span class="ideas-sidebar-meta">3 saved</span>
+        </div>
+        <ul class="ideas-list" id="ideas-list">
+          <li class="ideas-list-item">
+            <span class="ideas-list-name">Default</span>
+            <span class="ideas-list-meta">scratchpad</span>
+          </li>
+          <li class="ideas-list-item active vim-selected">
+            <span class="ideas-list-name">Daves Magical Space Charts</span>
+            <span class="ideas-list-meta">19/06/2026</span>
+          </li>
+          <li class="ideas-list-item">
+            <span class="ideas-list-name">Should I Buy Spacex When it IPOs</span>
+            <span class="ideas-list-meta">19/06/2026</span>
+          </li>
+          <li class="ideas-list-item">
+            <span class="ideas-list-name">Apple</span>
+            <span class="ideas-list-meta">29/05/2026</span>
+          </li>
+        </ul>
+        <div class="ideas-sidebar-footer">
+          <span class="ideas-hint"><kbd>:w &lt;name of Idea&gt;</kbd> to name &amp; persist</span>
+        </div>
+      </aside>
+
+      <!-- ───────── MAIN ───────── -->
+      <section class="ideas-main" id="ideas-main">
+        <div class="ideas-header">
+          <h2 class="ideas-title">Daves Magical Space Charts</h2>
+          <span class="ideas-meta">3 metrics</span>
+          <span class="ideas-help-toggle" title="Press ? to toggle">?</span>
+        </div>
+
+        <div id="ideas-chart-host" class="ideas-chart-host" style="position:relative;height:340px">
+          <canvas id="chart"></canvas>
+        </div>
+
+        <div id="ideas-legend" class="ideas-legend">
+          <span class="ideas-legend-row" data-vim-row>
+            <span class="ideas-legend-swatch" style="background:var(--accent-blue)"></span>
+            <span class="ideas-legend-label">^GSPC</span>
+            <span class="ideas-legend-val">7.5k</span>
+            <span class="ideas-legend-pct price-up">+77.5%</span>
+            <button class="ideas-legend-del">✕</button>
+          </span>
+          <span class="ideas-legend-row">
+            <span class="ideas-legend-swatch" style="background:var(--green)"></span>
+            <span class="ideas-legend-label">^VIX</span>
+            <span class="ideas-legend-val">16.40</span>
+            <span class="ideas-legend-pct price-down">−8.3%</span>
+            <button class="ideas-legend-del">✕</button>
+          </span>
+          <span class="ideas-legend-row">
+            <span class="ideas-legend-swatch" style="background:var(--accent-orange)"></span>
+            <span class="ideas-legend-label">AAPL</span>
+            <span class="ideas-legend-val">298.01</span>
+            <span class="ideas-legend-pct price-up">+125.3%</span>
+            <button class="ideas-legend-del">✕</button>
+          </span>
+        </div>
+
+        <div class="ideas-info-panels" data-vim-row>
+          <div class="ideas-info-card">
+            <div class="ideas-info-head">
+              <a class="ideas-info-symbol">^GSPC</a>
+              <span class="ideas-info-name">S&amp;P 500</span>
+            </div>
+            <div class="ideas-info-quote">
+              <span class="ideas-info-price">7,500.58</span>
+              <span class="ideas-info-tag">:live:</span>
+              <span class="ideas-info-pct price-up">+1.08%</span>
+              <span class="ideas-info-tag">:1d:</span>
+            </div>
+            <div class="ideas-info-stats">
+              <span><label>Open</label>7,487.36</span>
+              <span><label>Day H</label>7,511.07</span>
+              <span><label>Day L</label>7,468.32</span>
+              <span><label>Vol</label>6.32B</span>
+            </div>
+            <div class="ideas-info-chips"><span class="ideas-info-chip">^GSPC</span></div>
+          </div>
+
+          <div class="ideas-info-card">
+            <div class="ideas-info-head">
+              <a class="ideas-info-symbol">^VIX</a>
+              <span class="ideas-info-name">CBOE Volatility Index</span>
+            </div>
+            <div class="ideas-info-quote">
+              <span class="ideas-info-price">16.78</span>
+              <span class="ideas-info-tag">:live:</span>
+              <span class="ideas-info-pct price-up">+2.32%</span>
+              <span class="ideas-info-tag">:1d:</span>
+            </div>
+            <div class="ideas-info-stats">
+              <span><label>Open</label>17.04</span>
+              <span><label>Day H</label>17.27</span>
+              <span><label>Day L</label>16.72</span>
+              <span><label>Vol</label>—</span>
+            </div>
+            <div class="ideas-info-chips"><span class="ideas-info-chip">^VIX</span></div>
+          </div>
+
+          <div class="ideas-info-card">
+            <div class="ideas-info-head">
+              <a class="ideas-info-symbol">AAPL</a>
+              <span class="ideas-info-name">Apple Inc.</span>
+              <span class="ideas-info-news-badge">11 News</span>
+            </div>
+            <div class="ideas-info-quote">
+              <span class="ideas-info-price">298.01</span>
+              <span class="ideas-info-tag">:live:</span>
+              <span class="ideas-info-pct price-up">+0.70%</span>
+              <span class="ideas-info-tag">:1d:</span>
+            </div>
+            <div class="ideas-info-stats">
+              <span><label>Open</label>298.44</span>
+              <span><label>Day H</label>300.57</span>
+              <span><label>Day L</label>295.62</span>
+              <span><label>Vol</label>76.70M</span>
+            </div>
+            <div class="ideas-info-chips"><span class="ideas-info-chip">AAPL</span></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<footer class="terminal-footer">
+  <span class="footer-mode normal">NORMAL</span>
+  <span class="footer-view">IDEAS</span>
+  <span class="footer-help">/ cmd · s security · hjkl nav · : chart cmd</span>
+  <div class="footer-clocks">
+    <span class="tz-block"><span class="tz-label">ET</span>21:26</span>
+    <span class="tz-block"><span class="tz-label">UTC</span>01:26</span>
+    <span class="tz-block"><span class="tz-label">JST</span>10:26</span>
+  </div>
+</footer>
+
+<script>
+// ── Multi-series chart, faithful to lightweight-charts, with Tron glow ──
+const SER = [
+  { key:'GSPC', color:'#2db8ff', end:77.5,  vol:0.05, seed:11 },  // blue, steady climb
+  { key:'AAPL', color:'#ff9a1a', end:125.3, vol:0.07, seed:43 },  // orange, big winner
+  { key:'VIX',  color:'#00cc66', end:-8.3,  vol:0.16, seed:91 },  // green, jagged vol
+];
+function series(end, vol, seed, n){
+  let s=seed, v=0, out=[0];
+  // random walk that lands near `end`
+  for(let i=1;i<n;i++){ s=(s*9301+49297)%233280; const r=s/233280-0.5; v += r*vol*60 + end/n*1.0; out.push(v); }
+  // normalise so last point == end
+  const k = end/out[out.length-1]; return out.map(x=>x*k);
+}
+function draw(){
+  const host=document.getElementById('ideas-chart-host');
+  const cv=document.getElementById('chart');
+  const W=host.clientWidth, H=host.clientHeight||520, dpr=devicePixelRatio||1;
+  cv.width=W*dpr; cv.height=H*dpr; cv.style.width=W+'px'; cv.style.height=H+'px';
+  const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
+  const N=260, padR=64, padB=30, padT=14, plotW=W-padR, plotH=H-padB-padT;
+  const data=SER.map(s=>({...s, pts:series(s.end,s.vol,s.seed,N)}));
+  const all=data.flatMap(d=>d.pts); let lo=Math.min(...all), hi=Math.max(...all);
+  lo=Math.floor(lo/20)*20-20; hi=Math.ceil(hi/20)*20+20;
+  const y=v=>padT+plotH-((v-lo)/(hi-lo))*plotH;
+  const x=i=>(i/(N-1))*plotW;
+  // grid + axis labels
+  ctx.font="10px 'Fira Code',monospace"; ctx.textBaseline='middle';
+  for(let g=lo; g<=hi; g+=20){
+    const gy=y(g);
+    ctx.strokeStyle='rgba(45,184,255,0.05)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(plotW,gy); ctx.stroke();
+    ctx.fillStyle='#666'; ctx.fillText((g>0?'+':'')+g.toFixed(1)+'%', plotW+8, gy);
+  }
+  // crosshair (dotted) like the screenshot
+  ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.setLineDash([3,4]);
+  const cx=plotW*0.62; ctx.beginPath(); ctx.moveTo(cx,padT); ctx.lineTo(cx,padT+plotH); ctx.stroke();
+  ctx.setLineDash([]);
+  // series lines with glow (intensity is tweakable: clean | glow | neon)
+  const LS = window.__lineStyle || 'glow';
+  const lw = LS === 'clean' ? 1.1 : LS === 'neon' ? 2.0 : 1.4;
+  const blur = LS === 'clean' ? 0 : LS === 'neon' ? 16 : 6;
+  data.forEach(d=>{
+    ctx.strokeStyle=d.color; ctx.lineWidth=lw; ctx.lineJoin='round';
+    ctx.shadowColor=d.color; ctx.shadowBlur=blur;
+    ctx.beginPath();
+    d.pts.forEach((v,i)=>{ const px=x(i),py=y(v); i?ctx.lineTo(px,py):ctx.moveTo(px,py); });
+    ctx.stroke(); ctx.shadowBlur=0;
+    // dotted price line at end value
+    ctx.strokeStyle=d.color; ctx.globalAlpha=.5; ctx.setLineDash([2,4]);
+    ctx.beginPath(); ctx.moveTo(0,y(d.end)); ctx.lineTo(plotW,y(d.end)); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha=1;
+  });
+  // right-axis colored value pills
+  host.querySelectorAll('.axis-pill').forEach(e=>e.remove());
+  data.forEach(d=>{
+    const pill=document.createElement('div'); pill.className='axis-pill';
+    pill.textContent=(d.end>0?'+':'')+d.end.toFixed(1)+'%';
+    pill.style.top=y(d.end)+'px';
+    const dark = d.color==='#ff9a1a'?'#1a1206':d.color==='#2db8ff'?'#04141f':'#03160c';
+    pill.style.background=d.color; pill.style.color=dark;
+    pill.style.boxShadow='0 0 10px '+d.color+'88';
+    host.appendChild(pill);
+  });
+  // x-axis year ticks
+  ctx.fillStyle='#666'; ctx.textBaseline='alphabetic';
+  ['Jul \'21','2022','Jun \'22','2023','Jun \'23','2024','2025','Jun \'26'].forEach((t,i,a)=>{
+    ctx.fillText(t, x(i/(a.length-1)*(N-1))-10, H-10);
+  });
+}
+draw(); addEventListener('resize',draw);
+window.__redraw = draw;
+</script>
+
+<!-- Tweaks: three expressive controls that reshape the Ideas workspace -->
+<div id="tweaks-root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel">
+const { useEffect } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "rail": "slim",
+  "lines": "neon",
+  "cards": "full"
+}/*EDITMODE-END*/;
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  // 1 — SKETCH RAIL: shorten / widen / drop the left column (the ternary split).
+  //     'slim' is the default so the rail reads in line with the screener.
+  useEffect(() => {
+    const layout = document.querySelector('.ideas-layout');
+    const aside = document.querySelector('.ideas-sidebar');
+    const main = document.querySelector('.ideas-main');
+    if (!layout) return;
+    if (t.rail === 'wide') {
+      layout.style.gridTemplateColumns = 'minmax(280px, 1fr) 3fr';
+      aside.style.display = ''; aside.style.opacity = '1'; main.style.gridColumn = '';
+    } else if (t.rail === 'slim') {
+      layout.style.gridTemplateColumns = 'minmax(190px, 1fr) 5fr';
+      aside.style.display = ''; aside.style.opacity = '1'; main.style.gridColumn = '';
+    } else { // hidden — chart takes the full width
+      aside.style.opacity = '0'; aside.style.display = 'none';
+      main.style.gridColumn = '1 / -1';
+    }
+    if (window.__redraw) requestAnimationFrame(() => setTimeout(window.__redraw, 290));
+  }, [t.rail]);
+
+  // 2 — CHART LINES: reshape the series from clean strokes to full Tron neon.
+  useEffect(() => {
+    window.__lineStyle = t.lines;
+    if (window.__redraw) window.__redraw();
+  }, [t.lines]);
+
+  // 3 — INFO CARDS: full quote cards / compact / hidden (chart-focus).
+  useEffect(() => {
+    const panels = document.querySelector('.ideas-info-panels');
+    if (!panels) return;
+    panels.classList.remove('cards-compact', 'cards-hidden');
+    if (t.cards === 'compact') panels.classList.add('cards-compact');
+    else if (t.cards === 'hidden') panels.classList.add('cards-hidden');
+    if (window.__redraw) requestAnimationFrame(window.__redraw);
+  }, [t.cards]);
+
+  return (
+    <TweaksPanel>
+      <TweakSection label="Workspace" />
+      <TweakRadio label="Sketch rail" value={t.rail}
+        options={['slim', 'wide', 'hidden']}
+        onChange={(v) => setTweak('rail', v)} />
+      <TweakRadio label="Info cards" value={t.cards}
+        options={['full', 'compact', 'hidden']}
+        onChange={(v) => setTweak('cards', v)} />
+      <TweakSection label="Chart" />
+      <TweakRadio label="Lines" value={t.lines}
+        options={['clean', 'glow', 'neon']}
+        onChange={(v) => setTweak('lines', v)} />
+    </TweaksPanel>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('tweaks-root')).render(<App />);
+</script>
+</body></html>

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stocktopus — News (Tron preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_real-style.css">
+<link rel="stylesheet" href="tron.css" id="tron">
+<style>
+  body{font-family:'Fira Code',var(--font-mono)}
+  #t{position:fixed;top:6px;right:10px;z-index:9999;font:11px 'Fira Code',monospace;background:var(--bg-tertiary);color:var(--accent-orange);border:1px solid var(--accent-orange);border-radius:5px;padding:4px 9px;cursor:pointer}
+</style></head>
+<body>
+<button id="t" onclick="var x=document.getElementById('tron');x.disabled=!x.disabled;this.textContent=x.disabled?'tron OFF':'tron ON'">tron ON</button>
+
+<header class="terminal-header">
+  <span class="brand">STOCKTOPUS</span>
+  <div class="cmd-bar"><span class="cmd-prompt">&gt;</span><input class="cmd-input" placeholder="enter command..." spellcheck="false"></div>
+  <div class="security-selector"><input class="security-input" value="AAPL" spellcheck="false"></div>
+  <span class="watchlist-picker">Default</span>
+  <div class="conn-status connected">CONNECTED</div>
+</header>
+
+<div class="terminal-body">
+  <main class="terminal-content" data-view="security">
+    <div class="company-panel">
+      <span class="cpanel-sym">AAPL</span>
+      <span class="cpanel-name">Apple Inc.</span>
+      <span class="cpanel-price">298.01</span>
+      <span class="cpanel-change price-up">+2.06 (0.70%)</span>
+    </div>
+    <div class="page-header">
+      <h2 class="view-title">News</h2>
+    </div>
+    <div class="news-tabs" style="border-style: none; padding: 0px; margin: 0px 0px 8px">
+      <button class="news-tab active" style="padding: 5px 15px 5px 16px">Press Releases</button>
+      <button class="news-tab">Articles</button>
+      <button class="news-tab">Stock</button>
+      <button class="news-tab dimmed">Crypto</button>
+      <button class="news-tab dimmed">Forex</button>
+      <button class="news-tab">General</button>
+    </div>
+    <div class="news-cards">
+      <div class="news-card news-unread">
+        <div class="news-card-title"><a>Xiao-I Corporation Provides Update on First-Instance Rulings in Patent Litigation Against Apple; Company Intends to Appeal</a></div>
+        <div class="news-card-meta"><span class="news-symbol">AAPL</span> PRNewsWire · Jun 19, 2026, 06:00 PM</div>
+        <div class="news-card-text">SHANGHAI, June 19, 2026 /PRNewswire/ — Xiao-I Corporation (NASDAQ: AIXI) ("Xiao-I" or the "Company"), a leading developer of AI solutions, provided a material update on the patent-related litigation…</div>
+      </div>
+      <div class="news-card news-unread">
+        <div class="news-card-title"><a>Addigy Expands Identity for Apple Fleets: IdP-Native Login, FileVault Single Sign-In, and Multi-Tenant Support — Included at No Extra Cost</a></div>
+        <div class="news-card-meta"><span class="news-symbol">AAPL</span> Business Wire · Jun 17, 2026, 10:00 AM</div>
+        <div class="news-card-text">MIAMI—(BUSINESS WIRE)— #Addigy—Addigy Identity, included at no additional cost in every Addigy Apple MDM plan, protects the real device attack surface: the person authenticated.</div>
+      </div>
+      <div class="news-card">
+        <div class="news-card-title"><a>Pennsylvania Expansion Continues: Apple Blossom Joins Legend Senior Living</a></div>
+        <div class="news-card-meta"><span class="news-symbol">AAPL</span> GlobeNewsWire · Jun 16, 2026, 02:23 PM</div>
+        <div class="news-card-text">Legend Senior Living expands in Pennsylvania with the addition of Apple Blossom Senior Living in Moon Township, bringing its portfolio to 78 communities.</div>
+      </div>
+      <div class="news-card news-unread">
+        <div class="news-card-title"><a>MIKROE develops Spatial Anchor R1 &amp; S1 for Apple Vision Pro</a></div>
+        <div class="news-card-meta"><span class="news-symbol">AAPL</span> Business Wire · Jun 9, 2026, 10:58 AM</div>
+        <div class="news-card-text">BELGRADE, Serbia—(BUSINESS WIRE)—MIKROE, the embedded solutions company, today announced two spatial accessory tracking modules that mount to objects for Apple Vision Pro.</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<footer class="terminal-footer">
+  <span class="footer-mode normal">NORMAL</span>
+  <span class="footer-view">NEWS</span>
+  <span class="footer-help">/ cmd · s security · hjkl nav · : chart cmd</span>
+  <div class="footer-clocks">
+    <span class="tz-block"><span class="tz-label">ET</span>21:52</span>
+    <span class="tz-block"><span class="tz-label">UTC</span>01:52</span>
+    <span class="tz-block"><span class="tz-label">JST</span>10:52</span>
+  </div>
+</footer>
+</body></html>

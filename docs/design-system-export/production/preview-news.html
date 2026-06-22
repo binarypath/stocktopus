@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_real-style.css">
+<link rel="stylesheet" href="tron.css" id="tron">
+<style>
+  body{font-family:'Fira Code',var(--font-mono)}
+  #t{position:fixed;top:6px;right:10px;z-index:9999;font:11px 'Fira Code',monospace;background:var(--bg-tertiary);color:var(--accent-orange);border:1px solid var(--accent-orange);border-radius:5px;padding:4px 9px;cursor:pointer}
+</style></head>
+<body>
+<button id="t" onclick="var x=document.getElementById('tron');x.disabled=!x.disabled;this.textContent=x.disabled?'tron OFF':'tron ON'">tron ON</button>
+<header class="terminal-header">
+  <span class="brand">STOCKTOPUS</span>
+  <div class="cmd-bar"><span class="cmd-prompt">&gt;</span><input class="cmd-input" placeholder="enter command..." spellcheck="false"></div>
+  <div class="security-selector"><input class="security-input" value="DJT" spellcheck="false"></div>
+  <span class="watchlist-picker">Default</span>
+  <div class="conn-status connected">CONNECTED</div>
+</header>
+<div class="terminal-body">
+  <main class="terminal-content" data-view="security">
+    <div class="company-panel" style="padding: 0px 0px 0px 11px">
+      <span class="cpanel-sym">DJT</span>
+      <span class="cpanel-name">Trump Media &amp; Technology Group Corp.</span>
+      <span class="cpanel-price">8.49</span>
+      <span class="cpanel-change price-up">+0.39 (+4.81%)</span>
+    </div>
+    <div class="info-tabs st-tab-row" id="info-tabs" data-vim-row style="margin: 9px 8px 9px 5px">
+      <button class="info-tab st-tab active st-tab--active" data-tab="overview">Overview</button>
+      <button class="info-tab st-tab" data-tab="financials">Financial Modeling</button>
+      <button class="info-tab st-tab" data-tab="estimates">Estimates</button>
+      <button class="info-tab st-tab" data-tab="news">News</button>
+      <button class="info-tab st-tab" data-tab="ai">AI Analysis</button>
+      <button class="info-tab st-tab" data-tab="sector">Sector</button>
+      <button class="info-tab st-tab" data-tab="sec">SEC</button>
+    </div>
+    <div id="info-content" class="info-content">
+      <div class="info-sub-tabs news-sub-tabs st-tab-row st-tab-row--blue" id="news-sub-tabs" data-vim-row style="margin: 0px 0px -2px; align-items: center">
+        <button class="info-sub-tab st-tab" data-cat="press">Press Releases</button>
+        <button class="info-sub-tab st-tab" data-cat="articles">Articles</button>
+        <button class="info-sub-tab st-tab" data-cat="stock">Stock</button>
+        <button class="info-sub-tab st-tab" data-cat="crypto">Crypto</button>
+        <button class="info-sub-tab st-tab" data-cat="forex">Forex</button>
+        <button class="info-sub-tab st-tab active" data-cat="general">General</button>
+      </div>
+      <div style="margin-top:12px">
+        <div class="news-item">
+          <div style="font-weight:700;color:var(--text-primary)">Natural Gas, WTI Oil, Brent Oil Forecasts — Oil Moves Higher</div>
+          <div style="font-size:10px;color:var(--text-muted);margin:4px 0">FXEmpire · Jun 19, 2026</div>
+          <div style="color:var(--text-secondary)">Iran wants Israel to stop its military operation against Hezbollah in Lebanon.</div>
+        </div>
+        <div class="news-item">
+          <div style="font-weight:700;color:var(--text-primary)">The Bond Market Is Too Hawkish</div>
+          <div style="font-size:10px;color:var(--text-muted);margin:4px 0">Seeking Alpha · Jun 19, 2026</div>
+          <div style="color:var(--text-secondary)">Developed-market central banks went hawkish in unison.</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<footer class="terminal-footer">
+  <span class="footer-mode normal">NORMAL</span>
+  <span class="footer-view">INFO</span>
+  <span class="footer-help">/ cmd · s security · hjkl nav · : chart cmd</span>
+  <div class="footer-clocks"><span class="tz-block"><span class="tz-label">ET</span>20:56</span></div>
+</footer>
+</body></html>

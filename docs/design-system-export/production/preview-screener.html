@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stocktopus — Screener (Tron preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_real-style.css">
+<link rel="stylesheet" href="tron.css" id="tron">
+<style>
+  body{font-family:'Fira Code',var(--font-mono)}
+  #t{position:fixed;top:6px;right:10px;z-index:9999;font:11px 'Fira Code',monospace;background:var(--bg-tertiary);color:var(--accent-orange);border:1px solid var(--accent-orange);border-radius:5px;padding:4px 9px;cursor:pointer}
+  /* magnitude / heat layer behind delta numbers */
+  .screener-table td{position:relative}
+  .scr-mag{position:absolute;inset:0;z-index:0;pointer-events:none;transition:background var(--duration-2,180ms) ease}
+  .screener-table td > *{position:relative;z-index:1}
+  /* layout transitions */
+  .screener-layout{transition:grid-template-columns var(--duration-3,270ms) var(--ease-glow,ease)}
+  .screener-filters{transition:opacity var(--duration-2,180ms) ease}
+</style></head>
+<body>
+<button id="t" onclick="var x=document.getElementById('tron');x.disabled=!x.disabled;this.textContent=x.disabled?'tron OFF':'tron ON'">tron ON</button>
+
+<header class="terminal-header">
+  <span class="brand">STOCKTOPUS</span>
+  <div class="cmd-bar"><span class="cmd-prompt">&gt;</span><input class="cmd-input" placeholder="enter command..." spellcheck="false"></div>
+  <div class="security-selector"><input class="security-input" value="DJTWW" spellcheck="false"></div>
+  <span class="watchlist-picker">Default</span>
+  <div class="conn-status connected">CONNECTED</div>
+</header>
+
+<div class="terminal-body">
+  <main class="terminal-content" data-view="screener">
+    <div class="screener-layout">
+      <aside class="screener-filters">
+        <div class="screener-filters-header">Filters</div>
+        <form class="screener-form">
+          <details class="screener-group" open>
+            <summary>Fundamentals</summary>
+            <div class="screener-presets">
+              <span class="screener-presets-label">Cap presets</span>
+              <button type="button" class="screener-preset">penny</button>
+              <button type="button" class="screener-preset">small</button>
+              <button type="button" class="screener-preset">mid</button>
+              <button type="button" class="screener-preset">large</button>
+              <button type="button" class="screener-preset">mega</button>
+            </div>
+            <label>Market cap ≥<input type="text" placeholder="e.g. 1bn or 1000000000" autocomplete="off"></label>
+            <label>Price ≥<input type="number"></label>
+            <label>Beta ≤<input type="number"></label>
+          </details>
+          <details class="screener-group"><summary>Sector / Exchange</summary></details>
+          <details class="screener-group"><summary>Intraday change</summary></details>
+          <details class="screener-group"><summary>Output</summary></details>
+          <div class="screener-actions">
+            <button type="submit" id="screener-run">Run Screen</button>
+            <button type="button" id="screener-reset">Reset</button>
+          </div>
+        </form>
+      </aside>
+
+      <section class="screener-results">
+        <div class="screener-results-header">
+          <h2>Results</h2>
+          <span class="screener-results-meta">10 matches · sorted Δ prev %</span>
+        </div>
+        <div class="screener-table-wrap">
+          <table class="screener-table">
+            <thead>
+              <tr>
+                <th>Security</th><th>Company</th><th>Sector</th>
+                <th class="num">Price</th><th class="num">Δ open %</th><th class="num">Δ prev %</th>
+                <th class="num">Δ vs SPY pp</th><th class="num">Volume</th><th class="num">Mkt cap</th><th class="num">Beta</th>
+              </tr>
+            </thead>
+            <tbody id="scr-body">
+              <!-- rows injected by script from SCREENER_ROWS -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<footer class="terminal-footer">
+  <span class="footer-mode normal">NORMAL</span>
+  <span class="footer-view">SCREENER</span>
+  <span class="footer-help">/ cmd · s security · hjkl nav · : chart cmd</span>
+  <div class="footer-clocks">
+    <span class="tz-block"><span class="tz-label">ET</span>21:43</span>
+    <span class="tz-block"><span class="tz-label">UTC</span>01:43</span>
+    <span class="tz-block"><span class="tz-label">JST</span>10:43</span>
+  </div>
+</footer>
+
+<!-- Tweaks: three expressive controls that reshape the screener's feel -->
+<div id="tweaks-root"></div>
+<script>
+// ── mock screen results (illustrative, not real quotes) ──
+const SCREENER_ROWS = [
+  ['COIN','Coinbase Global','Financial Services',201.34,3.2,5.88,4.7,'12.0M','49B',3.10],
+  ['PLTR','Palantir Technologies','Technology',28.94,2.1,4.71,3.9,'71.0M','64B',2.05],
+  ['NVDA','NVIDIA Corp.','Technology',121.08,1.2,3.07,2.4,'288M','2.98T',1.66],
+  ['AMD','Advanced Micro Devices','Technology',158.31,0.9,2.44,1.5,'64.7M','256B',1.74],
+  ['AAPL','Apple Inc.','Technology',187.42,0.4,1.24,0.6,'52.1M','2.94T',1.28],
+  ['MSFT','Microsoft Corp.','Technology',414.20,0.1,0.02,-0.3,'18.4M','3.08T',0.91],
+  ['JPM','JPMorgan Chase','Financial Services',198.55,-0.2,-0.41,-0.8,'9.1M','571B',1.10],
+  ['XOM','Exxon Mobil Corp.','Energy',113.77,0.5,0.96,0.4,'14.2M','506B',0.86],
+  ['TSLA','Tesla, Inc.','Consumer Cyclical',242.65,-1.1,-2.18,-2.9,'109M','772B',2.31],
+  ['SMCI','Super Micro Computer','Technology',41.22,-2.4,-4.12,-5.1,'40.5M','24B',1.95],
+];
+(function renderRows(){
+  const sgn = v => (v > 0 ? '+' : '') + v.toFixed(2);
+  const cls = v => v > 0 ? 'price-up' : v < 0 ? 'price-down' : 'price-flat';
+  document.getElementById('scr-body').innerHTML = SCREENER_ROWS.map(r => `
+    <tr data-dprev="${r[5]}">
+      <td><span class="sym-link st-link-sym">${r[0]}</span></td>
+      <td>${r[1]}</td><td>${r[2]}</td>
+      <td class="num">${r[3].toFixed(2)}</td>
+      <td class="num delta ${cls(r[4])}">${sgn(r[4])}%</td>
+      <td class="num delta ${cls(r[5])}">${sgn(r[5])}%</td>
+      <td class="num delta ${cls(r[6])}">${sgn(r[6])}pp</td>
+      <td class="num">${r[7]}</td><td class="num">${r[8]}</td><td class="num">${r[9].toFixed(2)}</td>
+    </tr>`).join('');
+})();
+</script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel">
+const { useEffect } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "filters": "slim",
+  "signal": "heat",
+  "glow": 60
+}/*EDITMODE-END*/;
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  // 1 — FILTERS: reshape the ternary split (chrome : content)
+  useEffect(() => {
+    const layout = document.querySelector('.screener-layout');
+    const aside = document.querySelector('.screener-filters');
+    const results = document.querySelector('.screener-results');
+    if (!layout) return;
+    if (t.filters === 'shown') {
+      layout.style.gridTemplateColumns = 'minmax(280px, 1fr) 3fr';
+      aside.style.display = ''; aside.style.opacity = '1';
+      results.style.gridColumn = '';
+    } else if (t.filters === 'slim') {
+      layout.style.gridTemplateColumns = 'minmax(170px, 1fr) 6fr';
+      aside.style.display = ''; aside.style.opacity = '1';
+      results.style.gridColumn = '';
+    } else { // hidden — results take the full width (span both tracks)
+      aside.style.opacity = '0'; aside.style.display = 'none';
+      results.style.gridColumn = '1 / -1';
+    }
+  }, [t.filters]);
+
+  // 2 — SIGNAL: how winners/losers read — plain color, magnitude bars, or full-row heat
+  useEffect(() => {
+    const rows = document.querySelectorAll('#scr-body tr');
+    // scale from the Δ-prev column (the sort key)
+    let maxAbs = 1;
+    rows.forEach(r => maxAbs = Math.max(maxAbs, Math.abs(parseFloat(r.dataset.dprev) || 0)));
+    rows.forEach(r => {
+      const dprev = parseFloat(r.dataset.dprev) || 0;
+      // reset row tint
+      r.style.background = '';
+      if (t.signal === 'heat') {
+        const up = dprev >= 0, rgb = up ? '0,204,102' : '255,68,68';
+        const a = Math.sqrt(Math.abs(dprev) / maxAbs) * 0.30;
+        r.style.background = `linear-gradient(to right, rgba(${rgb},${a.toFixed(3)}) 0%, rgba(${rgb},${(a*0.25).toFixed(3)}) 100%)`;
+      }
+      // per-cell bars on the three delta columns
+      r.querySelectorAll('td.delta').forEach(td => {
+        let layer = td.querySelector('.scr-mag');
+        const v = parseFloat(td.textContent.replace(/[^\-\d.]/g, '')) || 0;
+        if (t.signal !== 'bars' || v === 0) { if (layer) layer.remove(); return; }
+        if (!layer) { layer = document.createElement('span'); layer.className = 'scr-mag'; td.insertBefore(layer, td.firstChild); }
+        const up = v >= 0, rgb = up ? '0,204,102' : '255,68,68';
+        const pct = (Math.min(1, Math.abs(v) / maxAbs) * 100).toFixed(1);
+        layer.style.background = `linear-gradient(to left, rgba(${rgb},0.32) 0%, rgba(${rgb},0.32) ${pct}%, transparent ${pct}%)`;
+      });
+    });
+  }, [t.signal]);
+
+  // 3 — GLOW: scale the whole Tron neon from matte (0) to overdrive (150)
+  useEffect(() => {
+    const m = t.glow / 100;
+    const root = document.documentElement.style;
+    const box = (c, near, far) =>
+      `0 0 6px color-mix(in srgb, ${c} ${(near*m).toFixed(1)}%, transparent), 0 0 18px color-mix(in srgb, ${c} ${(far*m).toFixed(1)}%, transparent)`;
+    const txt = (c) => `0 0 8px color-mix(in srgb, ${c} ${(70*m).toFixed(1)}%, transparent)`;
+    root.setProperty('--glow-amber', box('var(--accent-orange)', 55, 28));
+    root.setProperty('--glow-cyan',  box('var(--accent-blue)', 55, 28));
+    root.setProperty('--glow-green', box('var(--green)', 55, 26));
+    root.setProperty('--glow-red',   box('var(--red)', 55, 26));
+    root.setProperty('--text-glow-amber', txt('var(--accent-orange)'));
+    root.setProperty('--text-glow-cyan',  txt('var(--accent-blue)'));
+    root.setProperty('--text-glow-green', txt('var(--green)'));
+    root.setProperty('--text-glow-red',   txt('var(--red)'));
+  }, [t.glow]);
+
+  return (
+    <TweaksPanel>
+      <TweakSection label="Screen composition" />
+      <TweakRadio label="Filter rail" value={t.filters}
+        options={['shown', 'slim', 'hidden']}
+        onChange={(v) => setTweak('filters', v)} />
+      <TweakSection label="Result signal" />
+      <TweakRadio label="Emphasis" value={t.signal}
+        options={['color', 'bars', 'heat']}
+        onChange={(v) => setTweak('signal', v)} />
+      <TweakSlider label="Neon" value={t.glow} min={0} max={150} unit="%"
+        onChange={(v) => setTweak('glow', v)} />
+    </TweaksPanel>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('tweaks-root')).render(<App />);
+</script>
+</body></html>

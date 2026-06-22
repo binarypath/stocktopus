@@ -1,0 +1,4543 @@
+:root {
+    /* ── Surfaces ── */
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #111111;
+    --bg-tertiary: #1a1a1a;
+    --border: #2a2a2a;
+
+    /* ── Text ── */
+    --text-primary: #e0e0e0;
+    --text-secondary: #888888;
+    --text-tertiary: #666666;
+    --text-muted: #555555;
+
+    /* ── Market semantics (unchanged) ── */
+    --green: #00cc66;
+    --red: #ff4444;
+    --yellow: #ccaa00;
+
+    /* ── Brand accents (saturated). --orange / --blue are aliases for
+       gradual migration; new code should reach for --accent-orange /
+       --accent-blue directly. ── */
+    --accent-orange: #ff9a1a;
+    --accent-blue: #2db8ff;
+    --orange: var(--accent-orange);
+    --blue: var(--accent-blue);
+
+    /* ── Lines / rails (weight-1 brand strokes) ── */
+    --line-default: 1px solid var(--border);
+    --line-accent-orange: 1px solid var(--accent-orange);
+    --line-accent-blue: 1px solid var(--accent-blue);
+    --rail-accent-orange: 2px solid var(--accent-orange);
+    --rail-accent-blue: 2px solid var(--accent-blue);
+
+    /* Left-rail box-shadows (note: distinct from --rail-*, which are
+       border shorthands and cannot be inlined inside a box-shadow
+       declaration). Use these on row-selected highlights. */
+    --rail-shadow-orange: inset 2px 0 0 var(--accent-orange);
+    --rail-shadow-blue: inset 2px 0 0 var(--accent-blue);
+
+    /* ── Brand surfaces (opaque-ish; reserve low-alpha for hover only). ── */
+    --accent-orange-surface: color-mix(in srgb, var(--accent-orange) 18%, var(--bg-primary));
+    --accent-orange-surface-strong: color-mix(in srgb, var(--accent-orange) 35%, var(--bg-primary));
+    --accent-orange-surface-solid: color-mix(in srgb, var(--accent-orange) 88%, #000000);
+    --accent-blue-surface: color-mix(in srgb, var(--accent-blue) 18%, var(--bg-primary));
+    --accent-blue-surface-strong: color-mix(in srgb, var(--accent-blue) 35%, var(--bg-primary));
+    --accent-blue-surface-solid: color-mix(in srgb, var(--accent-blue) 88%, #000000);
+    --accent-orange-hover: color-mix(in srgb, var(--accent-orange) 12%, transparent);
+    --accent-blue-hover: color-mix(in srgb, var(--accent-blue) 12%, transparent);
+
+    /* Tab strip focus (row chrome only — much lighter than table selection) */
+    --tab-row-focus-bg: color-mix(in srgb, var(--accent-orange) 10%, transparent);
+    --tab-row-focus-bg-blue: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+
+    /* Selected/current tab pill (50% accent fill — no underline) */
+    --tab-selected-fill-orange: color-mix(in srgb, var(--accent-orange) 50%, transparent);
+    --tab-selected-fill-blue: color-mix(in srgb, var(--accent-blue) 50%, transparent);
+
+    /* ── Selection (one source of truth for row + tab + pane state) ── */
+    --select-row-bg: var(--accent-orange-surface-strong);
+    --select-row-rail: var(--rail-shadow-orange);
+    --select-sub-row-bg: var(--accent-blue-surface-strong);
+    --select-sub-row-rail: var(--rail-shadow-blue);
+    --pane-focus-line: 2px solid var(--accent-orange);
+
+    /* ── Ternary unit (spacing atom = 3px). Snap padding/gap to these. ── */
+    --u: 3px;
+    --space-1: var(--u);                  /*  3 */
+    --space-2: calc(var(--u) * 2);        /*  6 */
+    --space-3: calc(var(--u) * 3);        /*  9 */
+    --space-4: calc(var(--u) * 4);        /* 12 */
+    --space-5: calc(var(--u) * 5);        /* 15 */
+    --space-6: calc(var(--u) * 6);        /* 18 */
+    --space-8: calc(var(--u) * 8);        /* 24 */
+    --space-10: calc(var(--u) * 10);      /* 30 */
+    --space-15: calc(var(--u) * 15);      /* 45 */
+
+    /* ── 1 : 3 split (chrome : content) ── */
+    --layout-chrome: 1fr;
+    --layout-content: 3fr;
+    --layout-split: var(--layout-chrome) var(--layout-content);
+
+    /* ── Emphasis thirds (replace ad-hoc 0.25 / 0.15 fills) ── */
+    --emphasis-1: 33%;
+    --emphasis-2: 66%;
+    --emphasis-3: 100%;
+
+    /* ── Motion (×3 ms cadence) ── */
+    --duration-1: 90ms;
+    --duration-2: 180ms;
+    --duration-3: 270ms;
+    --duration-select: var(--duration-2);
+    --ease-select: cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* ── Type tiers (three chrome + one hero). Aliases keep old names
+       working; new code should use the numbered tier. ── */
+    --text-1: 10px;
+    --text-2: 12px;
+    --text-3: 13px;
+    --text-hero: 16px;
+    --text-xs: var(--text-1);
+    --text-sm: var(--text-2);
+    --text-md: var(--text-3);
+    --text-lg: var(--text-hero);
+    --line-height-tight: 1.333;   /* 4/3 */
+    --line-height-body: 1.5;      /* 3/2 */
+
+    /* ── Radius (two stops; favour over 2/4/6 mix) ── */
+    --radius-sm: 3px;
+    --radius-md: 6px;
+
+    --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   Design system primitives (st-*)
+
+   Reusable classes that codify the unified visual language. Pages
+   dual-write these alongside legacy class names during migration;
+   legacy rules retire only once every consumer has switched. See
+   `design-language-unification.md` for the full spec.
+
+   Naming:
+     .st-<thing>            base
+     .st-<thing>--<mod>     modifier (BEM-style)
+   ──────────────────────────────────────────────────────────────── */
+
+/* Tabs — strip baseline + 50% pill that slides in/out on select (no underline). */
+.st-tab-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    border-bottom: none;
+    box-shadow: inset 0 -1px 0 var(--border);
+    margin-bottom: var(--space-4);
+    padding-bottom: 0;
+}
+
+.st-tab,
+.info-tab,
+.info-sub-tab {
+    position: relative;
+    z-index: 0;
+    isolation: isolate;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    margin: 0;
+    box-shadow: none;
+    cursor: pointer;
+    transition: color var(--duration-select) var(--ease-select);
+}
+
+.st-tab {
+    font-size: var(--text-2);
+    padding: var(--space-1) var(--space-3);
+}
+
+/* Animated fill — slides in from the left, out on deselect. */
+.st-tab::before,
+.info-tab::before,
+.info-sub-tab::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    z-index: -1;
+    background: var(--tab-selected-fill-orange);
+    transform: scaleX(0);
+    transform-origin: left center;
+    opacity: 0;
+    transition:
+        transform var(--duration-select) var(--ease-select),
+        opacity var(--duration-select) var(--ease-select);
+}
+
+.st-tab-row--blue .st-tab::before,
+.info-sub-tabs .info-sub-tab::before,
+.info-sub-tabs .st-tab::before {
+    background: var(--tab-selected-fill-blue);
+}
+
+.st-tab:hover,
+.info-tab:hover,
+.info-sub-tab:hover {
+    color: var(--text-primary);
+}
+
+.st-tab--active,
+.st-tab.vim-selected,
+.info-tab.active,
+.info-tab.vim-selected {
+    color: var(--accent-orange);
+    box-shadow: none;
+}
+
+.st-tab--active::before,
+.st-tab.vim-selected::before,
+.info-tab.active::before,
+.info-tab.vim-selected::before,
+.info-sub-tab.active::before,
+.info-sub-tab.vim-selected::before {
+    transform: scaleX(1);
+    opacity: 1;
+}
+
+.st-tab-row--blue .st-tab--active,
+.st-tab-row--blue .st-tab.vim-selected,
+.info-sub-tab.active,
+.info-sub-tab.vim-selected,
+.info-sub-tabs .st-tab.active,
+.info-sub-tabs .st-tab.vim-selected {
+    color: var(--accent-blue);
+    box-shadow: none;
+}
+
+/* Selected row — rail (1) + emphasis-2 surface (66% accent toward bg).
+   The vim-driven selection (.vim-selected) and the CSS-only opt-in
+   (.st-row-selected) share one rule so both selectors produce the
+   same visual contract. Tab strips override this back to transparent
+   further down (see "Vim Selection") so the sliding pill owns the
+   look there instead. */
+.vim-selected,
+.st-row-selected {
+    background: color-mix(in srgb, var(--accent-orange) var(--emphasis-2), var(--bg-primary)) !important;
+    box-shadow: var(--rail-shadow-orange);
+    transition:
+        background var(--duration-select) var(--ease-select),
+        box-shadow var(--duration-select) var(--ease-select),
+        color var(--duration-select) var(--ease-select);
+}
+.info-sub-tabs .vim-selected,
+.news-sub-tabs .vim-selected,
+.st-row-selected--blue {
+    background: color-mix(in srgb, var(--accent-blue) var(--emphasis-2), var(--bg-primary)) !important;
+    box-shadow: var(--rail-shadow-blue);
+}
+
+/* Active pane (multi-column layouts) — top edge bar in brand orange.
+   Used by Ideas (sidebar / main) and Screener (filters / results). */
+.st-pane-active {
+    box-shadow: 0 -2px 0 1px var(--accent-orange);
+}
+
+/* Form inputs. Default border is muted; focus picks up brand blue
+   so the focused control is unambiguous even at a glance. */
+.st-input {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: var(--line-default);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: var(--text-3);
+    padding: var(--space-2) var(--space-3);
+    outline: none;
+}
+.st-input:focus {
+    border-color: var(--accent-blue);
+}
+
+/* Chips / tags. Three semantic variants — orange (workspace), blue
+   (security identity), muted (neutral metadata). Use sparingly: a
+   page with five chip variants stops feeling intentional. */
+.st-chip {
+    display: inline-block;
+    font-size: var(--text-1);
+    font-weight: 600;
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    letter-spacing: 0.02em;
+}
+.st-chip--orange {
+    color: var(--accent-orange);
+    background: var(--accent-orange-surface-solid);
+    border-color: var(--accent-orange);
+}
+.st-chip--blue {
+    color: var(--accent-blue);
+    background: var(--accent-blue-surface-solid);
+    border-color: var(--accent-blue);
+}
+.st-chip--muted {
+    color: var(--text-secondary);
+    background: var(--bg-tertiary);
+    border-color: var(--border);
+}
+
+/* Security symbol link — blue, bold, terminal-style. The canonical
+   visual contract for "this string is a tradable identifier". */
+.st-link-sym {
+    color: var(--accent-blue);
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+}
+.st-link-sym:hover {
+    text-decoration: underline;
+}
+
+/* Section titles. Compact, all-caps, brand orange — the heading
+   pattern used by screener groups and chart sub-sections. */
+.st-section-title {
+    font-size: var(--text-1);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent-orange);
+}
+
+/* Shared table chrome. Pages adopt by adding `st-table` alongside
+   their existing class so visual parity follows automatically. */
+.st-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-2);
+}
+.st-table thead th {
+    text-align: left;
+    color: var(--text-secondary);
+    font-size: var(--text-1);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: var(--line-default);
+}
+.st-table tbody td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+.st-table tbody tr:hover {
+    background: var(--bg-secondary);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.5;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* ── Terminal Header ── */
+
+.terminal-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 0 16px;
+    height: 44px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.brand {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--orange);
+    letter-spacing: 1px;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.cmd-bar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    flex: 1;
+    gap: var(--space-3);
+    min-width: 0;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    /* Height locked to match .security-input — header controls share
+     * one resolved height so the strip reads as a single row of
+     * controls, not a staircase. */
+    height: var(--space-10);
+    box-sizing: border-box;
+    padding: 0 var(--space-4);
+    position: relative;
+}
+
+.cmd-bar:focus-within {
+    border-color: var(--orange);
+}
+
+.cmd-prompt {
+    color: var(--orange);
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.cmd-input {
+    background: transparent;
+    border: none;
+    color: var(--orange);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    outline: none;
+    width: 100%;
+    caret-color: var(--orange);
+}
+
+.cmd-input::placeholder {
+    color: var(--text-muted);
+}
+
+/* ── Command Autocomplete ── */
+
+.cmd-dropdown {
+    position: absolute;
+    top: calc(100% + var(--space-2));
+    left: 0;
+    right: 0;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    z-index: 200;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.cmd-dropdown.hidden {
+    display: none;
+}
+
+.cmd-option {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+}
+
+.cmd-option:last-child {
+    border-bottom: none;
+}
+
+.cmd-option:hover,
+.cmd-option.active {
+    background: var(--bg-tertiary);
+}
+
+.cmd-option-usage {
+    color: var(--orange);
+    font-weight: 700;
+    white-space: nowrap;
+    min-width: 160px;
+}
+
+.cmd-option-desc {
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.cmd-option-empty {
+    color: var(--text-muted);
+    font-style: italic;
+    cursor: default !important;
+}
+.cmd-option-empty:hover {
+    background: transparent !important;
+}
+
+/* ── Security Selector ── */
+
+.security-selector {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.security-input {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--blue);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    /* Canonical height for header controls — cmd-bar, watchlist-picker
+     * and conn-status all match this. */
+    height: var(--space-10);
+    box-sizing: border-box;
+    padding: 0 var(--space-3);
+    outline: none;
+    width: 90px;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+.security-input:focus {
+    border-color: var(--blue);
+}
+
+.security-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    min-width: 300px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 0 0 6px 6px;
+    max-height: 250px;
+    overflow-y: auto;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.security-dropdown.hidden {
+    display: none;
+}
+
+.security-option {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.security-option:hover,
+.security-option.active {
+    background: var(--bg-tertiary);
+}
+
+.sec-sym {
+    color: var(--blue);
+    font-weight: 700;
+    min-width: 70px;
+}
+
+.sec-name {
+    color: var(--text-secondary);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sec-exchange {
+    color: var(--text-muted);
+    font-size: 10px;
+}
+
+/* ── Connection Status ── */
+
+.conn-status {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    /* Height locked to match .security-input. */
+    height: var(--space-10);
+    box-sizing: border-box;
+    padding: 0 var(--space-3);
+    display: inline-flex;
+    align-items: center;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: var(--bg-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.conn-status.connected {
+    color: var(--green);
+    border-color: var(--green);
+}
+
+/* ── Terminal Body (content + reader split) ── */
+
+.terminal-body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+/* ── Terminal Content ── */
+
+.terminal-content {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* ── Article Reader Panel ── */
+
+.article-reader {
+    /* Ternary cap: never wider than 1/3 of the column, never wider than
+     * 450px. On wide displays it stops bloating; on narrow ones the
+     * percentage takes over. */
+    width: min(33.333%, 450px);
+    flex-shrink: 0;
+    background: var(--bg-secondary);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.article-reader.hidden {
+    display: none;
+}
+
+.reader-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.reader-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.reader-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+    margin-left: 8px;
+    flex-shrink: 0;
+}
+
+.reader-close:hover {
+    color: var(--text-primary);
+}
+
+.reader-body {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+}
+
+.reader-body p {
+    margin-bottom: 12px;
+}
+
+.reader-body h1, .reader-body h2, .reader-body h3 {
+    color: var(--text-primary);
+    margin: 16px 0 8px;
+    font-size: 15px;
+}
+
+.reader-meta {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+.reader-source {
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+
+.reader-source a {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 11px;
+}
+
+.reader-source a:hover {
+    color: var(--blue);
+}
+
+.reader-unavailable {
+    color: var(--text-muted);
+    font-size: 13px;
+    padding: 20px 0;
+}
+
+.reader-unavailable a {
+    color: var(--blue);
+    text-decoration: none;
+}
+
+.reader-iframe {
+    width: 100%;
+    height: calc(100% - 40px);
+    border: none;
+    border-radius: 4px;
+    background: white;
+}
+
+.reader-related {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.reader-related-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.reader-related-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.reader-related-name {
+    display: block;
+    font-size: 9px;
+    font-weight: 400;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.reader-llm-status {
+    font-size: 11px;
+    color: var(--text-muted);
+    padding: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.reader-content {
+    font-size: 13px;
+}
+
+.reader-bot {
+    font-size: 9px;
+    color: var(--green);
+    border: 1px solid var(--green);
+    border-radius: 3px;
+    padding: 1px 5px;
+    margin-left: 6px;
+}
+
+.reader-entities {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+/* Reader entity badges — visual now flows from .st-chip + .st-chip--blue
+   / --orange (see primitives section). The legacy classes remain as
+   semantic hooks (the vim-selected handler and the click target lookup
+   key off .reader-ticker), but they no longer carry their own paint. */
+.reader-ticker {
+    cursor: pointer;
+}
+
+.entity-ticker {
+    color: var(--blue);
+    font-weight: 700;
+    cursor: pointer;
+    border-bottom: 1px dotted var(--blue);
+}
+
+.entity-ticker:hover {
+    color: var(--text-primary);
+}
+
+.entity-company {
+    color: var(--green);
+    cursor: pointer;
+    border-bottom: 1px dotted var(--green);
+}
+
+.entity-company:hover {
+    color: var(--text-primary);
+}
+
+.entity-person {
+    color: var(--yellow);
+    border-bottom: 1px dotted var(--yellow);
+}
+
+.entity-sector {
+    color: var(--orange);
+    font-style: italic;
+}
+
+.reader-person-badge {
+    font-size: 10px;
+    color: var(--yellow);
+    background: rgba(210, 153, 34, 0.1);
+    border: 1px solid rgba(210, 153, 34, 0.2);
+    border-radius: 3px;
+    padding: 1px 6px;
+}
+
+.reader-company-badge {
+    font-size: 10px;
+    color: var(--green);
+    background: rgba(0, 204, 102, 0.1);
+    border: 1px solid rgba(0, 204, 102, 0.2);
+    border-radius: 3px;
+    padding: 1px 6px;
+}
+
+.reader-para.vim-selected {
+    background: var(--bg-tertiary);
+    outline: 1px solid var(--orange);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+/* ── Terminal Footer ── */
+
+.terminal-footer {
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    height: 24px;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-muted);
+    gap: 16px;
+    flex-shrink: 0;
+}
+
+.footer-mode {
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+}
+
+.footer-mode.normal {
+    color: var(--green);
+    background: rgba(0, 204, 102, 0.15);
+}
+
+.footer-mode.insert {
+    color: var(--accent-orange);
+    background: var(--accent-orange-surface);
+}
+
+.footer-view {
+    color: var(--orange);
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.footer-help {
+    flex: 1;
+}
+
+.footer-clocks {
+    display: flex;
+    gap: 14px;
+    font-variant-numeric: tabular-nums;
+}
+
+.tz-block {
+    white-space: nowrap;
+}
+
+.tz-label {
+    color: var(--text-muted);
+    font-size: 10px;
+    margin-right: 3px;
+}
+
+/* ── Page Header ── */
+
+.page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.page-header h1, .page-header h2 {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+}
+
+.view-title {
+    margin-bottom: 4px;
+}
+
+/* ── Quote Table (Watchlist) ── */
+
+.quote-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.quote-table th {
+    text-align: left;
+    padding: 6px 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+}
+
+.quote-table td {
+    padding: 6px 12px;
+    border-bottom: 1px solid rgba(42, 42, 42, 0.5);
+}
+
+.quote-table tr:hover {
+    background: var(--bg-secondary);
+}
+
+.quote-table .sym-link {
+    color: var(--blue);
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.quote-table .sym-link:hover {
+    text-decoration: underline;
+}
+
+.quote-row-ghost .sym-link { color: var(--text-secondary); }
+.quote-row-ghost .sym-link:hover { color: var(--text-primary); }
+.quote-na { color: var(--text-muted); font-style: italic; }
+
+.price-up { color: var(--green); }
+.price-down { color: var(--red); }
+.price-flat { color: var(--text-secondary); }
+
+.watchlist-picker {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    /* Height locked to match .security-input. */
+    height: var(--space-10);
+    box-sizing: border-box;
+    padding: 0 var(--space-3);
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--orange);
+    border-radius: var(--radius-md);
+    color: var(--orange);
+    cursor: default;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.watchlist-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+/* Watchlist tabs — each list has its own user-chosen colour, which
+   serves as identity. Adopting the orange pill from .st-tab--active
+   would override that, so the watchlist deliberately stays on a
+   parallel visual language: rounded, bordered in the list's colour,
+   filled with a soft tint of that same colour on active.
+   currentColor picks up the inline style colour set per tab. */
+.wl-tab {
+    font-size: var(--text-sm);
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    opacity: 0.6;
+    transition:
+        opacity var(--duration-select) var(--ease-select),
+        background var(--duration-select) var(--ease-select);
+}
+
+.wl-tab:hover {
+    opacity: 0.85;
+}
+
+.wl-tab-active {
+    opacity: 1;
+    font-weight: 700;
+    background: color-mix(in srgb, currentColor 18%, var(--bg-primary));
+}
+
+/* ── Add Security Form (Watchlist) ── */
+
+.add-security-form {
+    display: flex;
+    gap: 8px;
+    /* anchors the autocomplete dropdown — without this, the absolutely-
+       positioned .security-dropdown attaches to <body> and lands off-screen. */
+    position: relative;
+}
+
+/* Header's security selector anchors right (its input sits on the right);
+   the watchlist add-form sits on the left, so its dropdown should align
+   to the input's left edge for a natural visual line. */
+.add-security-form .security-dropdown {
+    left: 0;
+    right: auto;
+}
+
+.add-security-form input {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 4px 10px;
+    outline: none;
+    width: 180px;
+}
+
+.add-security-form input:focus {
+    border-color: var(--blue);
+}
+
+.add-security-form button {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 4px 12px;
+    cursor: pointer;
+}
+
+.add-security-form button:hover {
+    background: var(--border);
+}
+
+/* ── Empty State ── */
+
+.empty-state {
+    color: var(--text-muted);
+    text-align: center;
+    padding: 40px 20px;
+}
+
+/* ── Security Info View ── */
+
+/* ── Company Panel (shared) ── */
+
+.company-panel {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.company-panel:empty {
+    display: none;
+}
+
+.cpanel-sym {
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--blue);
+}
+
+.cpanel-name {
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.cpanel-price {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.cpanel-change {
+    font-size: 13px;
+}
+
+.cpanel-spark-wrap {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.cpanel-spark-label {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.cpanel-spark {
+    width: 160px;
+    height: 40px;
+}
+
+.cpanel-spark a[href*="tradingview"],
+.chart-container a[href*="tradingview"],
+#fin-chart-host a[href*="tradingview"],
+.wl-spark a[href*="tradingview"] {
+    display: none !important;
+}
+
+/* Watchlist sparkline cell — inline mini chart + colour-matched 6M label. */
+.wl-spark-cell {
+    white-space: nowrap;
+}
+
+.wl-spark {
+    display: inline-block;
+    width: 90px;
+    height: 28px;
+    vertical-align: middle;
+}
+
+.wl-spark-label {
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+/* The static-but-derived watchlist cells (1W / 6M change) start blank
+   while their EOD fetch is pending. Dim placeholder colour so an empty
+   cell reads as 'loading' rather than 'no data'. */
+.wl-static:empty::before {
+    content: '·';
+    color: var(--text-tertiary, #555);
+}
+
+
+/* Legacy info-tab rules converged onto the flat st-tab look. */
+.info-tabs {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+    border-bottom: none;
+    box-shadow: inset 0 -1px 0 var(--border);
+    padding-bottom: 0;
+}
+
+.info-tab {
+    font-size: var(--text-2);
+    padding: var(--space-1) var(--space-3);
+}
+
+.info-content {
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.info-stat {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px;
+}
+
+.info-stat-label {
+    display: block;
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+}
+
+.info-stat-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.info-company {
+    margin-top: 12px;
+}
+
+.info-company-meta {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+}
+
+.info-company-meta a {
+    color: var(--blue);
+    text-decoration: none;
+}
+
+.info-description {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* Sub-tab strip — same baseline geometry as .st-tab-row. */
+.info-sub-tabs {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+    border-bottom: none;
+    box-shadow: inset 0 -1px 0 var(--border);
+    padding-bottom: 0;
+}
+
+/* Sub-tabs — blue variant (fill + slide from shared .info-sub-tab rules). */
+.info-sub-tab {
+    font-size: var(--text-1);
+    padding: var(--space-1) var(--space-3);
+}
+
+.fin-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.fin-table th {
+    text-align: right;
+    padding: 6px 12px;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 500;
+    border-bottom: 1px solid var(--border);
+}
+
+.fin-table th:first-child {
+    text-align: left;
+}
+
+.fin-table td {
+    text-align: right;
+    padding: 6px 12px;
+    border-bottom: 1px solid rgba(42, 42, 42, 0.5);
+}
+
+.fin-table tr:hover {
+    background: var(--bg-secondary);
+}
+
+.fin-label {
+    text-align: left !important;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+/* Total rows — analyst-spreadsheet convention (fool.com / Bloomberg):
+ * the line that sums what's above it gets a thin top rule and bold
+ * weight on the whole row, so the eye can skim totals separately
+ * from intermediate line items. */
+.fin-row--total td {
+    font-weight: 700;
+    color: var(--text-primary);
+    border-top: 1px solid var(--accent-orange);
+}
+.fin-row--total .fin-label {
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
+/* Financials chart slide-in — values list beneath the chart */
+.fin-chart-points {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 6px;
+    margin-top: 12px;
+    font-size: 11px;
+}
+
+.fin-chart-point {
+    display: flex;
+    flex-direction: column;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    background: var(--bg-tertiary);
+}
+
+.fin-chart-year {
+    color: var(--text-muted);
+    font-size: 10px;
+}
+
+.fin-chart-val {
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
+.est-range {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.info-tabs.tab-row-focused {
+    background: var(--tab-row-focus-bg);
+    box-shadow: inset 0 -1px 0 var(--border);
+}
+
+.info-sub-tabs.tab-row-focused {
+    background: var(--tab-row-focus-bg-blue);
+    box-shadow: inset 0 -1px 0 var(--border);
+}
+
+.help-tip {
+    display: block;
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--yellow);
+    line-height: 1.4;
+    margin-top: 2px;
+    font-style: italic;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.help-tip.hidden {
+    display: none;
+}
+
+.help-indicator {
+    font-size: 10px;
+    color: var(--yellow);
+    padding: 2px 8px;
+    border: 1px solid var(--yellow);
+    border-radius: 3px;
+    margin-bottom: 8px;
+    display: inline-block;
+}
+
+.help-indicator.hidden {
+    display: none;
+}
+
+/* ── Sector View ── */
+
+.sector-view {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.sector-header {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.sector-name {
+    color: var(--orange);
+}
+
+.sector-industry {
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+
+.sector-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ── /crypto/{symbol} page ── */
+.crypto-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+.crypto-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.crypto-exchange {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+.crypto-price-row {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin: 8px 0 16px 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+}
+.crypto-price {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+}
+.crypto-change {
+    font-size: 12px;
+    font-family: var(--font-mono);
+}
+.crypto-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 6px;
+    margin-bottom: 16px;
+}
+.crypto-stat {
+    display: flex;
+    flex-direction: column;
+    padding: 6px 8px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+}
+.crypto-stat-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.crypto-stat-value {
+    font-size: 13px;
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+    margin-top: 2px;
+}
+.crypto-chart {
+    margin: 12px 0;
+    border: 1px solid var(--border);
+    background: var(--bg-secondary);
+}
+.crypto-desc {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+/* ── /etf/{symbol} sector allocation bar ── */
+.sector-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+}
+.sector-bar-fill {
+    height: 100%;
+    background: var(--orange);
+}
+
+.peer-table .sym-link {
+    color: var(--blue);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.peer-current {
+    background: var(--bg-tertiary) !important;
+    border-left: 3px solid var(--orange);
+}
+
+.sector-hint {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-left: 12px;
+    font-weight: 400;
+}
+
+.peer-spark {
+    width: 80px;
+    height: 24px;
+}
+
+.peer-spark a[href*="tradingview"] {
+    display: none !important;
+}
+
+.peer-row {
+    cursor: pointer;
+}
+
+.sector-perf-chart {
+    width: 100%;
+    height: 200px;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.sector-perf-chart a[href*="tradingview"] {
+    display: none !important;
+}
+
+.sector-news {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sector-news-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(42, 42, 42, 0.3);
+}
+
+.sector-news-item a {
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 12px;
+}
+
+.sector-news-item a:hover {
+    color: var(--blue);
+}
+
+.sector-news-meta {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+/* ── AI Analysis ── */
+
+.ai-analysis {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.ai-section {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 14px;
+}
+
+.ai-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.ai-summary {
+    font-size: 13px;
+    color: var(--text-primary);
+    line-height: 1.6;
+}
+
+.ai-scores {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.ai-score {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 12px;
+    text-align: center;
+}
+
+.ai-score-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+
+.ai-score-value {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.ai-score-bar {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+}
+
+.ai-score-fill {
+    height: 100%;
+    background: var(--orange);
+    border-radius: 2px;
+}
+
+.ai-list {
+    list-style: none;
+    padding: 0;
+}
+
+.ai-list li {
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(42, 42, 42, 0.3);
+}
+
+.ai-list li:last-child {
+    border-bottom: none;
+}
+
+.ai-risks li::before,
+.ai-opps li::before {
+    font-size: 12px;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+.ai-risks li::before {
+    content: "\25BC";
+    color: var(--red);
+}
+
+.ai-opps li::before {
+    content: "\25B2";
+    color: var(--green);
+}
+
+.ai-competitors {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.ai-competitor-card {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 100px;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.ai-competitor-card:hover {
+    border-color: var(--blue);
+}
+
+.ai-competitor-sym {
+    font-size: 13px;
+    color: var(--blue);
+    font-weight: 700;
+}
+
+.ai-analyze-btn {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--orange);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 2px 8px;
+    cursor: pointer;
+}
+
+.ai-analyze-btn:hover {
+    border-color: var(--orange);
+}
+
+.ai-analyze-btn:disabled {
+    cursor: default;
+    color: var(--text-muted);
+    border-color: var(--border);
+}
+
+.ai-competitor-scores {
+    font-size: 11px;
+    color: var(--text-muted);
+    display: flex;
+    gap: 8px;
+}
+
+.ai-text {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.ai-sources {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ai-source {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-decoration: none;
+}
+
+.ai-source:hover {
+    color: var(--blue);
+}
+
+.ai-meta {
+    display: flex;
+    gap: 16px;
+    font-size: 10px;
+    color: var(--text-muted);
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.ai-progress {
+    padding: 40px 20px;
+    text-align: center;
+}
+
+.ai-progress-header {
+    font-size: 14px;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+}
+
+.ai-tasks {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.ai-task {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+}
+
+.ai-task-pending { color: var(--text-muted); }
+.ai-task-running { color: var(--orange); border-color: var(--orange); }
+.ai-task-complete { color: var(--green); border-color: var(--green); }
+.ai-task-failed { color: var(--red); border-color: var(--red); }
+
+.info-pulse {
+    animation: info-pulse-fade 1.5s ease-out;
+}
+
+@keyframes info-pulse-fade {
+    0% { color: var(--accent-orange); text-shadow: 0 0 6px color-mix(in srgb, var(--accent-orange) 50%, transparent); }
+    100% { color: inherit; text-shadow: none; }
+}
+
+@media (max-width: 900px) {
+    .info-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .company-panel {
+        flex-wrap: wrap;
+    }
+}
+
+/* ── News View ── */
+
+.news-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+}
+
+.news-tab {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 5px 12px;
+    cursor: pointer;
+}
+
+.news-tab:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+}
+
+.news-tab.active {
+    color: var(--orange);
+    border-color: var(--orange);
+    background: var(--bg-tertiary);
+}
+
+.news-tab.dimmed {
+    color: var(--text-muted);
+    opacity: 0.4;
+    cursor: default;
+}
+
+.news-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: calc(100vh - 180px);
+    overflow-y: auto;
+}
+
+.news-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-left: 3px solid transparent;
+    border-radius: 4px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    opacity: 0.6;
+}
+
+.news-card:hover {
+    border-color: var(--text-muted);
+    border-left-color: var(--text-muted);
+    opacity: 0.8;
+}
+
+.news-card.news-unread {
+    border-left-color: var(--orange);
+    opacity: 1;
+}
+
+.news-card.news-unread .news-card-title a {
+    color: var(--orange);
+}
+
+.news-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.news-card-title a {
+    color: var(--text-primary);
+    text-decoration: none;
+}
+
+.news-card-title a:hover {
+    color: var(--blue);
+}
+
+.news-card-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.news-card-meta .news-symbol {
+    color: var(--blue);
+    font-weight: 700;
+}
+
+.news-card-text {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+}
+
+.spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--border);
+    border-top-color: var(--orange);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-left: 6px;
+}
+
+.spinner.hidden {
+    display: none;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.news-loader {
+    text-align: center;
+    padding: 12px;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+/* ── Stock / Graph View ── */
+
+/* Chart range bar — blue tab-strip variant. Intraday + EOD ranges share
+   the .st-tab pill animation; auto-refresh + indicator toggles inside
+   the same bar keep their own bespoke styles (they're filters, not
+   selectors). */
+.chart-range-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    box-shadow: inset 0 -1px 0 var(--border);
+}
+
+.chart-range-btn {
+    /* Geometry on ternary grid; pill + colour flow from .st-tab rules. */
+    font-size: var(--text-2);
+    padding: var(--space-1) var(--space-3);
+}
+
+.chart-auto-refresh {
+    background: transparent;
+    border: 1px solid var(--green);
+    border-radius: 4px;
+    color: var(--green);
+    font-size: 14px;
+    padding: 2px 6px;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.chart-auto-refresh:hover {
+    background: rgba(0, 204, 102, 0.15);
+}
+
+.chart-auto-refresh.active {
+    background: rgba(0, 204, 102, 0.15);
+    color: var(--green);
+}
+
+.chart-auto-refresh:not(.active) {
+    border-color: var(--border);
+    color: var(--text-muted);
+}
+
+.chart-range-sep {
+    color: var(--border);
+    font-size: 14px;
+    line-height: 1;
+}
+
+/* Legacy .chart-range-btn.active retained as a token bridge — when
+   markup hasn't been dual-written yet, the colour change still lands.
+   Box-shadow + bg flow from the shared pill rules at the top of the
+   file. */
+.chart-range-btn.active {
+    color: var(--accent-blue);
+}
+
+.chart-toggle {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 3px 6px;
+    cursor: pointer;
+}
+
+.chart-toggle:hover {
+    color: var(--text-primary);
+    border-color: var(--text-muted);
+}
+
+.chart-toggle.active {
+    color: var(--green);
+    border-color: var(--green);
+    background: rgba(0, 204, 102, 0.1);
+}
+
+.chart-container {
+    width: 100%;
+    height: calc(100vh - 200px);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Graph view: fill remaining viewport so the time-axis labels aren't clipped */
+.terminal-content[data-view="graph"] {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.terminal-content[data-view="graph"] .chart-container {
+    flex: 1;
+    height: auto;
+    min-height: 0;
+}
+
+.chart-tooltip {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: rgba(10, 10, 10, 0.85);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-primary);
+    z-index: 10;
+    pointer-events: none;
+}
+
+/* ── Chart News Panel ── */
+
+.chart-news-panel {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-top: 8px;
+    max-height: 40vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.cnp-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.cnp-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.cnp-list {
+    display: flex;
+    flex-direction: column;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.cnp-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(42, 42, 42, 0.3);
+    font-size: 12px;
+}
+
+.cnp-item:hover {
+    background: var(--bg-tertiary);
+}
+
+.cnp-item-active {
+    background: var(--bg-tertiary);
+    border-left: 3px solid var(--orange);
+}
+
+.cnp-title {
+    color: var(--text-primary);
+    flex: 1;
+}
+
+.cnp-meta {
+    color: var(--text-muted);
+    font-size: 10px;
+    margin-left: 12px;
+    flex-shrink: 0;
+}
+
+.cnp-reader {
+    padding: 12px 16px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.cnp-article-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    line-height: 1.4;
+}
+
+.cnp-article-meta {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+.cnp-article-body {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+}
+
+.cnp-article-body p {
+    margin-bottom: 10px;
+}
+
+.cnp-article-body h2, .cnp-article-body h3 {
+    color: var(--text-primary);
+    margin: 16px 0 8px;
+    font-size: 14px;
+}
+
+.chart-tooltip.hidden {
+    display: none;
+}
+
+.tt-sym {
+    color: var(--blue);
+    font-weight: 700;
+    margin-right: 6px;
+}
+
+.tt-date {
+    color: var(--text-muted);
+    margin-right: 8px;
+}
+
+/* ── Debug Panels ── */
+
+.debug-panels {
+    display: grid;
+    grid-template-columns: var(--layout-split);
+    gap: var(--space-4);
+    height: calc(100vh - 140px);
+}
+
+.debug-agent-panel {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    overflow-y: auto;
+}
+
+.agent-panel-header,
+.agent-pipelines-header {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.agent-pipelines-header {
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.agent-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.agent-stat {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+}
+
+.agent-stat-label {
+    color: var(--text-muted);
+}
+
+.agent-stat-value {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.agent-pipelines {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.agent-pipeline {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 6px 8px;
+    font-size: 11px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.pip-symbol {
+    color: var(--blue);
+    font-weight: 700;
+}
+
+.pip-status {
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
+.agent-pip-running .pip-status {
+    color: var(--orange);
+    border: 1px solid var(--orange);
+}
+
+.agent-pip-complete .pip-status {
+    color: var(--green);
+    border: 1px solid var(--green);
+}
+
+.agent-pip-failed .pip-status {
+    color: var(--red);
+    border: 1px solid var(--red);
+}
+
+.pip-dur {
+    color: var(--text-muted);
+    font-size: 10px;
+}
+
+.pip-tasks {
+    width: 100%;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.pip-task {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.pip-task-complete { color: var(--green); }
+.pip-task-running { color: var(--orange); }
+.pip-task-failed { color: var(--red); }
+
+/* ── Debug Console ── */
+
+.debug-console {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    font-size: 12px;
+    max-height: calc(100vh - 140px);
+    overflow-y: auto;
+}
+
+.debug-controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.debug-controls button {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 3px 8px;
+    cursor: pointer;
+}
+
+.debug-controls label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.log-entry {
+    padding: 2px 0;
+    display: flex;
+    gap: 8px;
+    border-bottom: 1px solid rgba(42, 42, 42, 0.3);
+    line-height: 1.6;
+}
+
+.log-time {
+    color: var(--text-muted);
+    flex-shrink: 0;
+    width: 90px;
+}
+
+.log-level {
+    flex-shrink: 0;
+    width: 50px;
+    font-weight: 600;
+}
+
+.log-msg {
+    color: var(--text-primary);
+    flex: 1;
+}
+
+.log-attrs {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.log-INFO .log-level { color: var(--blue); }
+.log-WARN .log-level { color: var(--yellow); }
+.log-ERROR .log-level { color: var(--red); }
+.log-ERROR .log-msg { color: var(--red); }
+.log-DEBUG .log-level { color: var(--text-muted); }
+
+/* ── Vim Selection — strip- and tab-specific overrides ──
+ *
+ * The base row-selection visual lives in the primitives section near
+ * the top of this file (.vim-selected, .st-row-selected — shared rule).
+ * The rules below adapt that visual for two cases:
+ *
+ *   1. Strip background — when the cursor lands in a tab row, the whole
+ *      strip gets a faint accent wash so the user sees which strip is
+ *      "live" even if they jump between rows.
+ *   2. Tab overrides — for individual tab items inside a strip, the
+ *      base row-selection background is reset to transparent because
+ *      the sliding ::before pill (see .st-tab rules) owns the highlight.
+ */
+
+/* Row-level cue: when any item inside a row container is selected,
+ * the whole row gets the same fill. For tab strips this means the
+ * entire nav row lights up, not just the focused tab. */
+[data-vim-row]:has(.vim-selected) {
+    background: color-mix(in srgb, var(--accent-orange) var(--emphasis-2), var(--bg-primary));
+}
+
+/* Tab strips: faint row wash + neutral baseline (not table-row fill). */
+.st-tab-row[data-vim-row]:has(.vim-selected),
+.info-tabs[data-vim-row]:has(.vim-selected),
+.economics-tabs[data-vim-row]:has(.vim-selected) {
+    background: var(--tab-row-focus-bg);
+    box-shadow: inset 0 -1px 0 var(--border);
+}
+
+.st-tab-row--blue[data-vim-row]:has(.vim-selected),
+.info-sub-tabs[data-vim-row]:has(.vim-selected),
+.news-sub-tabs[data-vim-row]:has(.vim-selected) {
+    background: var(--tab-row-focus-bg-blue);
+    box-shadow: inset 0 -1px 0 var(--border);
+}
+
+/* Tab vim focus: colour only — fill slide is on ::before (see .st-tab rules). */
+.st-tab-row .st-tab.vim-selected,
+.st-tab-row .info-tab.vim-selected,
+.info-tabs .info-tab.vim-selected,
+.info-sub-tabs .info-sub-tab.vim-selected,
+.info-sub-tabs .st-tab.vim-selected,
+.news-sub-tabs .info-sub-tab.vim-selected,
+.news-sub-tabs .st-tab.vim-selected {
+    background: transparent !important;
+    box-shadow: none !important;
+    margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .st-tab::before,
+    .info-tab::before,
+    .info-sub-tab::before,
+    .vim-selected,
+    .st-row-selected,
+    .st-row-selected--blue {
+        transition: none;
+    }
+}
+
+/* ── Equity Indices ── */
+
+.indices-table {
+    width: 100%;
+}
+
+.idx-row {
+    cursor: pointer;
+}
+
+.idx-row:hover {
+    background: var(--bg-secondary);
+}
+
+.idx-sym {
+    color: var(--blue);
+    font-weight: 700;
+    margin-right: 6px;
+}
+
+.idx-label {
+    color: var(--text-secondary);
+    font-size: 11px;
+}
+
+.idx-name {
+    min-width: 200px;
+    text-align: left !important;
+}
+
+.indices-table td {
+    text-align: left;
+}
+
+.indices-table th {
+    text-align: left !important;
+}
+
+.idx-spark {
+    width: 80px;
+    height: 24px;
+}
+
+.idx-spark-selected {
+    outline: 1px solid var(--orange);
+    outline-offset: 1px;
+    border-radius: 3px;
+}
+
+.idx-spark a[href*="tradingview"] {
+    display: none !important;
+}
+
+.idx-price {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.idx-change, .idx-pct {
+    font-variant-numeric: tabular-nums;
+}
+
+.idx-time {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.idx-open {
+    color: var(--green);
+    font-weight: 700;
+    font-size: 10px;
+}
+
+.idx-closed {
+    color: var(--red);
+    font-weight: 700;
+    font-size: 10px;
+}
+
+/* ── Flash Animations ── */
+
+@keyframes flash-green {
+    0% { background: rgba(0, 204, 102, 0.25); }
+    100% { background: transparent; }
+}
+
+@keyframes flash-red {
+    0% { background: rgba(255, 68, 68, 0.25); }
+    100% { background: transparent; }
+}
+
+.flash {
+    animation: flash-green 0.6s ease-out;
+}
+
+.flash .price-down {
+    animation: flash-red 0.6s ease-out;
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 900px) {
+    .stock-view {
+        grid-template-columns: 1fr;
+    }
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    .footer-help {
+        display: none;
+    }
+}
+
+/* ── Trading Pipeline ── */
+
+.trading-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+}
+
+.trading-btn {
+    background: var(--bg-tertiary);
+    color: var(--orange);
+    border: 1px solid var(--orange);
+    padding: 4px 12px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    cursor: pointer;
+    border-radius: 2px;
+    white-space: nowrap;
+}
+
+.trading-btn:hover:not(:disabled) {
+    background: var(--orange);
+    color: var(--bg-primary);
+}
+
+.trading-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.trading-btn-running {
+    border-color: var(--yellow);
+    color: var(--yellow);
+}
+
+.trading-cost, .trading-actual-cost {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.trading-actual-cost {
+    color: var(--green);
+}
+
+.trading-result {
+    margin-bottom: 12px;
+}
+
+.trading-stages {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    margin: 6px 0;
+}
+
+.trading-stage {
+    font-size: 11px;
+    color: var(--text-muted);
+    padding: 2px 0;
+}
+
+.trading-stage-complete { color: var(--green); }
+.trading-stage-running { color: var(--yellow); }
+.trading-stage-failed { color: var(--red); }
+.trading-stage-skipped { color: var(--text-muted); opacity: 0.5; }
+
+.trading-analysts {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 8px 0;
+}
+
+.trading-analyst-card {
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.trading-analyst-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-primary);
+    outline: none;
+}
+
+.trading-analyst-name {
+    font-weight: bold;
+    text-transform: capitalize;
+}
+
+.trading-analyst-outlook {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: auto;
+}
+
+.trading-score-bar {
+    width: 50px;
+    height: 4px;
+    background: var(--bg-tertiary);
+    border-radius: 2px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.trading-score-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--red), var(--yellow), var(--green));
+    border-radius: 2px;
+}
+
+/* Body hidden by default, shown when panel is open */
+.trading-analyst-body {
+    display: none;
+    padding: 8px 10px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.trading-panel-open .trading-analyst-body {
+    display: block;
+}
+
+.trading-panel-open {
+    border-color: var(--orange);
+}
+
+.trading-reasoning {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin: 6px 0;
+    padding: 6px 8px;
+    background: var(--bg-secondary);
+    border-left: 2px solid var(--orange);
+    line-height: 1.5;
+}
+
+.trading-reasoning p {
+    margin: 0 0 6px 0;
+}
+
+.trading-reasoning p:last-child {
+    margin-bottom: 0;
+}
+
+.trading-sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+}
+
+.trading-source {
+    font-size: 10px;
+    color: var(--text-muted);
+    background: var(--bg-tertiary);
+    padding: 1px 6px;
+    border-radius: 2px;
+}
+
+/* Vim selection highlight */
+.trading-panel-selected {
+    border-color: var(--orange);
+    box-shadow: 0 0 0 1px var(--orange);
+}
+
+.trading-header.trading-panel-selected {
+    box-shadow: 0 0 0 1px var(--orange);
+    border-bottom-color: var(--orange);
+}
+
+/* When the trading-header is the vim selection, make the button itself
+ * pop so it's unambiguous that Enter will fire it. Reverses the hover
+ * styling so the affordance reads as "armed". (#68) */
+.trading-header.trading-panel-selected .trading-btn:not(:disabled) {
+    background: var(--orange);
+    color: var(--bg-primary);
+}
+
+/* Trading plan (debate result) */
+
+.trading-plan {
+    margin: 10px 0;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+}
+
+.trading-plan-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.trading-plan-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.trading-rating {
+    font-size: 14px;
+    font-weight: bold;
+    padding: 2px 10px;
+    border-radius: 2px;
+}
+
+.rating-buy { background: #1a3a2a; color: var(--green); border: 1px solid var(--green); }
+.rating-overweight { background: #1a3a2a; color: #66dd99; border: 1px solid #66dd99; }
+.rating-hold { background: #2a2a1a; color: var(--yellow); border: 1px solid var(--yellow); }
+.rating-underweight { background: #3a2a1a; color: var(--orange); border: 1px solid var(--orange); }
+.rating-sell { background: #3a1a1a; color: var(--red); border: 1px solid var(--red); }
+
+.trading-plan-rounds {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.trading-arguments {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 8px 0;
+}
+
+.trading-arg-col {
+    padding: 8px;
+    background: var(--bg-secondary);
+    border-radius: 2px;
+    border-left: 2px solid var(--text-muted);
+}
+
+.trading-arg-col:first-child { border-left-color: var(--green); }
+.trading-arg-col:last-child { border-left-color: var(--red); }
+
+.trading-arg-label {
+    font-size: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+    display: block;
+}
+
+.trading-actions {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.trading-rationale {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.trading-rationale summary {
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.trading-rationale .ai-text {
+    margin-top: 6px;
+    padding: 8px;
+    background: var(--bg-secondary);
+    border-left: 2px solid var(--border);
+    line-height: 1.5;
+}
+
+.trading-meta {
+    display: flex;
+    gap: 16px;
+    margin-top: 6px;
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+/* ── Financial Modeling (Assumptions + Forecast sub-tabs) ── */
+
+.modeling-explainer {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    background: var(--bg-secondary);
+    border-left: 2px solid var(--orange);
+    border-radius: 2px;
+}
+
+.modeling-table .modeling-unit {
+    color: var(--text-muted);
+    font-weight: 400;
+    font-size: 10px;
+    margin-left: 4px;
+}
+
+.modeling-input {
+    width: 100%;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 2px 6px;
+    text-align: right;
+    font-family: inherit;
+    font-size: 12px;
+    border-radius: 2px;
+}
+
+.modeling-input:focus {
+    outline: none;
+    border-color: var(--orange);
+    background: var(--bg-tertiary);
+}
+
+.modeling-actions {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.modeling-btn {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 4px 10px;
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    border-radius: 2px;
+}
+
+.modeling-btn:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.modeling-status {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.modeling-forecast .forecast-col {
+    color: var(--text-secondary);
+    font-style: italic;
+    background: rgba(255, 165, 0, 0.04);
+}
+
+.modeling-forecast th.forecast-col {
+    color: var(--orange);
+    font-style: normal;
+}
+
+.modeling-spacer td {
+    border-bottom: none !important;
+    padding: 2px 0 !important;
+}
+
+.modeling-bscheck td {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+/* ── SEC Filings ── */
+
+.fin-explainer {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    background: var(--bg-secondary);
+    border-left: 2px solid var(--orange);
+    border-radius: 2px;
+}
+
+.sec-view { padding: 4px 0; }
+
+.sec-count {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.sec-table { font-size: 12px; }
+
+.sec-row { cursor: pointer; }
+.sec-row:hover { background: var(--bg-tertiary); }
+
+.sec-date { color: var(--text-muted); white-space: nowrap; }
+.sec-desc { color: var(--text-secondary); }
+
+.sec-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 2px;
+    font-size: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.sec-cat-periodic { background: #1a3a2a; color: var(--green); }
+.sec-cat-event { background: #3a2a1a; color: var(--orange); }
+.sec-cat-ownership { background: #1a2a3a; color: var(--blue); }
+.sec-cat-proxy { background: #2a1a3a; color: #bb88ff; }
+.sec-cat-registration { background: #3a3a1a; color: var(--yellow); }
+.sec-cat-other { background: var(--bg-tertiary); color: var(--text-muted); }
+
+.sec-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 14px;
+}
+.sec-link:hover { color: var(--orange); }
+
+.sec-tab-sep {
+    color: var(--text-muted);
+    margin: 0 6px;
+    align-self: center;
+    user-select: none;
+}
+
+/* Key People — section headers, current snapshot table, change timeline */
+
+.kp-section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin: 14px 0 6px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 4px;
+}
+.kp-section-header:first-child { margin-top: 4px; }
+
+.kp-section-meta {
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: normal;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.kp-current-table { font-size: 12px; }
+.kp-current-table tr.kp-row { cursor: pointer; }
+.kp-current-table tr.kp-row:hover { background: var(--bg-tertiary); }
+
+.kp-form-badge {
+    display: inline-block;
+    padding: 0 4px;
+    margin-left: 4px;
+    border-radius: 2px;
+    font-size: 9px;
+    color: var(--text-muted);
+    background: var(--bg-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.kp-timeline {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-left: 2px solid var(--border);
+    margin-left: 4px;
+}
+
+li.kp-row {
+    display: grid;
+    grid-template-columns: 90px 90px 1fr 1.4fr 24px;
+    gap: 10px;
+    align-items: center;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    cursor: pointer;
+    position: relative;
+}
+
+li.kp-row:hover { background: var(--bg-tertiary); }
+
+li.kp-row::before {
+    content: '';
+    position: absolute;
+    left: -7px;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--bg-primary);
+    border: 2px solid var(--border);
+    transform: translateY(-50%);
+}
+
+.kp-date { color: var(--text-muted); white-space: nowrap; }
+
+.kp-event {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 2px;
+    font-size: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    text-align: center;
+}
+
+.kp-event-appointed,
+.kp-event-promoted,
+.kp-event-officer { background: #1a3a2a; color: var(--green); }
+
+.kp-event-resigned,
+.kp-event-departed { background: #3a1a1a; color: var(--red); }
+
+.kp-event-director { background: #1a2a3a; color: var(--blue); }
+.kp-event-both { background: #2a1a3a; color: #bb88ff; }
+
+.kp-event-other { background: var(--bg-tertiary); color: var(--text-muted); }
+
+.kp-name { color: var(--text-primary); font-weight: 500; }
+.kp-title { color: var(--text-secondary); }
+
+.kp-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 14px;
+    text-align: center;
+}
+.kp-link:hover { color: var(--orange); }
+
+/* ── Ideas / Sketchpad ── */
+
+.ideas-layout {
+    /* Ternary 1:3 chrome/content split — sidebar floor of 240px keeps
+     * the symbol list dense on narrow viewports; above ~960px wide it
+     * resolves to a true 1fr/3fr ratio. */
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) 3fr;
+    height: 100%;
+    flex: 1;
+    min-height: 0;
+}
+
+.terminal-content[data-view="ideas"] {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+}
+
+.ideas-sidebar {
+    /* Width comes from the grid track on .ideas-layout. */
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    font-size: 12px;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.ideas-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border);
+    color: var(--text-primary);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 11px;
+}
+
+.ideas-sidebar-meta {
+    color: var(--text-muted);
+    font-weight: normal;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 10px;
+}
+
+.ideas-list {
+    list-style: none;
+    margin: 0;
+    /* clear both edges of the sidebar's pane-focused inset outline so item
+       borders + backgrounds don't paint over it. */
+    padding: 4px 4px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.ideas-list-item {
+    display: flex;
+    flex-direction: column;
+    padding: 8px 12px;
+    /* reserve the 2px indicator stripe always so content doesn't shift when
+       an item becomes active or vim-selected. */
+    border-left: 2px solid transparent;
+    border-bottom: 1px solid var(--bg-tertiary);
+    cursor: pointer;
+}
+
+.ideas-list-item:hover {
+    background: var(--bg-tertiary);
+}
+
+/* Both "this sketch is loaded" (.active) and "vim cursor is here"
+   (.vim-selected) share the same blue treatment — the chart title is the
+   source of truth for which is loaded, and consistency reads cleaner. */
+.ideas-list-item.active,
+.ideas-list-item.vim-selected {
+    background: var(--bg-tertiary);
+    border-left-color: var(--blue);
+}
+
+.ideas-list-name {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.ideas-list-meta {
+    color: var(--text-muted);
+    font-size: 10px;
+    margin-top: 2px;
+}
+
+.ideas-sidebar-footer {
+    padding: 8px 12px;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 10px;
+}
+
+.ideas-hint kbd {
+    display: inline-block;
+    padding: 1px 4px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--orange);
+    font-family: var(--font-mono);
+    font-size: 10px;
+}
+
+.ideas-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    min-width: 0;
+}
+
+.ideas-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.ideas-title {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.ideas-meta {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.ideas-chart-host {
+    flex: 1;
+    min-height: 0;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    position: relative;
+}
+
+#ideas-chart-host a[href*="tradingview"] {
+    display: none !important;
+}
+
+.ideas-legend {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+}
+
+.ideas-legend-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    background: var(--bg-tertiary);
+    font-size: 11px;
+}
+
+.ideas-legend-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 1px;
+}
+
+.ideas-legend-label {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.ideas-legend-val {
+    color: var(--text-secondary);
+}
+
+.ideas-legend-pct {
+    color: var(--text-muted);
+}
+
+.ideas-legend-del {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 2px;
+    line-height: 1;
+}
+.ideas-legend-del:hover { color: var(--red); }
+
+.ideas-empty {
+    display: none;
+    margin-top: 16px;
+    padding: 24px;
+    border: 1px dashed var(--border);
+    border-radius: 2px;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.ideas-empty p { margin: 0 0 8px; }
+.ideas-empty .empty-hint {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+.ideas-empty kbd {
+    display: inline-block;
+    padding: 1px 6px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--orange);
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
+
+.ideas-legend-row-err {
+    border-color: #3a1a1a;
+    background: rgba(58, 26, 26, 0.4);
+}
+.ideas-legend-err {
+    color: var(--red);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+/* Overview — two-column top split: Key People (left) + Description (right);
+   key indicators sit underneath. */
+
+.info-overview-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: 24px;
+    margin-bottom: 20px;
+}
+
+.info-overview-left,
+.info-overview-right { min-width: 0; }
+
+.info-overview-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    margin-bottom: 10px;
+}
+
+.info-overview-meta-item a { color: var(--orange); text-decoration: none; }
+.info-overview-meta-item a:hover { text-decoration: underline; }
+
+.info-indicators-header {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+    margin-bottom: 8px;
+}
+
+.info-people-header {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.info-people-meta {
+    color: var(--text-muted);
+    font-weight: normal;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 10px;
+    margin-left: 8px;
+}
+
+.info-people-more,
+.info-people-more-row a {
+    color: var(--orange);
+    text-decoration: none;
+}
+.info-people-more:hover,
+.info-people-more-row a:hover { text-decoration: underline; }
+
+.info-people-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.info-people-row {
+    display: grid;
+    grid-template-columns: 64px minmax(120px, max-content) 1fr;
+    gap: 10px;
+    align-items: baseline;
+    font-size: 11px;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--bg-tertiary);
+}
+
+.info-people-name { color: var(--text-primary); font-weight: 500; }
+.info-people-title { color: var(--text-secondary); font-size: 11px; line-height: 1.4; }
+
+.info-people-more-row {
+    border-bottom: none;
+    padding: 8px 0 0;
+    font-size: 11px;
+}
+
+.info-people-empty {
+    margin: 0;
+    text-align: left;
+    padding: 12px 0;
+}
+
+@media (max-width: 900px) {
+    .info-overview-top { grid-template-columns: 1fr; }
+}
+
+/* Active-pane bounding box for multi-column layouts.
+   Visual contract identical to .st-pane-active in the primitives section
+   — pane-focused stays as the live class name the JS handlers toggle;
+   st-pane-active is the shared CSS primitive that future panes can use
+   without going through ideas/screener-specific selectors. */
+.ideas-sidebar.pane-focused,
+.ideas-main.pane-focused,
+.screener-filters.pane-focused,
+.screener-results.pane-focused {
+    box-shadow: 0 -2px 0 1px var(--accent-orange);
+}
+
+.ideas-help {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 6px 0 12px;
+    padding: 8px 10px;
+    border: 1px dashed var(--border);
+    border-radius: 2px;
+    background: var(--bg-tertiary);
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.ideas-help.hidden { display: none; }
+
+.ideas-help-row { line-height: 1.6; }
+
+.ideas-help kbd {
+    display: inline-block;
+    padding: 1px 6px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--orange);
+    font-family: var(--font-mono);
+    font-size: 10px;
+}
+
+.ideas-help-toggle {
+    margin-left: 6px;
+    color: var(--text-muted);
+    font-weight: bold;
+    cursor: help;
+    padding: 0 6px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    font-size: 10px;
+}
+
+.ideas-legend-row.vim-selected {
+    border-color: var(--orange);
+    box-shadow: 0 0 0 1px var(--orange);
+}
+
+/* Focus ring — selection state for tabs / list rows / cards lives in .active
+   and .vim-selected classes, never in browser-managed :focus. Chrome's click
+   focus on <button> triggers :focus-visible too, so any rule here would leak
+   stale outlines after h/l navigates elsewhere. Just hide it everywhere. */
+
+button, .info-tab, .info-sub-tab, .news-tab, .wl-tab, .ideas-list-item,
+.cmd-option, .security-option, .sec-row, .kp-row, .ideas-legend-row,
+a, [tabindex] {
+    outline: none !important;
+}
+
+/* News reader full-width mode (`z` toggles) — covers the main view area for
+   easier long-form reading. Esc / `z` again returns to side-panel. */
+.article-reader.reader-expanded {
+    width: auto;
+    flex: 1;
+    border-left: none;
+}
+
+/* Security info → News tab — sub-tab cards live inside their own scroll host
+   so the sub-tab row stays anchored at the top. */
+.news-cards-host {
+    margin-top: 8px;
+    max-height: calc(100vh - 240px);
+    overflow-y: auto;
+}
+
+/* Overview — dense 8-wide indicator grid up top */
+.info-grid-dense {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 6px;
+    margin-bottom: 16px;
+}
+
+.info-grid-dense .info-stat {
+    padding: 6px 8px;
+}
+.info-grid-dense .info-stat-label { font-size: 9px; }
+.info-grid-dense .info-stat-value { font-size: 13px; }
+
+@media (max-width: 1100px) {
+    .info-grid-dense { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+.reader-ticker.vim-selected {
+    border-color: var(--orange);
+    box-shadow: 0 0 0 1px var(--orange);
+    background: var(--bg-tertiary);
+}
+
+/* ── /economics — calendar + catalog ── */
+
+.economics-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.economics-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-5);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+/* Economics tabs — primary nav (orange variant of the st-tab pill). */
+.economics-tabs {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    box-shadow: inset 0 -1px 0 var(--border);
+}
+
+.economics-tab {
+    /* Geometry on the ternary grid. Visual (fill + active state) flows
+       from the shared .info-tab / .st-tab rules at the top of the file. */
+    font-size: var(--text-2);
+    padding: var(--space-1) var(--space-3);
+}
+
+.economics-hint {
+    color: var(--text-muted);
+    font-size: 11px;
+    margin-left: auto;
+}
+
+.economics-panel {
+    flex: 1;
+    overflow: auto;
+    padding: 8px 12px;
+}
+
+.economics-panel.hidden { display: none; }
+
+.economics-filter-bar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 0;
+    position: sticky;
+    top: 0;
+    background: var(--bg-primary);
+    z-index: 2;
+}
+
+.economics-filter {
+    flex: 1;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    padding: 4px 8px;
+    font-family: inherit;
+    font-size: 12px;
+}
+
+.economics-filter:focus { outline: none; border-color: var(--blue); }
+
+.economics-filter-badges { display: flex; gap: 4px; }
+
+.economics-badge {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.economics-badge.active {
+    color: var(--orange);
+    border-color: var(--orange);
+}
+
+.economics-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.economics-table th {
+    text-align: left;
+    color: var(--text-secondary);
+    font-weight: normal;
+    border-bottom: 1px solid var(--border);
+    padding: 6px 8px;
+    position: sticky;
+    top: 36px;            /* sits below the filter bar */
+    background: var(--bg-primary);
+    z-index: 1;
+}
+
+.economics-table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--bg-tertiary);
+}
+
+.economics-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.economics-table th.num { text-align: right; }
+
+.economics-row { cursor: pointer; }
+.economics-row:hover { background: var(--bg-tertiary); }
+.economics-row.vim-selected {
+    background: var(--bg-tertiary);
+    box-shadow: inset 2px 0 0 var(--blue);
+}
+
+.economics-cat-row td {
+    color: var(--orange);
+    background: var(--bg-secondary);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 4px 8px;
+}
+
+.economics-code { color: var(--blue); font-weight: 500; }
+.economics-date { color: var(--text-secondary); }
+.economics-country { color: var(--yellow); }
+
+.economics-impact { font-size: 11px; }
+.economics-impact.impact-high   { color: var(--red); }
+.economics-impact.impact-medium { color: var(--orange); }
+.economics-impact.impact-low    { color: var(--text-muted); }
+
+.economics-table td.pos { color: var(--green); }
+.economics-table td.neg { color: var(--red); }
+
+/* Catalog drill-down */
+.economics-cb-list.hidden,
+.economics-cb-detail.hidden { display: none; }
+
+.economics-cb-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 0 8px;
+    border-bottom: 1px solid var(--bg-tertiary);
+    margin-bottom: 4px;
+}
+
+.economics-back {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.economics-back:hover {
+    color: var(--orange);
+    border-color: var(--orange);
+}
+
+.economics-cb-title {
+    color: var(--orange);
+    font-size: 12px;
+}
+
+/* CB tile grid — drill-down level 1 */
+.economics-cb-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+    padding: 12px 0;
+}
+
+.economics-cb-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    padding: 12px 14px;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.economics-cb-tile:hover,
+.economics-cb-tile.vim-selected {
+    border-color: var(--blue);
+    background: var(--bg-tertiary);
+}
+
+.cb-tile-country {
+    color: var(--yellow);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.cb-tile-name {
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.cb-tile-count {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+/* Preview slide-in meta strip below the chart inside #article-reader */
+.eco-chart-meta {
+    display: flex;
+    gap: 16px;
+    padding: 6px 0 4px;
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+/* Full-size economic graph page (/graph/US.UNRATE etc.) */
+.eco-graph-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.eco-graph-subtitle {
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: normal;
+    margin-left: 8px;
+}
+
+.eco-graph-range {
+    display: flex;
+    gap: 4px;
+}
+
+.eco-graph-meta {
+    display: flex;
+    gap: 12px;
+    margin-left: auto;
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.eco-graph-host {
+    height: calc(100vh - 140px);
+    width: 100%;
+}
+
+/* ============================================================
+   Paper trading — /paper
+   ============================================================ */
+
+.terminal-content[data-view="paper"] {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+}
+
+.paper-layout {
+    display: flex;
+    height: 100%;
+    flex: 1;
+    min-height: 0;
+    font-size: 12px;
+}
+
+.paper-sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+}
+
+.paper-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-primary);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 11px;
+}
+
+.paper-account-list {
+    list-style: none;
+    margin: 0;
+    padding: 4px;
+    overflow-y: auto;
+}
+
+.paper-account-item {
+    padding: 8px 12px;
+    border-left: 2px solid transparent;
+    border-bottom: 1px solid var(--bg-tertiary);
+    cursor: pointer;
+}
+
+.paper-account-item:hover {
+    background: var(--bg-tertiary);
+}
+
+.paper-account-item.selected {
+    background: var(--bg-tertiary);
+    border-left-color: var(--blue);
+}
+
+.paper-account-name {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.paper-account-meta {
+    color: var(--text-muted);
+    font-size: 10px;
+    margin-top: 2px;
+}
+
+.paper-account-summary {
+    margin-top: auto;
+    padding: 12px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-primary);
+}
+
+.paper-summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    color: var(--text-secondary);
+}
+
+.paper-summary-row > span:last-child {
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.paper-main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+    min-width: 0;
+}
+
+.paper-section {
+    margin-bottom: 28px;
+}
+
+.paper-section h2 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--orange);
+    margin: 0 0 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+
+/* ---------- Ticket form ---------- */
+
+.paper-ticket {
+    display: grid;
+    grid-template-columns: 120px 1fr 120px 1fr;
+    gap: 10px 12px;
+    align-items: center;
+    max-width: 760px;
+}
+
+.paper-field {
+    display: contents;
+}
+
+.paper-field > label {
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+}
+
+.paper-field > input,
+.paper-field > select,
+.paper-field > textarea {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    padding: 6px 8px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    border-radius: 2px;
+    outline: none;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.paper-field > input:focus,
+.paper-field > select:focus,
+.paper-field > textarea:focus {
+    border-color: var(--blue);
+}
+
+/* Thesis spans the full row */
+.paper-field.paper-thesis > label {
+    grid-column: 1;
+}
+.paper-field.paper-thesis > textarea {
+    grid-column: 2 / -1;
+    resize: vertical;
+    min-height: 40px;
+}
+
+.paper-sizing-preview {
+    grid-column: 1 / -1;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 10px 12px;
+    display: flex;
+    gap: 18px;
+    align-items: center;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+    flex-wrap: wrap;
+}
+
+.paper-sizing-label {
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    margin-right: 6px;
+}
+
+.paper-sizing-error {
+    color: var(--red);
+    font-size: 11px;
+    margin-left: auto;
+}
+
+.paper-ticket-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 4px;
+}
+
+.paper-ticket-actions button,
+.paper-btn-sm {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    padding: 6px 14px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    border-radius: 2px;
+}
+
+.paper-ticket-actions button:hover:not(:disabled),
+.paper-btn-sm:hover {
+    border-color: var(--orange);
+    color: var(--orange);
+}
+
+.paper-ticket-actions button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.paper-btn-sm {
+    padding: 3px 8px;
+    font-size: 10px;
+}
+
+/* ---------- Tables ---------- */
+
+.paper-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.paper-table thead th {
+    text-align: left;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    font-weight: 500;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-secondary);
+    white-space: nowrap;
+}
+
+.paper-table tbody td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--bg-tertiary);
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.paper-table tbody tr:hover td {
+    background: var(--bg-secondary);
+}
+
+.paper-table .empty-state {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 18px;
+    font-style: italic;
+}
+
+.paper-pnl-pos { color: var(--green); }
+.paper-pnl-neg { color: var(--red); }
+
+/* ============================================================
+   Screener — /screener
+   ============================================================ */
+
+.terminal-content[data-view="screener"] {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+}
+
+.screener-layout {
+    /* Ternary 1:3 — filter sidebar gets a 280px floor so the labelled
+     * inputs don't wrap awkwardly on narrow viewports. */
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) 3fr;
+    height: 100%;
+    flex: 1;
+    min-height: 0;
+    font-size: 12px;
+}
+
+.screener-filters {
+    /* Width comes from the grid track on .screener-layout. */
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.screener-filters-header {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-primary);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 11px;
+}
+
+.screener-form {
+    padding: 8px 12px 80px;
+}
+
+.screener-group {
+    margin-bottom: var(--space-5);
+}
+
+.screener-group h4 {
+    margin: 0 0 var(--space-2);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--orange);
+    border-bottom: 1px solid var(--bg-tertiary);
+    padding-bottom: var(--space-1);
+}
+
+/* Collapsible filter sections. <details> sections start closed; the
+   <summary> is the title row + click-target. j/k on the screener
+   sidebar can park on a summary; Enter toggles its open state. The
+   ::-webkit-details-marker selector hides the native disclosure
+   triangle so we own the visual. */
+details.screener-group {
+    border-bottom: 1px solid var(--bg-tertiary);
+    padding: 4px 0;
+}
+details.screener-group > summary {
+    margin: 0;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--orange);
+    padding: 3px 0;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+details.screener-group > summary::-webkit-details-marker { display: none; }
+details.screener-group > summary::before {
+    content: '▸ ';
+    display: inline-block;
+    width: 12px;
+    color: var(--text-tertiary, #666);
+    transition: transform 0.1s ease;
+}
+details.screener-group[open] > summary::before {
+    content: '▾ ';
+}
+details.screener-group > summary.vim-selected {
+    background: var(--bg-tertiary);
+}
+
+/* Per-filter contextual help. Hidden by default; '?' on the screener
+   page toggles .help-on on the form to reveal all the tips at once.
+   Reuses the existing .help-tip yellow accent for visual parity. */
+.screener-form .filter-help {
+    display: none;
+    font-size: 10px;
+    color: var(--yellow);
+    line-height: 1.4;
+    margin-top: 2px;
+    font-style: italic;
+    letter-spacing: 0;
+    text-transform: none;
+}
+.screener-form.help-on .filter-help {
+    display: block;
+}
+
+/* Market-cap preset chips. One click fills both market-cap inputs with
+   the bucket's range (expressed as shorthand — '1bn', '200bn'). The
+   user can still type a custom value in the inputs themselves; the
+   parser on submit accepts shorthand too. */
+.screener-presets {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin: 0 0 6px;
+}
+.screener-presets-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-tertiary, #666);
+    margin-right: 2px;
+}
+/* Screener size presets — small pill-flavoured chips. The active state
+   uses the same 50% accent fill as .st-tab--active so a clicked preset
+   reads as the same kind of "you are here" indicator as a selected
+   tab. No sliding animation here (the chips are static targets, not a
+   nav scaffold) — just a clean fill swap. */
+.screener-preset {
+    font-size: var(--text-1);
+    padding: var(--space-1) var(--space-2);
+    border: var(--line-default);
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    text-transform: lowercase;
+    transition:
+        color var(--duration-1),
+        border-color var(--duration-1),
+        background var(--duration-1);
+}
+.screener-preset:hover {
+    color: var(--accent-orange);
+    border-color: var(--accent-orange);
+}
+.screener-preset.active {
+    color: var(--accent-orange);
+    border-color: var(--accent-orange);
+    background: var(--tab-selected-fill-orange);
+}
+
+.screener-group label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 10px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 6px;
+}
+
+.screener-group label.screener-checkbox {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 11px;
+    color: var(--text-primary);
+}
+
+.screener-group input[type="number"],
+.screener-group input[type="text"],
+.screener-group select {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    padding: 4px 6px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    border-radius: 2px;
+    outline: none;
+}
+
+.screener-group input:focus,
+.screener-group select:focus {
+    border-color: var(--blue);
+}
+
+.screener-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    position: sticky;
+    bottom: 0;
+    background: var(--bg-secondary);
+    padding: 8px 0;
+}
+
+.screener-actions button {
+    flex: 1;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    border-radius: 2px;
+}
+
+.screener-actions button:hover {
+    border-color: var(--orange);
+    color: var(--orange);
+}
+
+.screener-actions button#screener-run {
+    background: var(--bg-secondary);
+    border-color: var(--orange);
+    color: var(--orange);
+}
+
+.screener-actions button#screener-run:hover {
+    background: var(--orange);
+    color: var(--bg-primary);
+}
+
+.screener-results {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.screener-results-header {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-secondary);
+}
+
+.screener-results-header h2 {
+    margin: 0;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--orange);
+}
+
+.screener-results-meta {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.screener-table-wrap {
+    flex: 1;
+    overflow: auto;
+    padding: 0;
+}
+
+.screener-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.screener-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--bg-secondary);
+    text-align: left;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    font-weight: 500;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    user-select: none;
+}
+
+.screener-table thead th.num,
+.screener-table tbody td.num {
+    text-align: right;
+}
+
+.screener-table tbody td {
+    padding: 5px 10px;
+    border-bottom: 1px solid var(--bg-tertiary);
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.screener-table tbody td a {
+    color: var(--blue);
+    text-decoration: none;
+}
+
+.screener-table tbody td a:hover {
+    color: var(--orange);
+    text-decoration: underline;
+}
+
+.screener-table tbody tr:hover td {
+    background: var(--bg-secondary);
+}
+
+.screener-table .empty-state {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 24px;
+    font-style: italic;
+}
+
+/* ============================================================
+   Ideas — company info panels (grid below the chart)
+   ============================================================ */
+
+.ideas-info-panels {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 10px;
+    padding: 12px 0 4px;
+    margin-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.ideas-info-panels[hidden] { display: none; }
+
+.ideas-info-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 10px 12px;
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    cursor: pointer;
+    transition: border-color 0.1s;
+}
+
+.ideas-info-card:hover {
+    border-color: var(--orange);
+}
+
+.ideas-info-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.ideas-info-symbol {
+    color: var(--orange);
+    font-weight: 700;
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.ideas-info-symbol:hover {
+    text-decoration: underline;
+}
+
+.ideas-info-name {
+    color: var(--text-secondary);
+    font-size: 11px;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ideas-info-news-badge {
+    background: var(--bg-tertiary);
+    color: var(--yellow);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 2px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.ideas-info-quote {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-variant-numeric: tabular-nums;
+}
+
+.ideas-info-price {
+    color: var(--text-primary);
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.ideas-info-pct {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.ideas-info-pct.price-up { color: var(--green); }
+.ideas-info-pct.price-down { color: var(--red); }
+
+/* Subtle :live: / :1d: micro-tags on the Ideas quote line. They sit
+   adjacent to the value they qualify (price :live:, percent :1d:) and
+   read as secondary metadata, never overpowering the numbers. */
+.ideas-info-tag {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-tertiary, #666);
+    letter-spacing: 0.02em;
+    margin-left: -4px;
+}
+
+.ideas-info-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+}
+
+.ideas-info-stats > span {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.ideas-info-stats label {
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-size: 9px;
+}
+
+.ideas-info-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    padding-top: 4px;
+    border-top: 1px solid var(--bg-tertiary);
+}
+
+.ideas-info-chip {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    padding: 1px 5px;
+    font-size: 10px;
+    border-radius: 2px;
+}
+
