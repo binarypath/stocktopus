@@ -24,6 +24,11 @@
     var EOD_RANGES = {
         '1W': { fetch: 60, view: 30 }, '1M': { fetch: 90, view: 30 },
         '3M': { fetch: 180, view: 90 }, '6M': { fetch: 365, view: 180 },
+        '1Y': { fetch: 400, view: 365 }, '5Y': { fetch: 1850, view: 1825 },
+        '10Y': { fetch: 3700, view: 3650 },
+        // MAX fetches ~40y — the provider returns whatever history it has and
+        // view: 0 lets fitContent frame the full returned series.
+        'MAX': { fetch: 14600, view: 0 },
     };
     var INTRADAY_RANGES = {
         '1m': { interval: '1min', fetchDays: 1, viewDays: 1, scrollDays: 1 },
@@ -32,6 +37,10 @@
         '30m': { interval: '30min', fetchDays: 10, viewDays: 3, scrollDays: 7 },
         '1h': { interval: '1hour', fetchDays: 20, viewDays: 5, scrollDays: 10 },
         '4h': { interval: '4hour', fetchDays: 60, viewDays: 15, scrollDays: 30 },
+        // 2d = last two *trading* sessions. fetchDays reaches back far enough
+        // to clear a long weekend / holiday; `sessions` then trims the visible
+        // window to exactly the last 2 session days so no empty weekend shows.
+        '2d': { interval: '5min', fetchDays: 6, viewDays: 2, scrollDays: 6, sessions: 2 },
     };
     var AUTO_REFRESH_INTERVALS = { '1m': 60, '5m': 300, '15m': 900, '30m': 1800 };
 
@@ -507,7 +516,14 @@
             applyData();
             if (allCandles.length > 0) loadedFrom = allCandles[0].time;
             if (viewDays) {
-                if (intra) { chart.timeScale().fitContent(); }
+                if (intra) {
+                    // Session-capped intraday ranges (e.g. 2d) trim the visible
+                    // window to the last N trading sessions; others show all
+                    // fetched intraday data.
+                    var icfg = INTRADAY_RANGES[currentRange];
+                    if (icfg && icfg.sessions && setVisibleSessions(icfg.sessions)) { /* framed */ }
+                    else { chart.timeScale().fitContent(); }
+                }
                 else {
                     var vf = new Date(); vf.setDate(vf.getDate() - viewDays);
                     chart.timeScale().setVisibleRange({ from: fmtDate(vf), to: fmtDate(new Date()) });
@@ -515,6 +531,33 @@
             }
             isLoadingMore = false;
         }).catch(function (e) { console.error('Chart error:', e); isLoadingMore = false; });
+    }
+
+    // Frame the visible range to the last `n` trading sessions of intraday
+    // data. Sessions are grouped by UTC calendar day of each candle's unix
+    // time; the window spans from the first candle of the n-th-from-last
+    // session to the most recent candle. Returns false (caller falls back to
+    // fitContent) when there isn't enough data to trim.
+    function setVisibleSessions(n) {
+        if (!allCandles.length) return false;
+        var days = [];
+        var seen = {};
+        for (var i = 0; i < allCandles.length; i++) {
+            var day = new Date(allCandles[i].time * 1000).toISOString().slice(0, 10);
+            if (!seen[day]) { seen[day] = true; days.push(day); }
+        }
+        if (days.length < n) return false;
+        var firstDay = days[days.length - n];
+        var from = null;
+        for (var j = 0; j < allCandles.length; j++) {
+            if (new Date(allCandles[j].time * 1000).toISOString().slice(0, 10) === firstDay) {
+                from = allCandles[j].time; break;
+            }
+        }
+        if (from == null) return false;
+        var to = allCandles[allCandles.length - 1].time;
+        try { chart.timeScale().setVisibleRange({ from: from, to: to }); return true; }
+        catch (e) { return false; }
     }
 
     function applyData() {

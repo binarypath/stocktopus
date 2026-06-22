@@ -1,47 +1,70 @@
-// vim-nav.js — declarative vim navigation core.
+// vim-nav.js — declarative vim navigation core (region model).
 //
-// Pages opt into vim nav by marking their DOM with two attributes:
-//   data-vim-row     on a container; its descendants carrying
-//                    data-vim-item become one horizontal row.
-//   data-vim-item    on each navigable element.
+// Pages mark navigable structure with:
+//   data-vim-region  on a container; its descendants carrying
+//                    data-vim-item form one navigable region.
+//   data-vim-axis    "x" (horizontal: tab strips, the company panel) or
+//                    "y" (vertical: content lists / columns). Default "y"
+//                    for data-vim-region. Legacy data-vim-row containers
+//                    are treated as axis="x" regions for back-compat.
+//   data-vim-role    "tabs" marks the tab-strip region — the target of
+//                    numbered jumps (1-9) and the row-glow.
+//   data-vim-scroll  on a content region whose body scrolls: j/k scroll
+//                    it a step when there's no next item, so the bottom /
+//                    off-screen elements are always reachable.
+//   data-vim-item    each navigable element (DOM order).
+//   data-vim-action  Enter behaviour: click|navigate|open-reader|
+//                    open-external|toggle|none (default click).
 //
-// The core scans the DOM, builds a grid (rows × items), and handles
-// the directional keys (j/k/h/l/w/b/1-9/Enter) plus gg/G top/bottom.
+// One rule, two shapes:
+//   axis "x": h/l move the cursor WITHIN the region (across tabs);
+//             j/k cross to the region below/above (regions are stacked).
+//   axis "y": j/k move WITHIN the region (down a list / scroll); at the
+//             edge they cross to the adjacent stacked region; h/l switch
+//             to a horizontally-adjacent column region (set explicitly via
+//             data-vim-col-group; no-op when there is none).
+//
 // Bespoke per-view handlers in terminal.js still run for non-nav keys
-// (g for graph-jump, a for :add, d/y/p row ops, etc.) — the core
-// returns true from handleKey only when it claimed the input.
-//
-// Selection state lives on this module (currentRow / currentCol) and
-// is reflected on the DOM via the .vim-selected class. Calling reset()
-// rebuilds the grid (used after page renders re-paint content).
+// (g graph-jump, a :add, d/y/p row ops) — handleKey returns true only
+// when the core claimed the input.
 
 (function () {
     'use strict';
 
-    var grid = [];           // [{el, items: [...] }, ...]
-    var currentRow = -1;     // -1 = nothing selected yet
-    var currentCol = -1;
+    var regions = [];        // [{el, axis, role, scroll, group, items, cur}]
+    var curR = -1;           // current region index; -1 = nothing selected
+    var curI = -1;           // current item index within the region
 
     var SELECTED_CLASS = 'vim-selected';
+    var TAB_STRIP_SEL = '#info-tabs, #fin-sub-tabs, #sec-filters, #news-sub-tabs, #news-tabs, .economics-tabs, [data-vim-role="tabs"]';
 
-    function buildGrid() {
-        grid = [];
-        var rowEls = document.querySelectorAll('[data-vim-row]');
-        for (var i = 0; i < rowEls.length; i++) {
-            var rowEl = rowEls[i];
-            // Skip rows that aren't visible — display:none parents shouldn't
-            // contribute to the grid (e.g. inactive tab's content tree).
-            if (!isVisible(rowEl)) continue;
-            // Direct descendants with data-vim-item, in DOM order. We
-            // intentionally don't descend through nested data-vim-row
-            // containers — those are their own row.
+    function regionContainers() {
+        return document.querySelectorAll('[data-vim-region], [data-vim-row]');
+    }
+
+    function buildRegions() {
+        regions = [];
+        var els = regionContainers();
+        for (var i = 0; i < els.length; i++) {
+            var el = els[i];
+            if (!isVisible(el)) continue;
+            // Legacy data-vim-row defaults to a horizontal region so existing
+            // tab-strip pages behave byte-identically; data-vim-region defaults
+            // to a vertical column.
+            var axis = el.getAttribute('data-vim-axis');
+            if (!axis) axis = el.hasAttribute('data-vim-region') ? 'y' : 'x';
+            var role = el.getAttribute('data-vim-role') || '';
+            var scroll = el.hasAttribute('data-vim-scroll');
+            var group = el.getAttribute('data-vim-col-group') || '';
+
             var items = [];
-            var walker = document.createTreeWalker(rowEl, NodeFilter.SHOW_ELEMENT, {
+            var walker = document.createTreeWalker(el, NodeFilter.SHOW_ELEMENT, {
                 acceptNode: function (node) {
-                    if (node === rowEl) return NodeFilter.FILTER_SKIP;
-                    // Stop descending into nested rows — their items
-                    // belong to that row, not this one.
-                    if (node.hasAttribute('data-vim-row')) return NodeFilter.FILTER_REJECT;
+                    if (node === el) return NodeFilter.FILTER_SKIP;
+                    // Don't descend into nested regions — their items are theirs.
+                    if (node.hasAttribute('data-vim-region') || node.hasAttribute('data-vim-row')) {
+                        return NodeFilter.FILTER_REJECT;
+                    }
                     if (node.hasAttribute('data-vim-item') && isVisible(node)) {
                         return NodeFilter.FILTER_ACCEPT;
                     }
@@ -50,20 +73,15 @@
             });
             var n;
             while ((n = walker.nextNode())) items.push(n);
-            // A row with no inner items represents itself — the row IS
-            // the navigable unit (tabular rows in tables, where each
-            // <tr> is one record and h/l between cells isn't meaningful).
-            // This makes j/k highlight the whole row instead of the
-            // first cell.
-            if (items.length === 0) items = [rowEl];
-            grid.push({ el: rowEl, items: items });
+            // A region with no inner items represents itself — the container IS
+            // the navigable unit (tabular <tr> rows). Scroll regions are allowed
+            // to have zero items (pure scroll surface).
+            if (items.length === 0 && !scroll) items = [el];
+            regions.push({ el: el, axis: axis, role: role, scroll: scroll, group: group, items: items, cur: 0 });
         }
     }
 
     function isVisible(el) {
-        // Skip elements hidden via display:none. visibility:hidden /
-        // opacity:0 are allowed because they're occasionally used for
-        // transition effects without removing the element from nav.
         for (var cur = el; cur && cur !== document.body; cur = cur.parentElement) {
             var s = window.getComputedStyle(cur);
             if (s && s.display === 'none') return false;
@@ -72,212 +90,210 @@
     }
 
     function clearSelection() {
-        // Only clear .vim-selected from elements VimNav itself painted —
-        // i.e. nodes inside a [data-vim-row] container, or row elements
-        // themselves. Legacy per-view handlers (watchlist, screener, news
-        // cards) set .vim-selected on plain rows that don't carry a
-        // [data-vim-row] attribute; a blanket document-wide sweep would
-        // wipe those every time the MutationObserver fires reset (mode
-        // indicator updates, WS quote ticks, etc.), and the highlight
-        // would seem to fade after a second or two.
-        var sel = '[data-vim-row].' + SELECTED_CLASS + ', [data-vim-row] .' + SELECTED_CLASS;
+        var sel = '[data-vim-region].' + SELECTED_CLASS + ', [data-vim-region] .' + SELECTED_CLASS
+            + ', [data-vim-row].' + SELECTED_CLASS + ', [data-vim-row] .' + SELECTED_CLASS;
         document.querySelectorAll(sel).forEach(function (el) {
             el.classList.remove(SELECTED_CLASS);
         });
         syncTabRowGlow(false);
     }
 
-    // Primary/sub tab strips get tab-row-focused when the vim cursor is
-    // on that row — drives the orange (primary) / cyan (sub) row glow.
-    function syncTabRowGlow(fromSelection) {
-        var activeRowEl = null;
-        if (fromSelection !== false && currentRow >= 0 && grid[currentRow]) {
-            activeRowEl = grid[currentRow].el;
-        }
-        document.querySelectorAll(
-            '#info-tabs, #fin-sub-tabs, #sec-filters, #news-sub-tabs, .economics-tabs'
-        ).forEach(function (rowEl) {
-            rowEl.classList.toggle('tab-row-focused', rowEl === activeRowEl);
+    // Tab strips get .tab-row-focused while the cursor is in them — drives
+    // the orange (primary) / cyan (sub) row glow.
+    function syncTabRowGlow(active) {
+        var activeEl = null;
+        if (active !== false && curR >= 0 && regions[curR]) activeEl = regions[curR].el;
+        document.querySelectorAll(TAB_STRIP_SEL).forEach(function (el) {
+            el.classList.toggle('tab-row-focused', el === activeEl);
         });
     }
 
-    // Broadcast the resolved selection so pages can react to it without
-    // polling the DOM (e.g. the sector perf chart emphasises the selected
-    // peer's line). detail.el is the selected element, or null when the
-    // selection clears. This is the canonical selection signal — prefer
-    // listening to it over MutationObserving .vim-selected per page.
+    // Broadcast the resolved selection so pages can react without polling.
     function emitSelect(el) {
         try {
-            document.dispatchEvent(new CustomEvent('vimnav:select', {
-                detail: { el: el || null },
-            }));
-        } catch (e) { /* CustomEvent unsupported — non-fatal */ }
+            document.dispatchEvent(new CustomEvent('vimnav:select', { detail: { el: el || null } }));
+        } catch (e) { /* non-fatal */ }
+    }
+
+    function currentItemEl() {
+        if (curR < 0 || curR >= regions.length) return null;
+        var r = regions[curR];
+        if (curI < 0 || curI >= r.items.length) return null;
+        return r.items[curI];
     }
 
     function applySelection() {
         clearSelection();
-        if (currentRow < 0 || currentRow >= grid.length) { emitSelect(null); return; }
-        var row = grid[currentRow];
-        if (currentCol < 0 || currentCol >= row.items.length) { emitSelect(null); return; }
-        var el = row.items[currentCol];
+        var el = currentItemEl();
+        if (!el) { syncTabRowGlow(true); emitSelect(null); return; }
         el.classList.add(SELECTED_CLASS);
-        // Tab strips sit in fixed panel chrome — scrolling them shifts
-        // sub-nav labels relative to the primary row when #info-content
-        // has been scrolled.
-        if (!el.closest('#info-tabs, #fin-sub-tabs, #sec-filters, #news-sub-tabs, .economics-tabs')) {
+        // Tab strips live in fixed chrome — scrolling them shifts labels.
+        if (!el.closest(TAB_STRIP_SEL)) {
             el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
         }
         syncTabRowGlow(true);
         emitSelect(el);
     }
 
+    // The "home" region for cold-start and gg: the tab strip if the page has
+    // one (so a fresh page's first h/l walks the tabs, and the company panel
+    // above them is reached with k), else the first region.
+    function defaultRegionIndex() {
+        for (var i = 0; i < regions.length; i++) {
+            if (regions[i].role === 'tabs') return i;
+        }
+        return 0;
+    }
+
     function selectFirst() {
-        buildGrid();
-        if (grid.length === 0) return;
-        currentRow = 0;
-        currentCol = 0;
+        buildRegions();
+        if (!regions.length) return;
+        curR = defaultRegionIndex(); curI = 0; regions[curR].cur = 0;
         applySelection();
     }
 
     function selectLast() {
-        buildGrid();
-        if (grid.length === 0) return;
-        currentRow = grid.length - 1;
-        currentCol = grid[currentRow].items.length - 1;
+        buildRegions();
+        if (!regions.length) return;
+        curR = regions.length - 1;
+        curI = Math.max(0, regions[curR].items.length - 1);
+        regions[curR].cur = curI;
         applySelection();
     }
 
-    // Bounds-check helper. Called at the top of every directional move so
-    // stale selection state (rows pruned out from under us by an HTML
-    // re-render) can't crash the page on the next keypress. Returns true
-    // if the cursor was already valid; otherwise resets to (0, 0).
     function ensureCursorInBounds() {
-        if (currentRow < 0 || currentRow >= grid.length) {
-            currentRow = 0;
-            currentCol = 0;
-            return false;
-        }
-        var row = grid[currentRow];
-        if (currentCol < 0 || currentCol >= row.items.length) {
-            currentCol = 0;
-            return false;
-        }
+        if (curR < 0 || curR >= regions.length) { curR = defaultRegionIndex(); curI = 0; return false; }
+        if (curI < 0 || curI >= regions[curR].items.length) { curI = 0; return false; }
         return true;
     }
 
-    // Directional moves all share the same shape:
-    //   1. rebuild grid + bounds-check (cold state lands on (0,0))
-    //   2. attempt the move (no-op at the edge)
-    //   3. apply selection
-    //
-    // The first directional keypress on a fresh page advances rather
-    // than just initialising: pressing 'l' on a freshly-loaded security
-    // page jumps from "nothing selected" to "second tab", which matches
-    // muscle memory better than "nothing → first tab → press again".
-    function moveDown() {
-        buildGrid();
-        if (grid.length === 0) return false;
+    // Move to a stacked-adjacent region (delta +1 = below/next, -1 = above).
+    function crossRegion(delta) {
+        var nr = curR + delta;
+        if (nr < 0 || nr >= regions.length) return false;
+        curR = nr;
+        var r = regions[nr];
+        curI = Math.min(Math.max(r.cur || 0, 0), Math.max(0, r.items.length - 1));
+        r.cur = curI;
+        return true;
+    }
+
+    // Scroll an element a step; returns false at the edge.
+    function scrollElStep(el, delta) {
+        if (!el) return false;
+        var step = Math.max(40, Math.round(el.clientHeight * 0.85));
+        var before = el.scrollTop;
+        var max = el.scrollHeight - el.clientHeight;
+        var target = Math.min(Math.max(before + delta * step, 0), max);
+        if (target === before) return false;
+        el.scrollTop = target;
+        return true;
+    }
+
+    function scrollRegionStep(r, delta) { return scrollElStep(r.el, delta); }
+
+    // Last-resort scroll so the bottom / off-screen content is always
+    // reachable: when j/k can move no further through regions, scroll the
+    // active content surface. Prefers a visible [data-vim-scroll], then the
+    // standard content containers.
+    function scrollFallback(delta) {
+        var candidates = document.querySelectorAll('[data-vim-scroll], #info-content, .info-content, .terminal-body');
+        for (var i = 0; i < candidates.length; i++) {
+            var el = candidates[i];
+            if (isVisible(el) && el.scrollHeight > el.clientHeight + 1) {
+                return scrollElStep(el, delta);
+            }
+        }
+        return false;
+    }
+
+    function moveVertical(delta) {
+        buildRegions();
+        if (!regions.length) return false;
         ensureCursorInBounds();
-        if (currentRow < grid.length - 1) {
-            currentRow++;
-            currentCol = 0;
+        var r = regions[curR];
+        if (r.axis === 'y') {
+            var ni = curI + delta;
+            if (ni >= 0 && ni < r.items.length) { curI = ni; r.cur = ni; applySelection(); return true; }
+            // At the item edge: scroll the region, else cross, else fall back
+            // to scrolling the page content so the bottom stays reachable.
+            if (r.scroll && scrollRegionStep(r, delta)) { applySelection(); return true; }
+            if (crossRegion(delta)) { applySelection(); return true; }
+            scrollFallback(delta);
+            return true;
         }
-        applySelection();
+        // axis x: j/k cross stacked regions; at the edge, scroll content.
+        if (crossRegion(delta)) { applySelection(); return true; }
+        scrollFallback(delta);
         return true;
     }
 
-    function moveUp() {
-        buildGrid();
-        if (grid.length === 0) return false;
+    function moveHorizontal(delta) {
+        buildRegions();
+        if (!regions.length) return false;
         ensureCursorInBounds();
-        if (currentRow > 0) {
-            currentRow--;
-            currentCol = 0;
+        var r = regions[curR];
+        if (r.axis === 'x') {
+            var ni = curI + delta;
+            if (ni >= 0 && ni < r.items.length) { curI = ni; r.cur = ni; applySelection(); }
+            return true;
         }
-        applySelection();
+        // axis y: h/l switch to a horizontally-adjacent column in the same
+        // col-group. (No column groups yet → no-op; wired with the two-pane
+        // migration.)
+        if (r.group) {
+            var step = delta > 0 ? 1 : -1;
+            for (var k = curR + step; k >= 0 && k < regions.length; k += step) {
+                if (regions[k].group === r.group) { crossRegion(k - curR); applySelection(); break; }
+            }
+        }
         return true;
     }
 
-    function moveRight() {
-        buildGrid();
-        if (grid.length === 0) return false;
-        ensureCursorInBounds();
-        var row = grid[currentRow];
-        if (currentCol < row.items.length - 1) {
-            currentCol++;
-        }
-        applySelection();
-        return true;
-    }
-
-    function moveLeft() {
-        buildGrid();
-        if (grid.length === 0) return false;
-        ensureCursorInBounds();
-        if (currentCol > 0) {
-            currentCol--;
-        }
-        applySelection();
-        return true;
-    }
-
-    // w — word forward. Linearised across all rows: end of row wraps
-    // to next row's first item.
+    // w/b — linearised across every item of every region.
     function wordForward() {
-        buildGrid();
-        if (grid.length === 0) return false;
+        buildRegions();
+        if (!regions.length) return false;
         ensureCursorInBounds();
-        var row = grid[currentRow];
-        if (currentCol < row.items.length - 1) {
-            currentCol++;
-        } else if (currentRow < grid.length - 1) {
-            currentRow++;
-            currentCol = 0;
-        }
+        var r = regions[curR];
+        if (curI < r.items.length - 1) { curI++; r.cur = curI; }
+        else if (curR < regions.length - 1) { curR++; curI = 0; regions[curR].cur = 0; }
         applySelection();
         return true;
     }
 
     function wordBack() {
-        buildGrid();
-        if (grid.length === 0) return false;
+        buildRegions();
+        if (!regions.length) return false;
         ensureCursorInBounds();
-        if (currentCol > 0) {
-            currentCol--;
-        } else if (currentRow > 0) {
-            currentRow--;
-            currentCol = grid[currentRow].items.length - 1;
-        }
+        if (curI > 0) { curI--; regions[curR].cur = curI; }
+        else if (curR > 0) { curR--; curI = Math.max(0, regions[curR].items.length - 1); regions[curR].cur = curI; }
         applySelection();
         return true;
     }
 
-    // Numeric jump: select the nth tab. By convention the tab strip is
-    // row 0 — every page that uses vim-nav puts data-vim-row on the
-    // tab container first. This matches the long-standing "press 5 →
-    // AI tab" affordance regardless of where the user currently is in
-    // the page.
+    // Numbered jump → the tab-strip region (data-vim-role="tabs", or the
+    // first region as a fallback). Keeps "2 → Financials" working even when
+    // the company panel is region 0.
     function numericJump(n) {
-        buildGrid();
-        if (grid.length === 0) return false;
-        var row = grid[0];
-        if (n < 1 || n > row.items.length) return true;
-        currentRow = 0;
-        currentCol = n - 1;
+        buildRegions();
+        if (!regions.length) return false;
+        var tabsR = -1;
+        for (var i = 0; i < regions.length; i++) {
+            if (regions[i].role === 'tabs') { tabsR = i; break; }
+        }
+        if (tabsR < 0) tabsR = 0;
+        var r = regions[tabsR];
+        if (n < 1 || n > r.items.length) return true;
+        curR = tabsR; curI = n - 1; r.cur = curI;
         applySelection();
-        // Fire the item's primary action — for tab strips that means
-        // the tab actually switches, not just gets highlighted. Without
-        // this, "press 2 → Financials tab" only paints a focus ring.
         activate();
         return true;
     }
 
-    // Enter — fire the selected item's primary action.
     function activate() {
-        if (currentRow < 0 || currentRow >= grid.length) return false;
-        var row = grid[currentRow];
-        if (currentCol < 0 || currentCol >= row.items.length) return false;
-        var el = row.items[currentCol];
+        var el = currentItemEl();
+        if (!el) return false;
         var action = el.getAttribute('data-vim-action') || 'click';
         switch (action) {
             case 'none':
@@ -286,9 +302,6 @@
                 el.click();
                 return true;
             case 'toggle':
-                // Toggle a collapsed/expanded state. Convention: the
-                // element carries a sibling class to flip. Default is
-                // .panel-open on the element itself.
                 var cls = el.getAttribute('data-vim-toggle-class') || 'panel-open';
                 el.classList.toggle(cls);
                 return true;
@@ -300,10 +313,6 @@
                 if (url && window._openReader) window._openReader(url, title);
                 return true;
             case 'open-external':
-                // Open in a new tab — for URLs whose host actively blocks
-                // server-side fetching (e.g. SEC EDGAR returns a "Your
-                // request originates from an undeclared automated tool"
-                // page to our reader proxy).
                 var extUrl = el.getAttribute('data-vim-url') ||
                              (el.querySelector('a') && el.querySelector('a').href) || '';
                 if (extUrl) window.open(extUrl, '_blank', 'noopener,noreferrer');
@@ -318,48 +327,33 @@
         }
     }
 
-    // hasActiveGrid is the gate: if the page has any data-vim-row,
-    // VimNav owns the directional keys. Otherwise it returns false
-    // and terminal.js dispatches to legacy handlers untouched.
+    // The gate: any declarative region means VimNav owns directional keys.
     function hasActiveGrid() {
-        return document.querySelector('[data-vim-row]') !== null;
+        return document.querySelector('[data-vim-region], [data-vim-row]') !== null;
+    }
+
+    // Selection snapshot for per-view command keys (d/y/p/c/x/a/w) that used
+    // to read bespoke indices. region = data-vim-role or '' for the region.
+    function getSelected() {
+        var el = currentItemEl();
+        if (!el) return null;
+        var r = regions[curR];
+        return { el: el, region: (r && r.role) || '', axis: (r && r.axis) || '', index: curI };
     }
 
     var NUMERIC_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
     function handleKey(key, e) {
-        if (!hasActiveGrid()) {
-            // No declarative nav on this page — let terminal.js's legacy
-            // handler take the keys.
-            return false;
-        }
+        if (!hasActiveGrid()) return false;
         switch (key) {
-            case 'j':
-                if (e) e.preventDefault();
-                moveDown();
-                return true;
-            case 'k':
-                if (e) e.preventDefault();
-                moveUp();
-                return true;
-            case 'h':
-                if (e) e.preventDefault();
-                moveLeft();
-                return true;
-            case 'l':
-                if (e) e.preventDefault();
-                moveRight();
-                return true;
-            case 'w':
-                if (e) e.preventDefault();
-                wordForward();
-                return true;
-            case 'b':
-                if (e) e.preventDefault();
-                wordBack();
-                return true;
+            case 'j': if (e) e.preventDefault(); moveVertical(1); return true;
+            case 'k': if (e) e.preventDefault(); moveVertical(-1); return true;
+            case 'l': if (e) e.preventDefault(); moveHorizontal(1); return true;
+            case 'h': if (e) e.preventDefault(); moveHorizontal(-1); return true;
+            case 'w': if (e) e.preventDefault(); wordForward(); return true;
+            case 'b': if (e) e.preventDefault(); wordBack(); return true;
             case 'Enter':
-                if (currentRow < 0) return false;
+                if (curR < 0) return false;
                 if (e) e.preventDefault();
                 activate();
                 return true;
@@ -369,73 +363,46 @@
             numericJump(parseInt(key, 10));
             return true;
         }
-        // g / gg / G are handled by terminal.js so the gg-vs-legacy-g
-        // 500ms timer can coexist with per-view graph-jump handlers.
+        // g / gg / G handled by terminal.js (500ms gg timer coexists with
+        // per-view graph-jump).
         return false;
     }
 
     function reset() {
-        // Called when a page repaints its content. We rebuild the grid
-        // and try to preserve selection — if the previously selected
-        // element survives the repaint we keep it; otherwise clear.
-        var prevEl = null;
-        if (currentRow >= 0 && grid[currentRow] && grid[currentRow].items[currentCol]) {
-            prevEl = grid[currentRow].items[currentCol];
-        }
-        buildGrid();
+        var prevEl = currentItemEl();
+        buildRegions();
         if (prevEl && document.contains(prevEl)) {
-            // Find the new coordinates for the same element.
-            for (var i = 0; i < grid.length; i++) {
-                var idx = grid[i].items.indexOf(prevEl);
-                if (idx >= 0) {
-                    currentRow = i;
-                    currentCol = idx;
-                    applySelection();
-                    return;
-                }
+            for (var i = 0; i < regions.length; i++) {
+                var idx = regions[i].items.indexOf(prevEl);
+                if (idx >= 0) { curR = i; curI = idx; regions[i].cur = idx; applySelection(); return; }
             }
         }
-        currentRow = -1;
-        currentCol = -1;
+        curR = -1; curI = -1;
         clearSelection();
         emitSelect(null);
     }
 
-    // Auto-reset on DOM mutations to the main content area. Pages render
-    // tab content via container.innerHTML = '...' — there's no clean way
-    // to ask each render path to call reset() without scattering calls
-    // through info.js, crypto.js, etc. A debounced MutationObserver on
-    // #info-content (or document.body as a fallback) catches every paint
-    // without per-page wiring.
     var resetTimer = null;
     function scheduleReset() {
         if (resetTimer) clearTimeout(resetTimer);
-        resetTimer = setTimeout(function () {
-            resetTimer = null;
-            reset();
-        }, 50);
+        resetTimer = setTimeout(function () { resetTimer = null; reset(); }, 50);
     }
 
     function observeMutations() {
-        var target = document.getElementById('info-content') || document.body;
+        // Observe the whole content area: column pages re-render their lists
+        // (#quote-body, #ideas-list, #news-cards) outside #info-content, so a
+        // narrow target would miss those repaints. Body is the safe superset;
+        // the class-mutation skip below keeps it cheap.
+        var target = document.querySelector('.terminal-body') || document.body;
         if (!target) return;
         var observer = new MutationObserver(function (mutations) {
-            // Skip mutations that are just our own .vim-selected class
-            // toggles — they'd trigger an infinite loop otherwise.
             for (var i = 0; i < mutations.length; i++) {
-                var m = mutations[i];
-                if (m.type === 'attributes' && m.attributeName === 'class') {
-                    continue;
-                }
+                if (mutations[i].type === 'attributes' && mutations[i].attributeName === 'class') continue;
                 scheduleReset();
                 return;
             }
         });
-        observer.observe(target, {
-            childList: true,
-            subtree: true,
-            attributes: false,
-        });
+        observer.observe(target, { childList: true, subtree: true, attributes: false });
     }
 
     if (document.readyState === 'loading') {
@@ -450,9 +417,7 @@
         selectFirst: selectFirst,
         selectLast: selectLast,
         hasActiveGrid: hasActiveGrid,
-        // For debugging / tests.
-        _state: function () {
-            return { row: currentRow, col: currentCol, gridSize: grid.length };
-        },
+        getSelected: getSelected,
+        _state: function () { return { row: curR, col: curI, gridSize: regions.length }; },
     };
 })();

@@ -730,6 +730,12 @@ body {
     display: none;
 }
 
+/* Maximized (zoomed) preview — 'p' on a header-panel sparkline opens the
+   slide-in much wider so the 1y chart reads as a full chart, not a sliver. */
+.article-reader.reader-maximized {
+    width: min(80%, 1100px);
+}
+
 .reader-header {
     display: flex;
     justify-content: space-between;

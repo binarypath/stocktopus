@@ -1152,8 +1152,24 @@ window.onerror = function (msg, src, line, col, err) {
             };
         });
 
-        // Infinite scroll
+        // Card open: delegated so it survives re-renders. VimNav fires the
+        // selected card's data-vim-action="click" → card.click() bubbles here,
+        // marking it read and opening the reader. Mouse clicks land here too.
         var container = document.getElementById('news-cards');
+        if (container && !container.dataset.cardClickWired) {
+            container.dataset.cardClickWired = '1';
+            container.addEventListener('click', function (e) {
+                var card = e.target.closest('.news-card');
+                if (!card) return;
+                markNewsRead(card);
+                if (!e.target.closest('.news-card-title a')) {
+                    var a = card.querySelector('.news-card-title a');
+                    if (a && window._openReader) window._openReader(a.href, a.textContent);
+                }
+            });
+        }
+
+        // Infinite scroll
         if (container) {
             container.addEventListener('scroll', function () {
                 if (newsLoading || newsExhausted) return;
@@ -1362,7 +1378,7 @@ window.onerror = function (msg, src, line, col, err) {
         var symbolBadge = item.symbol ? '<span class="news-symbol">' + escapeHtml(item.symbol) + '</span>' : '';
         var unreadClass = unread ? ' news-unread' : '';
 
-        return '<div class="news-card' + unreadClass + '" data-url="' + escapeHtml(item.url) + '">'
+        return '<div class="news-card' + unreadClass + '" data-url="' + escapeHtml(item.url) + '" data-vim-region data-vim-action="click">'
             + '<div class="news-card-title"><a href="' + escapeHtml(item.url) + '" onclick="event.preventDefault();if(window._openReader)window._openReader(this.href,this.textContent)">' + escapeHtml(item.title) + '</a></div>'
             + '<div class="news-card-meta">'
             +   symbolBadge
@@ -1649,12 +1665,13 @@ window.onerror = function (msg, src, line, col, err) {
                         }
                     }
 
-                    // Main /stock chart range: :1, :5, :15, :30, :1h, :4h,
-                    // :1w, :1m, :3m, :6m
+                    // Main /stock chart range: :1, :5, :15, :30, :1h, :4h, :2d,
+                    // :1w, :1m, :3m, :6m, :1y, :5y, :10y, :max
                     var rangeMap = {
                         '1': '1m', '5': '5m', '15': '15m', '30': '30m',
-                        '1h': '1h', '4h': '4h',
+                        '1h': '1h', '4h': '4h', '2d': '2d',
                         '1w': '1W', '1m': '1M', '3m': '3M', '6m': '6M',
+                        '1y': '1Y', '5y': '5Y', '10y': '10Y', 'max': 'MAX',
                     };
                     if (rangeMap[colonLower] && window._stocktopusSetRange) {
                         window._stocktopusSetRange(rangeMap[colonLower]);
@@ -2430,20 +2447,26 @@ window.onerror = function (msg, src, line, col, err) {
         return true;
     }
 
-    function openPricePreview(symbol) {
+    function openPricePreview(symbol, opts) {
         if (!symbol) return;
+        var maximized = !!(opts && opts.maximized);
         var reader = document.getElementById('article-reader');
         var readerTitle = document.getElementById('reader-title');
         var readerBody = document.getElementById('reader-body');
         if (!reader || !readerBody) return;
         reader.classList.remove('hidden');
+        // Maximized = a wider slide-in (driven by .reader-maximized in CSS) with
+        // a taller chart. Used by 'p' on a header-panel sparkline. Set on every
+        // open so a normal preview that follows resets back to the slim width.
+        reader.classList.toggle('reader-maximized', maximized);
         reader.dataset.mode = 'price-chart';
         if (readerTitle) readerTitle.textContent = symbol + ' — 1y';
         // Reader layout: the 1y price chart on top, the shared mini company
         // info panel below (same component used on the Ideas page). The panel
         // shows symbol, name, day-change, and a 6M sparkline — replacing the
         // older one-line "AAPL · 252d · 200.21 → 310.85 (+55.3%)" meta string.
-        readerBody.innerHTML = '<div id="price-preview-host" style="width:100%;height:280px"></div>'
+        var chartHeight = maximized ? '60vh' : '280px';
+        readerBody.innerHTML = '<div id="price-preview-host" style="width:100%;height:' + chartHeight + '"></div>'
             + '<div id="price-preview-cpanel" class="company-panel company-panel--reader" style="margin-top:8px"></div>';
         if (window._renderCompanyPanel) {
             window._renderCompanyPanel('price-preview-cpanel', symbol);
@@ -2677,52 +2700,8 @@ window.onerror = function (msg, src, line, col, err) {
             },
             activate: function () {}
         },
-        news: {
-            getItems: function () { return document.querySelectorAll('#news-cards .news-card'); },
-            getAllTabs: function () { return Array.from(document.querySelectorAll('#news-tabs .news-tab')); },
-            getTabs: function () {
-                return this.getAllTabs().filter(function (t) {
-                    return !t.classList.contains('dimmed');
-                });
-            },
-            move: function (dir) {
-                if (dir === 'h' || dir === 'l') {
-                    // Tab navigation
-                    var tabs = this.getTabs();
-                    if (tabs.length === 0) return;
-                    var activeIdx = tabs.findIndex(function (t) { return t.classList.contains('active'); });
-                    if (dir === 'l') activeIdx = Math.min(activeIdx + 1, tabs.length - 1);
-                    else activeIdx = Math.max(activeIdx - 1, 0);
-                    tabs[activeIdx].click();
-                    clearVimSelection();
-                    return;
-                }
-                // Card navigation
-                var items = this.getItems();
-                if (items.length === 0) return;
-                if (dir === 'j') vimSelectedIndex = Math.min(vimSelectedIndex + 1, items.length - 1);
-                else if (dir === 'k') vimSelectedIndex = Math.max(vimSelectedIndex - 1, 0);
-                vimSelect(items, vimSelectedIndex);
-            },
-            jumpToTab: function (n) {
-                var tabs = this.getAllTabs();
-                if (n < 0 || n >= tabs.length) return;
-                var tab = tabs[n];
-                if (tab.classList.contains('dimmed')) return;
-                tab.click();
-                clearVimSelection();
-            },
-            activate: function () {
-                var items = this.getItems();
-                if (vimSelectedIndex < 0 || vimSelectedIndex >= items.length) return;
-                var card = items[vimSelectedIndex];
-                markNewsRead(card);
-                var link = card.querySelector('.news-card-title a');
-                if (link && window._openReader) {
-                    window._openReader(link.href, link.textContent);
-                }
-            }
-        },
+        // news nav is now the common VimNav engine (declarative regions on
+        // #news-tabs + .news-card). No bespoke handler.
         info: {
             // focus: 'main' = main tabs, 'sub' = sub-tabs, 'content' = scrolling
             _focus: 'main',
@@ -3222,6 +3201,9 @@ window.onerror = function (msg, src, line, col, err) {
             var readerEl = document.getElementById('article-reader');
             if (readerEl && !readerEl.classList.contains('hidden')) readerOpen = true;
             // Ideas and watchlist use custom two-column pane models.
+            // ideas / watchlist still use bespoke two-pane handlers (migrating
+            // post-2.0). Everything else — including news, now declarative —
+            // goes through the common VimNav engine.
             if (!readerOpen && currentView !== 'ideas' && currentView !== 'watchlist' && window.VimNav.handleKey(e.key, e)) return;
         }
 
@@ -3385,6 +3367,13 @@ window.onerror = function (msg, src, line, col, err) {
             case 'p':
                 // 'p' toggles any open reader/preview slide-in closed first.
                 if (closeActiveReader()) { e.preventDefault(); return; }
+                // Header company panel: 'p' on a selected sparkline opens an
+                // enlarged (maximized) price-preview slide-in for the security.
+                if (companyPanelHasSelection() && selectedSecurity) {
+                    e.preventDefault();
+                    openPricePreview(selectedSecurity, { maximized: true });
+                    return;
+                }
                 // Watchlist: 'p' opens a price chart slide-in for the
                 // highlighted symbol. Cut/paste 'p' moved to capital 'P' so
                 // 'p' = preview is consistent across listings.
@@ -3415,14 +3404,16 @@ window.onerror = function (msg, src, line, col, err) {
                     }
                     return;
                 }
-                // /news: open the article reader (slide-in preview) on the
-                // highlighted card. Same effect as Enter, mapped to 'p' for
-                // muscle-memory parity with the 'p = preview' convention used
-                // on economics + financials.
-                if (currentView === 'news' && handler && handler.activate) {
-                    e.preventDefault();
-                    handler.activate();
-                    return;
+                // /news: open the article reader on the highlighted card —
+                // same effect as Enter (the card's data-vim-action="click"),
+                // mapped to 'p' for the 'p = preview' muscle-memory convention.
+                if (currentView === 'news') {
+                    var nsel = window.VimNav && window.VimNav.getSelected();
+                    if (nsel && nsel.el && nsel.el.classList.contains('news-card')) {
+                        e.preventDefault();
+                        nsel.el.click();
+                        return;
+                    }
                 }
                 return;
             case 'P':
@@ -3916,7 +3907,13 @@ window.onerror = function (msg, src, line, col, err) {
     // causing the sector-preview sparkline to render INTO the top
     // panel's spark host and stack up on every 'p' toggle.
     function companyPanelHasSelection() {
-        return !!document.querySelector('#company-panel[data-vim-row] .vim-selected');
+        // The vim cursor is on a company-panel item (its region role is
+        // "company"). Falls back to a DOM check if VimNav isn't present.
+        if (window.VimNav && window.VimNav.getSelected) {
+            var sel = window.VimNav.getSelected();
+            return !!(sel && sel.region === 'company');
+        }
+        return !!document.querySelector('#company-panel .vim-selected');
     }
 
     function prefillAddCommand(sym) {
@@ -4194,8 +4191,19 @@ window.onerror = function (msg, src, line, col, err) {
         if (!el || !symbol) return;
 
         var vimNav = containerId === 'company-panel' && !el.classList.contains('no-spark');
-        if (vimNav) el.setAttribute('data-vim-row', '');
-        else el.removeAttribute('data-vim-row');
+        // The company panel is its own horizontal region (role "company", NOT
+        // "tabs") so h/l walks its sparklines and numbered jumps still target
+        // the tab strip — it no longer hijacks the tab nav as data-vim-row did.
+        el.removeAttribute('data-vim-row');
+        if (vimNav) {
+            el.setAttribute('data-vim-region', '');
+            el.setAttribute('data-vim-axis', 'x');
+            el.setAttribute('data-vim-role', 'company');
+        } else {
+            el.removeAttribute('data-vim-region');
+            el.removeAttribute('data-vim-axis');
+            el.removeAttribute('data-vim-role');
+        }
 
         var infoOpen = '<span class="cpanel-info"'
             + (vimNav ? ' data-vim-item data-vim-action="none"' : '')
@@ -4206,13 +4214,13 @@ window.onerror = function (msg, src, line, col, err) {
         var sparksHtml = '';
         if (!el.classList.contains('no-spark')) {
             sparksHtml = '<div class="cpanel-sparks">'
-                + '<div class="cpanel-spark-wrap"' + sparkVim + ' data-chart-range="5m" title="Open 2d chart">'
+                + '<div class="cpanel-spark-wrap"' + sparkVim + ' data-chart-range="2d" title="Open 2d chart">'
                 +   '<div class="cpanel-spark"></div>'
                 + '</div>'
                 + '<div class="cpanel-spark-wrap"' + sparkVim + ' data-chart-range="6M" title="Open 6m chart">'
                 +   '<div class="cpanel-spark"></div>'
                 + '</div>'
-                + '<div class="cpanel-spark-wrap"' + sparkVim + ' data-chart-range="6M" title="Open 1y chart">'
+                + '<div class="cpanel-spark-wrap"' + sparkVim + ' data-chart-range="1Y" title="Open 1y chart">'
                 +   '<div class="cpanel-spark"></div>'
                 + '</div>'
                 + '</div>';
