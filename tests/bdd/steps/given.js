@@ -95,6 +95,15 @@ Given('I am on the security page for {string}', async ({ page }, sym) => {
   await page.waitForSelector('.info-overview', { timeout: 5000 });
 });
 
+Given('I am on the news page', async ({ page }) => {
+  page.__pageErrors = [];
+  page.on('pageerror', (err) => { page.__pageErrors.push(err.message); });
+  await page.goto('/news');
+  await page.waitForSelector('#news-tabs .news-tab');
+  // Let the first category's cards render so j can drop into them.
+  await page.waitForSelector('#news-cards .news-card', { timeout: 5000 });
+});
+
 module.exports = {
   ensureDefaultWatchlistSeeded,
 };

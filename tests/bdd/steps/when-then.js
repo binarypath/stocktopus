@@ -48,6 +48,18 @@ Then('a row is highlighted', async ({ page }) => {
   });
 });
 
+// The single vim-selected element matches the given CSS selector. Used by the
+// common-nav scenarios to assert which kind of element the cursor landed on
+// (e.g. ".news-tab", ".news-card") without page-specific data attributes.
+Then('the highlighted element matches {string}', async ({ page }, selector) => {
+  await expect.poll(async () => {
+    return page.evaluate((sel) => {
+      var el = document.querySelector('.vim-selected');
+      return !!(el && el.matches(sel));
+    }, selector);
+  }, { timeout: 2000 }).toBe(true);
+});
+
 Then('the active tab is {string}', async ({ page }, label) => {
   await expect(page.locator('#info-tabs .info-tab.active')).toContainText(label);
 });

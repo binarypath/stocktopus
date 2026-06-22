@@ -1,18 +1,16 @@
 {{template "layout" .}}
 {{define "content"}}
 <div id="company-panel" class="company-panel"></div>
-<div class="page-header">
-    <h2 class="view-title">News <span id="news-spinner" class="spinner hidden"></span></h2>
+<div class="news-tabs st-tab-row" id="news-tabs" data-vim-region data-vim-axis="x" data-vim-role="tabs">
+    <button class="news-tab st-tab active" data-category="press-releases" data-vim-item>Press Releases</button>
+    <button class="news-tab st-tab" data-category="articles" data-vim-item>Articles</button>
+    <button class="news-tab st-tab" data-category="stock" data-vim-item>Stock</button>
+    <button class="news-tab st-tab" data-category="crypto" data-vim-item>Crypto</button>
+    <button class="news-tab st-tab" data-category="forex" data-vim-item>Forex</button>
+    <button class="news-tab st-tab" data-category="general" data-vim-item>General</button>
+    <span id="news-spinner" class="spinner hidden"></span>
 </div>
-<div class="news-tabs" id="news-tabs">
-    <button class="news-tab active" data-category="press-releases">Press Releases</button>
-    <button class="news-tab" data-category="articles">Articles</button>
-    <button class="news-tab" data-category="stock">Stock</button>
-    <button class="news-tab" data-category="crypto">Crypto</button>
-    <button class="news-tab" data-category="forex">Forex</button>
-    <button class="news-tab" data-category="general">General</button>
-</div>
-<div id="news-cards" class="news-cards">
+<div id="news-cards" class="news-cards" data-vim-scroll>
     <p class="empty-state">Loading...</p>
 </div>
 {{end}}
