@@ -7,6 +7,23 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [2.0.0](https://github.com/binarypath/stocktopus/compare/v1.17.0...v2.0.0) (2026-06-22)
+
+
+### Features
+
+* unified region vim-nav + chart periods, news on common nav ([#152](https://github.com/binarypath/stocktopus/issues/152)) ([ff15ace](https://github.com/binarypath/stocktopus/commit/ff15ace1ebb0815d91af2213d318ee713188c4c3))
+
+
+### Bug Fixes
+
+* bug round (header unification, financials totals, news read state, sector preview, etc.) ([#147](https://github.com/binarypath/stocktopus/issues/147)) ([994bda3](https://github.com/binarypath/stocktopus/commit/994bda3af893abf644326501e9083889178414dc))
+
+
+### Chore
+
+* release 2.0.0 ([#151](https://github.com/binarypath/stocktopus/issues/151)) ([7564ec9](https://github.com/binarypath/stocktopus/commit/7564ec9ebccfceba86a43443898ac27775f05bb9))
+
 ## [1.17.0](https://github.com/binarypath/stocktopus/compare/v1.16.0...v1.17.0) (2026-06-01)
 
 
