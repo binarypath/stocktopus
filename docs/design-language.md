@@ -421,7 +421,7 @@ Use for all signed numeric columns (watchlist changes, screener Δ columns, etc.
 
 | Region | DOM / class anchors | Primitives to apply |
 |--------|---------------------|---------------------|
-| **Shell** | `.terminal-header`, `.terminal-footer`, `.cmd-bar`, `.brand` | Orange brand text; cmd-bar focus = orange line; footer mode = `st-chip` semantic |
+| **Shell** | `.terminal-header`, `.terminal-footer`, `.cmd-bar`, `.brand`, `favicon.svg` | Orange brand octopus (header + favicon); cmd-bar focus = orange line; footer mode = `st-chip` semantic |
 | **Watchlist** | `.watchlist`, `.quote-table`, `.wl-tab`, `.wl-spark-cell` | `st-table`, `st-link-sym`, `st-tab` for tabs; market colors for deltas; 6M sparkline label uses `price-up`/`price-down` |
 | **Graph** | `.chart-range-bar`, `.chart-range-btn`, `.chart-toggle`, `.chart-container` | `st-tab` for range buttons; toggles: green only when “on” |
 | **Info** | `.info-panel`, `.info-tabs`, `.info-sub-tabs`, `.company-panel`, peer/SEC tables | Blue menu band on sub strips; orange primary; `st-row-selected` on tables |
@@ -480,6 +480,7 @@ Use for all signed numeric columns (watchlist changes, screener Δ columns, etc.
 
 ### Shell
 - [ ] Brand orange is saturated, readable on `#0a0a0a`.
+- [ ] Header `.brand-octopus` and `internal/server/static/favicon.svg` share the same octopus mark (`viewBox` 40×24 body path; favicon uses square 40×32 canvas with `--accent-orange` / `--bg-secondary` fills).
 - [ ] Cmd bar focus uses orange line token.
 - [ ] Footer `NORMAL` / view label uses chip/surface tokens.
 
@@ -740,6 +741,7 @@ Optional: `.st-tab--active` inset bar `0 -3px 0` (ternary stroke) instead of `-2
 
 | Path | Role |
 |------|------|
+| `internal/server/static/favicon.svg` | Browser tab icon — same octopus mark as `.brand-octopus` in `layout.html` (`--accent-orange` body, `--bg-secondary` eyes on `--bg-primary` canvas). Linked from `layout.html` `<head>`. |
 | **`docs/design-system-export/`** | Visual reference kit from design export zip — HTML previews, `tron.css`, `_real-style.css`, `INTEGRATION.md`, `tweaks-panel.jsx`. Open previews locally to compare Tron on/off. |
 | **`docs/design-language.md`** | Written spec (this file) — tokens, primitives, rollout, ternary system. |
 | `watchlist-reader-ui-handoff.md` | Feature/UI content changes (when present in repo). |

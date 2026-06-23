@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 32" role="img" aria-label="Stocktopus">
+  <rect width="40" height="32" fill="#0a0a0a"/>
+  <g transform="translate(0 4)" fill="#ff9a1a">
+    <path d="M5 16.5 C5 8.8 11 2.5 20 2.5 C29 2.5 35 8.8 35 16.5 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 Z"/>
+    <circle cx="15" cy="12.5" r="2" fill="#111111"/>
+    <circle cx="25" cy="12.5" r="2" fill="#111111"/>
+  </g>
+</svg>
