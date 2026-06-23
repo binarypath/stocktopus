@@ -1,9 +1,12 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stocktopus — Crypto Overview (Tron preview)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="_real-style.css">
+<!-- Live base — keep DOM/classes in sync with internal/server/templates/crypto.html -->
+<link rel="stylesheet" href="../../../internal/server/static/style.css">
 <link rel="stylesheet" href="tron.css" id="tron">
 <style>
   body{font-family:'Fira Code',var(--font-mono)}
@@ -12,7 +15,13 @@
 <body>
 <button id="t" onclick="var x=document.getElementById('tron');x.disabled=!x.disabled;this.textContent=x.disabled?'tron OFF':'tron ON'">tron ON</button>
 <header class="terminal-header">
-  <span class="brand">STOCKTOPUS</span>
+  <span class="brand" title="Stocktopus">
+    <svg class="brand-octopus" viewBox="0 0 40 24" role="img" aria-label="Stocktopus" fill="currentColor">
+      <path d="M5 16.5 C5 8.8 11 2.5 20 2.5 C29 2.5 35 8.8 35 16.5 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 Z"/>
+      <circle cx="15" cy="12.5" r="2" fill="var(--bg-secondary)"/>
+      <circle cx="25" cy="12.5" r="2" fill="var(--bg-secondary)"/>
+    </svg>
+  </span>
   <div class="cmd-bar"><span class="cmd-prompt">&gt;</span><input class="cmd-input" placeholder="enter command..." value="" spellcheck="false"></div>
   <div class="security-selector"><input class="security-input" value="KR" spellcheck="false"></div>
   <span class="watchlist-picker">Default</span>
@@ -21,13 +30,14 @@
 <div class="terminal-body">
   <main class="terminal-content" data-view="crypto">
     <div id="company-panel" class="company-panel"></div>
-    <div class="info-tabs" id="info-tabs" data-vim-row>
-      <button class="info-tab active" data-tab="overview">Overview</button>
-      <button class="info-tab" data-tab="news">News</button>
-      <button class="info-tab" data-tab="ai">AI Analysis</button>
-      <button class="info-tab" data-tab="peers">Peer Coins</button>
+    <div class="info-panel">
+    <div class="info-tabs st-tab-row" id="info-tabs" data-vim-row data-vim-role="tabs">
+      <button class="info-tab st-tab active st-tab--active" data-tab="overview" data-vim-item>Overview</button>
+      <button class="info-tab st-tab" data-tab="news" data-vim-item>News</button>
+      <button class="info-tab st-tab" data-tab="ai" data-vim-item>AI Analysis</button>
+      <button class="info-tab st-tab" data-tab="peers" data-vim-item>Peer Coins</button>
     </div>
-    <div id="info-content" class="info-content">
+    <div id="info-content" class="info-content" data-symbol="KR">
       <div class="crypto-header">
         <span class="crypto-name">The Kroger Co.</span>
         <span class="crypto-exchange">NYSE</span>
@@ -46,14 +56,15 @@
         <div class="crypto-stat"><span class="crypto-stat-label">50-Day Avg</span><span class="crypto-stat-value">$65.7394</span></div>
         <div class="crypto-stat"><span class="crypto-stat-label">200-Day Avg</span><span class="crypto-stat-value">$66.4658</span></div>
       </div>
-      <div class="crypto-chart" style="height:230px;display:flex;align-items:center;justify-content:center;color:var(--text-muted)">[ price chart ]</div>
+      <div class="crypto-chart">[ price chart ]</div>
       <div class="crypto-desc">The Kroger Co. functions as a significant retail entity throughout the United States, encompassing a varied collection of store formats. Its operations include integrated food and drug stores, which stock a broad range of products from natural and organic sections to pharmacies, general merchandise, pet centers, fresh seafood, and organic produce. Established in 1883, the company is headquartered in Cincinnati, Ohio.</div>
+    </div>
     </div>
   </main>
 </div>
 <footer class="terminal-footer">
   <span class="footer-mode normal">NORMAL</span>
-  <span class="footer-view">crypto</span>
+  <span class="footer-view">CRYPTO</span>
   <span class="footer-help">/ cmd &middot; s security &middot; hjkl nav &middot; : chart cmd</span>
   <div class="footer-clocks"><span class="tz-block"><span class="tz-label">ET</span>09:41</span></div>
 </footer>

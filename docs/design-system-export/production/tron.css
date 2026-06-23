@@ -495,20 +495,15 @@ body { background: var(--bg-deep); }
 .ideas-list-name { color: var(--text-primary); }
 
 /* ───────────────────────── NEWS PAGE (full /news view) ─────────────────────────
-   The /news view uses .news-tab / .news-card classes the overlay didn't reach,
-   so it fell back to raw base style. Bring it into the system. */
-
-/* Tab strip — amber active with glow (consistent with info tabs). */
-.news-tab.active {
-    color: var(--accent-orange) !important;
-    border-color: var(--accent-orange) !important;
-    box-shadow: var(--glow-amber);
-    text-shadow: var(--text-glow-amber);
-    border-radius: var(--control-radius) !important;
-}
-.news-tab { border-radius: var(--control-radius) !important; white-space: nowrap; }
+   Primary category tabs use .info-panel > .info-tabs (orange primary nav —
+   same chrome as security info). Card polish below; tab strip rules live in
+   style.css. */
 
 /* Cards become rounded panel boxes with a consistent gap; cyan hover glow. */
+.info-panel > .info-content.news-cards {
+    padding-inline: var(--panel-gap);
+    box-sizing: border-box;
+}
 .news-cards { gap: var(--panel-gap) !important; padding-top: 2px; }
 .news-card {
     background: var(--panel-bg) !important;

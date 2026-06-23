@@ -5,7 +5,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="_real-style.css">
+<!-- Live base — keep DOM/classes in sync with security.html + info.js Estimates tab -->
+<link rel="stylesheet" href="../../../internal/server/static/style.css">
 <link rel="stylesheet" href="tron.css" id="tron">
 <style>
   body{font-family:'Fira Code',var(--font-mono)}
@@ -27,7 +28,13 @@
 <button id="t" onclick="var x=document.getElementById('tron');x.disabled=!x.disabled;this.textContent=x.disabled?'tron OFF':'tron ON'">tron ON</button>
 
 <header class="terminal-header">
-  <span class="brand">STOCKTOPUS</span>
+  <span class="brand" title="Stocktopus">
+    <svg class="brand-octopus" viewBox="0 0 40 24" role="img" aria-label="Stocktopus" fill="currentColor">
+      <path d="M5 16.5 C5 8.8 11 2.5 20 2.5 C29 2.5 35 8.8 35 16.5 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 Z"/>
+      <circle cx="15" cy="12.5" r="2" fill="var(--bg-secondary)"/>
+      <circle cx="25" cy="12.5" r="2" fill="var(--bg-secondary)"/>
+    </svg>
+  </span>
   <div class="cmd-bar"><span class="cmd-prompt">&gt;</span><input class="cmd-input" placeholder="enter command..." spellcheck="false"></div>
   <div class="security-selector"><input class="security-input" value="LEE" spellcheck="false"></div>
   <span class="watchlist-picker">Default</span>
@@ -36,7 +43,7 @@
 
 <div class="terminal-body">
   <main class="terminal-content" data-view="security">
-    <div class="company-panel">
+    <div id="company-panel" class="company-panel">
       <span class="cpanel-sym">AVGO</span>
       <span class="cpanel-name">Broadcom Inc.</span>
       <span class="cpanel-price">411.35</span>
@@ -48,7 +55,8 @@
       </svg>
     </div>
 
-    <div class="info-tabs st-tab-row" id="info-tabs" data-vim-row>
+    <div class="info-panel">
+    <div class="info-tabs st-tab-row" id="info-tabs" data-vim-row data-vim-role="tabs">
       <button class="info-tab st-tab" data-tab="overview"><span class="tab-key">1</span> Overview</button>
       <button class="info-tab st-tab" data-tab="financials"><span class="tab-key">2</span> Financial Modeling</button>
       <button class="info-tab st-tab active st-tab--active" data-tab="estimates"><span class="tab-key">3</span> Estimates</button>
@@ -58,7 +66,7 @@
       <button class="info-tab st-tab" data-tab="sec"><span class="tab-key">7</span> SEC</button>
     </div>
 
-    <div id="info-content" class="info-content">
+    <div id="info-content" class="info-content" data-symbol="AVGO">
       <table class="fin-table">
         <thead><tr><th>Year</th><th class="num">Revenue Est</th><th class="num">EPS Est</th><th class="num">EBITDA Est</th><th class="num">Net Income Est</th></tr></thead>
         <tbody>
@@ -69,6 +77,7 @@
           <tr class="fin-row"><td class="fin-label">2030</td><td class="num">139.00B <span class="est-range">105.13B–152.64B</span></td><td class="num">35.00 <span class="est-range">23.91–39.47</span></td><td class="num">74.85B</td><td class="num">169.86B</td></tr>
         </tbody>
       </table>
+    </div>
     </div>
   </main>
 </div>

@@ -2169,47 +2169,28 @@ body {
 /* ── News View ── */
 
 .news-tabs {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 16px;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 8px;
+    /* Primary nav chrome flows from .info-panel > .info-tabs (shared with security info). */
+    flex: 1;
+    min-width: 0;
 }
 
-.news-tab {
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    color: var(--text-secondary);
-    font-family: var(--font-mono);
-    font-size: 12px;
-    padding: 5px 12px;
-    cursor: pointer;
-}
-
-.news-tab:hover {
-    color: var(--text-primary);
-    background: var(--bg-tertiary);
-}
-
-.news-tab.active {
-    color: var(--orange);
-    border-color: var(--orange);
-    background: var(--bg-tertiary);
+.news-tabs .spinner {
+    margin-left: auto;
+    align-self: center;
+    margin-right: var(--space-3);
 }
 
 .news-tab.dimmed {
     color: var(--text-muted);
     opacity: 0.4;
     cursor: default;
+    pointer-events: none;
 }
 
 .news-cards {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    max-height: calc(100vh - 180px);
-    overflow-y: auto;
 }
 
 .news-card {
@@ -2753,8 +2734,8 @@ body {
 }
 
 /* Tab strips: faint row wash + neutral baseline (not table-row fill). */
-.st-tab-row[data-vim-row]:has(.vim-selected),
-.info-tabs[data-vim-row]:has(.vim-selected):not(#info-tabs),
+.st-tab-row:not(.info-tabs)[data-vim-row]:has(.vim-selected),
+.info-tabs[data-vim-row]:has(.vim-selected):not(#info-tabs):not(#news-tabs),
 .economics-tabs[data-vim-row]:has(.vim-selected) {
     background: var(--tab-row-focus-bg);
     box-shadow: inset 0 -1px 0 var(--border);
@@ -2768,9 +2749,9 @@ body {
 
 /* Tab vim focus: colour only — fill slide is on ::before (see .st-tab rules).
    Primary + sub info-panel nav keep Tron tab chrome below. */
-.st-tab-row .st-tab.vim-selected,
-.st-tab-row .info-tab.vim-selected,
-.info-tabs:not(#info-tabs) .info-tab.vim-selected,
+.st-tab-row:not(.info-tabs) .st-tab.vim-selected,
+.st-tab-row:not(.info-tabs) .info-tab.vim-selected,
+.info-tabs:not(#info-tabs):not(#news-tabs) .info-tab.vim-selected,
 .news-sub-tabs .info-sub-tab.vim-selected,
 .news-sub-tabs .st-tab.vim-selected {
     background: transparent !important;
@@ -2827,19 +2808,10 @@ body {
     text-align: left !important;
 }
 
-.idx-spark {
-    width: 80px;
-    height: 24px;
-}
-
 .idx-spark-selected {
     outline: 1px solid var(--orange);
     outline-offset: 1px;
     border-radius: 3px;
-}
-
-.idx-spark a[href*="tradingview"] {
-    display: none !important;
 }
 
 .idx-price {
@@ -4830,10 +4802,10 @@ body { background: var(--bg-deep); }
    just brighter amber/cyan text with a short underline tick beneath it. */
 
 /* 1 — kill the full-row baseline on generic st-tab strips (not info-panel nav). */
-.st-tab-row:not(.info-sub-tabs):not(.news-sub-tabs), .chart-range-bar,
+.st-tab-row:not(.info-sub-tabs):not(.news-sub-tabs):not(.info-tabs), .chart-range-bar,
 .economics-tabs,
-.st-tab-row:not(.info-sub-tabs):not(.news-sub-tabs).tab-row-focused,
-.st-tab-row:not(.info-sub-tabs):not(.news-sub-tabs)[data-vim-row]:has(.vim-selected),
+.st-tab-row:not(.info-sub-tabs):not(.news-sub-tabs):not(.info-tabs).tab-row-focused,
+.st-tab-row:not(.info-sub-tabs):not(.news-sub-tabs):not(.info-tabs)[data-vim-row]:has(.vim-selected),
 .economics-tabs[data-vim-row]:has(.vim-selected) {
     box-shadow: none !important;
     border-bottom: none !important;
@@ -4897,7 +4869,9 @@ body { background: var(--bg-deep); }
 /* Row-focus wash bleeds into content padding — bright at top, opaque black below. */
 .info-panel > .info-tabs.tab-row-focused::after,
 .info-panel > .info-tabs[data-vim-row]:has(.vim-selected)::after,
-.info-panel > .info-tabs:has(.info-tab.active)::after {
+.info-panel > .info-tabs:has(.info-tab.active)::after,
+.info-panel > .info-tabs:has(.news-tab.active)::after,
+.info-panel > .info-tabs:has(.st-tab--active)::after {
     content: '';
     position: absolute;
     left: 0;
@@ -4975,6 +4949,7 @@ body { background: var(--bg-deep); }
 }
 
 .info-panel > .info-tabs .info-tab,
+.info-panel > .info-tabs .news-tab,
 .info-sub-tabs .info-sub-tab,
 .news-sub-tabs .info-sub-tab {
     display: inline-flex;
@@ -4992,11 +4967,15 @@ body { background: var(--bg-deep); }
 }
 
 .info-panel > .info-tabs .info-tab::before,
+.info-panel > .info-tabs .news-tab::before,
 .info-sub-tabs .info-sub-tab::before,
 .news-sub-tabs .info-sub-tab::before { display: none !important; }
 
 .info-panel > .info-tabs .info-tab.active,
-.info-panel > .info-tabs .info-tab.vim-selected {
+.info-panel > .info-tabs .info-tab.vim-selected,
+.info-panel > .info-tabs .news-tab.active,
+.info-panel > .info-tabs .news-tab.vim-selected,
+.info-panel > .info-tabs .st-tab--active {
     background: color-mix(in srgb, var(--accent-orange) 45%, var(--panel-bg-soft)) !important;
     color: var(--accent-orange);
     text-shadow: var(--text-glow-amber);
@@ -5009,7 +4988,10 @@ body { background: var(--bg-deep); }
 
 /* Active primary tab notches through the panel top edge when present. */
 .info-panel > .info-tabs .info-tab.active::after,
-.info-panel > .info-tabs .info-tab.vim-selected::after {
+.info-panel > .info-tabs .info-tab.vim-selected::after,
+.info-panel > .info-tabs .news-tab.active::after,
+.info-panel > .info-tabs .news-tab.vim-selected::after,
+.info-panel > .info-tabs .st-tab--active::after {
     content: '';
     position: absolute;
     left: 0;
@@ -5056,7 +5038,9 @@ body { background: var(--bg-deep); }
 .info-sub-tab.active, .info-sub-tab.vim-selected,
 .st-tab-row--blue .st-tab--active { text-shadow: var(--text-glow-cyan); }
 .info-panel > .info-tabs .info-tab.active,
-.info-panel > .info-tabs .info-tab.vim-selected { text-shadow: var(--text-glow-amber); }
+.info-panel > .info-tabs .info-tab.vim-selected,
+.info-panel > .info-tabs .news-tab.active,
+.info-panel > .info-tabs .news-tab.vim-selected { text-shadow: var(--text-glow-amber); }
 
 /* Scroll host for tab body — sub-tab strips scroll with content; panel chrome clips corners. */
 .info-panel > .info-content {
@@ -5487,20 +5471,13 @@ table tbody tr.st-row-selected > td:first-child {
    (.st-nav-list > li.active / .vim-selected). Do not redefine per page. */
 
 /* ───────────────────────── NEWS PAGE (full /news view) ─────────────────────────
-   The /news view uses .news-tab / .news-card classes the overlay didn't reach,
-   so it fell back to raw base style. Bring it into the system. */
-
-/* Tab strip — amber active with glow (consistent with info tabs). */
-.news-tab.active {
-    color: var(--accent-orange) !important;
-    border-color: var(--accent-orange) !important;
-    box-shadow: var(--glow-amber);
-    text-shadow: var(--text-glow-amber);
-    border-radius: var(--control-radius) !important;
-}
-.news-tab { border-radius: var(--control-radius) !important; white-space: nowrap; }
+   Tab strip uses the shared .info-panel > .info-tabs primary nav. Card polish below. */
 
 /* Cards become rounded panel boxes with a consistent gap; cyan hover glow. */
+.info-panel > .info-content.news-cards {
+    padding-inline: var(--panel-gap);
+    box-sizing: border-box;
+}
 .news-cards { gap: var(--panel-gap) !important; padding-top: 2px; }
 .news-card {
     background: var(--panel-bg) !important;

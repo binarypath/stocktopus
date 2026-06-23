@@ -1,16 +1,18 @@
 {{template "layout" .}}
 {{define "content"}}
 <div id="company-panel" class="company-panel"></div>
-<div class="news-tabs st-tab-row" id="news-tabs" data-vim-region data-vim-axis="x" data-vim-role="tabs">
-    <button class="news-tab st-tab active" data-category="press-releases" data-vim-item>Press Releases</button>
-    <button class="news-tab st-tab" data-category="articles" data-vim-item>Articles</button>
-    <button class="news-tab st-tab" data-category="stock" data-vim-item>Stock</button>
-    <button class="news-tab st-tab" data-category="crypto" data-vim-item>Crypto</button>
-    <button class="news-tab st-tab" data-category="forex" data-vim-item>Forex</button>
-    <button class="news-tab st-tab" data-category="general" data-vim-item>General</button>
+<div class="info-panel">
+<div class="news-tabs info-tabs st-tab-row" id="news-tabs" data-vim-row data-vim-role="tabs">
+    <button class="news-tab info-tab st-tab active st-tab--active" data-category="press-releases" data-vim-item>Press Releases</button>
+    <button class="news-tab info-tab st-tab" data-category="articles" data-vim-item>Articles</button>
+    <button class="news-tab info-tab st-tab" data-category="stock" data-vim-item>Stock</button>
+    <button class="news-tab info-tab st-tab" data-category="crypto" data-vim-item>Crypto</button>
+    <button class="news-tab info-tab st-tab" data-category="forex" data-vim-item>Forex</button>
+    <button class="news-tab info-tab st-tab" data-category="general" data-vim-item>General</button>
     <span id="news-spinner" class="spinner hidden"></span>
 </div>
-<div id="news-cards" class="news-cards" data-vim-scroll>
+<div id="news-cards" class="news-cards info-content" data-vim-scroll>
     <p class="empty-state">Loading...</p>
+</div>
 </div>
 {{end}}

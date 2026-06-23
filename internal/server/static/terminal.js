@@ -1146,8 +1146,10 @@ window.onerror = function (msg, src, line, col, err) {
         tabs.querySelectorAll('.news-tab').forEach(function (tab) {
             tab.onclick = function () {
                 if (tab.classList.contains('dimmed')) return;
-                tabs.querySelectorAll('.news-tab').forEach(function (t) { t.classList.remove('active'); });
-                tab.classList.add('active');
+                tabs.querySelectorAll('.news-tab').forEach(function (t) {
+                    t.classList.remove('active', 'st-tab--active');
+                });
+                tab.classList.add('active', 'st-tab--active');
                 fetchNews(tab.dataset.category);
             };
         });
@@ -2940,7 +2942,7 @@ window.onerror = function (msg, src, line, col, err) {
                     el.classList.remove('idx-spark-selected');
                 });
                 if (this._colFocus === 'spark' && vimSelectedIndex >= 0 && items[vimSelectedIndex]) {
-                    var sparkCell = items[vimSelectedIndex].querySelector('.idx-spark');
+                    var sparkCell = items[vimSelectedIndex].querySelector('.wl-sparks');
                     if (sparkCell) sparkCell.classList.add('idx-spark-selected');
                 }
             },

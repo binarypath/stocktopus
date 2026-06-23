@@ -221,6 +221,17 @@ Add a dedicated section in `style.css` (e.g. `/* ── Design system primitives
 
 **Maps from:** `.info-tab`, `.info-sub-tab`, `.st-tab`, `.chart-range-btn` (when dual-written).
 
+**News navigation — two contexts:**
+
+| Context | Route / shell | Category filters | Chrome |
+|---------|---------------|------------------|--------|
+| **Full-page news** | `GET /news` (`news.html`) | `.news-tabs.info-tabs` inside `.info-panel` | **Primary** orange info-panel nav — same contract as `.info-panel > .info-tabs` on security (row bleed, orange active underline, `::before` pill) |
+| **Security → News tab** | Info panel on `/` | `.info-sub-tabs.news-sub-tabs` inside `#info-content` | **Sub** nav — cyan blue band, bottom underline, upward bleed; sits under orange Overview / Financials / … primary row |
+
+On `/news`, category buttons use `.news-tab.info-tab` (dual-classed for shared primary-tab CSS). Do **not** use `.news-sub-tabs` on the full-page view — that pattern is only for the in-panel News tab on a security.
+
+Template: `internal/server/templates/news.html`. Previews: `preview-news-page.html` (full page) vs `preview-news.html` / `preview-avgo-news.html` (security sub-tabs).
+
 ### 4.2 Table row selection
 
 ```css
@@ -413,7 +424,8 @@ Use for all signed numeric columns (watchlist changes, screener Δ columns, etc.
 | **Shell** | `.terminal-header`, `.terminal-footer`, `.cmd-bar`, `.brand` | Orange brand text; cmd-bar focus = orange line; footer mode = `st-chip` semantic |
 | **Watchlist** | `.watchlist`, `.quote-table`, `.wl-tab`, `.wl-spark-cell` | `st-table`, `st-link-sym`, `st-tab` for tabs; market colors for deltas; 6M sparkline label uses `price-up`/`price-down` |
 | **Graph** | `.chart-range-bar`, `.chart-range-btn`, `.chart-toggle`, `.chart-container` | `st-tab` for range buttons; toggles: green only when “on” |
-| **Info** | `.info-panel`, `.info-tabs`, `.info-sub-tabs`, `.company-panel`, peer/SEC tables | Blue menu band on all nav strips; `st-row-selected` on tables |
+| **Info** | `.info-panel`, `.info-tabs`, `.info-sub-tabs`, `.company-panel`, peer/SEC tables | Blue menu band on sub strips; orange primary; `st-row-selected` on tables |
+| **News** | `/news`: `.info-panel`, `.news-tabs`, `.news-cards`; security News tab: `.news-sub-tabs` | Full page: category filters = primary `.info-tabs`; in-panel: cyan `.news-sub-tabs` under orange primary |
 | **Ideas** | `.ideas-layout`, `.ideas-sidebar`, `.ideas-main`, `.ideas-chart-host` | `st-pane-active`; chart series colors = token orange/blue; legend swatches match |
 | **Screener** | `.screener-layout`, `.screener-filters`, `#screener-table` | `st-input`, `st-section-title`, `st-pane-active`, `st-row-selected`, `price-up`/`price-down` on Δ columns |
 | **Economics** | `.economics-layout`, `.economics-tab` | `st-tab` / `st-tab-row` |
@@ -501,6 +513,12 @@ Use for all signed numeric columns (watchlist changes, screener Δ columns, etc.
 
 ### Economics
 - [ ] Tabs identical to Info primary tabs.
+
+### News
+- [ ] `/news`: `.info-panel` wraps `.news-tabs.info-tabs` — category tabs use **primary** orange nav (not `.news-sub-tabs`).
+- [ ] Security → News tab: orange primary row unchanged; categories in `.news-sub-tabs` with cyan sub-nav chrome.
+- [ ] Unread cards: orange left rail on `.news-card.news-unread`.
+- [ ] Previews `preview-news-page.html` vs `preview-news.html` match the two nav contexts.
 
 ---
 

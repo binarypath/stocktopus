@@ -3,30 +3,29 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Stocktopus — Tron overlay preview (real style.css)</title>
+  <title>Stocktopus — Security Info (Tron preview)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <!-- the REAL production stylesheet -->
-  <link rel="stylesheet" href="../internal/server/static/style.css">
-  <!-- the additive Tron overlay (toggle with the button) -->
+  <!-- Live base — keep DOM/classes in sync with internal/server/templates/security.html -->
+  <link rel="stylesheet" href="../../../internal/server/static/style.css">
   <link rel="stylesheet" href="tron.css" id="tron">
   <style>
     body { font-family: 'Fira Code', var(--font-mono); }
-    #toggle {
-      position: fixed; top: 8px; right: 12px; z-index: 9999;
-      font-family: 'Fira Code', monospace; font-size: 11px;
-      background: var(--bg-tertiary); color: var(--accent-orange);
-      border: 1px solid var(--accent-orange); border-radius: 4px;
-      padding: 5px 10px; cursor: pointer;
-    }
+    #t { position: fixed; top: 6px; right: 10px; z-index: 9999; font: 11px 'Fira Code', monospace; background: var(--bg-tertiary); color: var(--accent-orange); border: 1px solid var(--accent-orange); border-radius: 5px; padding: 4px 9px; cursor: pointer; }
   </style>
 </head>
 <body>
-  <button id="toggle" onclick="var t=document.getElementById('tron');t.disabled=!t.disabled;this.textContent=t.disabled?'tron: OFF':'tron: ON';">tron: ON</button>
+  <button id="t" onclick="var x=document.getElementById('tron');x.disabled=!x.disabled;this.textContent=x.disabled?'tron OFF':'tron ON'">tron ON</button>
 
   <header class="terminal-header">
-    <span class="brand">STOCKTOPUS</span>
+    <span class="brand" title="Stocktopus">
+      <svg class="brand-octopus" viewBox="0 0 40 24" role="img" aria-label="Stocktopus" fill="currentColor">
+        <path d="M5 16.5 C5 8.8 11 2.5 20 2.5 C29 2.5 35 8.8 35 16.5 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 Z"/>
+        <circle cx="15" cy="12.5" r="2" fill="var(--bg-secondary)"/>
+        <circle cx="25" cy="12.5" r="2" fill="var(--bg-secondary)"/>
+      </svg>
+    </span>
     <div class="cmd-bar">
       <span class="cmd-prompt">&gt;</span>
       <input class="cmd-input" type="text" placeholder="enter command..." value="info NVDA" spellcheck="false">
@@ -40,24 +39,25 @@
 
   <div class="terminal-body">
     <main class="terminal-content" data-view="security">
-      <div class="company-panel">
+      <div id="company-panel" class="company-panel">
         <span class="cpanel-sym">NVDA</span>
         <span class="cpanel-name">NVIDIA Corp.</span>
-        <span class="cpanel-price">$121.08</span>
+        <span class="cpanel-price">121.08</span>
         <span class="cpanel-change price-up">+3.61 (+3.07%)</span>
       </div>
 
-      <div class="info-tabs st-tab-row" id="info-tabs" data-vim-row>
-        <button class="info-tab st-tab active st-tab--active" data-tab="overview">Overview</button>
-        <button class="info-tab st-tab" data-tab="financials">Financial Modeling</button>
-        <button class="info-tab st-tab" data-tab="estimates">Estimates</button>
-        <button class="info-tab st-tab" data-tab="news">News</button>
-        <button class="info-tab st-tab" data-tab="ai">AI Analysis</button>
-        <button class="info-tab st-tab" data-tab="sector">Sector</button>
-        <button class="info-tab st-tab" data-tab="sec">SEC</button>
+      <div class="info-panel">
+      <div class="info-tabs st-tab-row" id="info-tabs" data-vim-row data-vim-role="tabs">
+        <button class="info-tab st-tab active st-tab--active" data-tab="overview" data-vim-item>Overview</button>
+        <button class="info-tab st-tab" data-tab="financials" data-vim-item>Financial Modeling</button>
+        <button class="info-tab st-tab" data-tab="estimates" data-vim-item>Estimates</button>
+        <button class="info-tab st-tab" data-tab="news" data-vim-item>News</button>
+        <button class="info-tab st-tab" data-tab="ai" data-vim-item>AI Analysis</button>
+        <button class="info-tab st-tab" data-tab="sector" data-vim-item>Sector</button>
+        <button class="info-tab st-tab" data-tab="sec" data-vim-item>SEC</button>
       </div>
 
-      <div class="info-content">
+      <div id="info-content" class="info-content" data-symbol="NVDA">
         <div class="info-grid">
           <div class="info-stat"><span class="info-stat-label">Mkt Cap</span><span class="info-stat-value">2.98T</span></div>
           <div class="info-stat"><span class="info-stat-label">P/E</span><span class="info-stat-value">54.7</span></div>
@@ -65,7 +65,7 @@
           <div class="info-stat"><span class="info-stat-label">Volume</span><span class="info-stat-value">288M</span></div>
         </div>
 
-        <div style="margin:18px 0 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--accent-orange)">Technology — Peers</div>
+        <div class="sector-header"><span class="sector-name">Technology</span><span class="sector-industry">Peers</span></div>
         <table class="quote-table">
           <thead><tr><th>Security</th><th>Company</th><th>Price</th><th>Δ% 1d</th><th>Δ% 6m</th><th>Mkt Cap</th></tr></thead>
           <tbody>
@@ -88,6 +88,7 @@
           </tbody>
         </table>
       </div>
+      </div>
     </main>
   </div>
 
@@ -96,9 +97,9 @@
     <span class="footer-view">SECURITY</span>
     <span class="footer-help">/ cmd · s security · hjkl nav · : chart cmd</span>
     <div class="footer-clocks">
-      <span class="tz-block"><span class="tz-label">ET</span>09:41:08</span>
-      <span class="tz-block"><span class="tz-label">UTC</span>13:41:08</span>
-      <span class="tz-block"><span class="tz-label">JST</span>22:41:08</span>
+      <span class="tz-block"><span class="tz-label">ET</span>09:41</span>
+      <span class="tz-block"><span class="tz-label">UTC</span>13:41</span>
+      <span class="tz-block"><span class="tz-label">JST</span>22:41</span>
     </div>
   </footer>
 </body>

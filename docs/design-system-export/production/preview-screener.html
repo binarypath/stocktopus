@@ -5,7 +5,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="_real-style.css">
+<!-- Live base — keep DOM/classes in sync with internal/server/templates/screener.html -->
+<link rel="stylesheet" href="../../../internal/server/static/style.css">
 <link rel="stylesheet" href="tron.css" id="tron">
 <style>
   body{font-family:'Fira Code',var(--font-mono)}
@@ -22,7 +23,13 @@
 <button id="t" onclick="var x=document.getElementById('tron');x.disabled=!x.disabled;this.textContent=x.disabled?'tron OFF':'tron ON'">tron ON</button>
 
 <header class="terminal-header">
-  <span class="brand">STOCKTOPUS</span>
+  <span class="brand" title="Stocktopus">
+    <svg class="brand-octopus" viewBox="0 0 40 24" role="img" aria-label="Stocktopus" fill="currentColor">
+      <path d="M5 16.5 C5 8.8 11 2.5 20 2.5 C29 2.5 35 8.8 35 16.5 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 Z"/>
+      <circle cx="15" cy="12.5" r="2" fill="var(--bg-secondary)"/>
+      <circle cx="25" cy="12.5" r="2" fill="var(--bg-secondary)"/>
+    </svg>
+  </span>
   <div class="cmd-bar"><span class="cmd-prompt">&gt;</span><input class="cmd-input" placeholder="enter command..." spellcheck="false"></div>
   <div class="security-selector"><input class="security-input" value="DJTWW" spellcheck="false"></div>
   <span class="watchlist-picker">Default</span>
@@ -31,9 +38,9 @@
 
 <div class="terminal-body">
   <main class="terminal-content" data-view="screener">
-    <div class="screener-layout">
-      <aside class="screener-filters">
-        <div class="screener-filters-header">Filters</div>
+    <div class="screener-layout st-split">
+      <aside class="screener-filters st-pane st-pane--nav">
+        <div class="screener-filters-header st-pane-header">Filters</div>
         <form class="screener-form">
           <details class="screener-group" open>
             <summary>Fundamentals</summary>
@@ -59,13 +66,13 @@
         </form>
       </aside>
 
-      <section class="screener-results">
-        <div class="screener-results-header">
+      <section class="screener-results st-pane st-pane--content">
+        <div class="screener-results-header st-pane-header">
           <h2>Results</h2>
           <span class="screener-results-meta">10 matches · sorted Δ prev %</span>
         </div>
         <div class="screener-table-wrap">
-          <table class="screener-table">
+          <table class="screener-table" id="screener-table">
             <thead>
               <tr>
                 <th>Security</th><th>Company</th><th>Sector</th>
