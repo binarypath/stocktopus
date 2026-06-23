@@ -5,7 +5,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="_real-style.css">
+<!-- Live base — keep DOM/classes in sync with security.html + info.js AI tab -->
+<link rel="stylesheet" href="../../../internal/server/static/style.css">
 <link rel="stylesheet" href="tron.css" id="tron">
 <style>
   body{font-family:'Fira Code',var(--font-mono)}
@@ -36,12 +37,22 @@
   .ai-top > .ai-section{flex:1;min-width:0;margin:0}
   .ai-top > .ai-scores{flex:0 0 250px;display:flex;flex-direction:column;gap:9px;margin:0}
   .ai-top > .ai-scores .ai-score{flex:1;display:flex;flex-direction:column;justify-content:center}
+  .trading-header .ai-section-title{margin:0}
+  .ai-score-fill--90{width:90%}
+  .ai-score-fill--35{width:35%}
+  .trading-btn--compact{padding:1px 8px;font-size:10px}
 </style></head>
 <body>
 <button id="t" onclick="var x=document.getElementById('tron');x.disabled=!x.disabled;this.textContent=x.disabled?'tron OFF':'tron ON'">tron ON</button>
 
 <header class="terminal-header">
-  <span class="brand">STOCKTOPUS</span>
+  <span class="brand" title="Stocktopus">
+    <svg class="brand-octopus" viewBox="0 0 40 24" role="img" aria-label="Stocktopus" fill="currentColor">
+      <path d="M5 16.5 C5 8.8 11 2.5 20 2.5 C29 2.5 35 8.8 35 16.5 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 Z"/>
+      <circle cx="15" cy="12.5" r="2" fill="var(--bg-secondary)"/>
+      <circle cx="25" cy="12.5" r="2" fill="var(--bg-secondary)"/>
+    </svg>
+  </span>
   <div class="cmd-bar"><span class="cmd-prompt">&gt;</span><input class="cmd-input" placeholder="enter command..." spellcheck="false"></div>
   <div class="security-selector"><input class="security-input" value="LEE" spellcheck="false"></div>
   <span class="watchlist-picker">Default</span>
@@ -50,7 +61,7 @@
 
 <div class="terminal-body">
   <main class="terminal-content" data-view="security">
-    <div class="company-panel">
+    <div id="company-panel" class="company-panel">
       <span class="cpanel-sym">AVGO</span>
       <span class="cpanel-name">Broadcom Inc.</span>
       <span class="cpanel-price">411.35</span>
@@ -62,7 +73,8 @@
       </svg>
     </div>
 
-    <div class="info-tabs st-tab-row" id="info-tabs" data-vim-row>
+    <div class="info-panel">
+    <div class="info-tabs st-tab-row" id="info-tabs" data-vim-row data-vim-role="tabs">
       <button class="info-tab st-tab" data-tab="overview"><span class="tab-key">1</span> Overview</button>
       <button class="info-tab st-tab" data-tab="financials"><span class="tab-key">2</span> Financial Modeling</button>
       <button class="info-tab st-tab" data-tab="estimates"><span class="tab-key">3</span> Estimates</button>
@@ -72,9 +84,9 @@
       <button class="info-tab st-tab" data-tab="sec"><span class="tab-key">7</span> SEC</button>
     </div>
 
-    <div id="info-content" class="info-content">
+    <div id="info-content" class="info-content" data-symbol="AVGO">
       <div class="trading-header" data-vim-row>
-        <span class="ai-section-title" style="margin:0">Deep Analysis — Multi-Agent Pipeline</span>
+        <span class="ai-section-title">Deep Analysis — Multi-Agent Pipeline</span>
         <div class="trading-actions">
           <button class="trading-btn" id="trading-analyze-btn">Run Deep Analysis</button>
           <span class="trading-cost">Est. $0.035</span>
@@ -92,17 +104,17 @@
             <div class="ai-score">
               <div class="ai-score-label">Sentiment</div>
               <div class="ai-score-value price-up">0.8</div>
-              <div class="ai-score-bar"><div class="ai-score-fill" style="width:90%"></div></div>
+              <div class="ai-score-bar"><div class="ai-score-fill ai-score-fill--90"></div></div>
             </div>
             <div class="ai-score">
               <div class="ai-score-label">Risk</div>
               <div class="ai-score-value">35.0</div>
-              <div class="ai-score-bar"><div class="ai-score-fill" style="width:35%"></div></div>
+              <div class="ai-score-bar"><div class="ai-score-fill ai-score-fill--35"></div></div>
             </div>
             <div class="ai-score">
               <div class="ai-score-label">Confidence</div>
               <div class="ai-score-value">90.0</div>
-              <div class="ai-score-bar"><div class="ai-score-fill" style="width:90%"></div></div>
+              <div class="ai-score-bar"><div class="ai-score-fill ai-score-fill--90"></div></div>
             </div>
           </div>
         </div>
@@ -138,11 +150,12 @@
             </div>
             <div class="ai-competitor-card" data-symbol="CRDO">
               <span class="ai-competitor-sym">CRDO</span>
-              <span class="ai-competitor-scores"><button class="trading-btn" style="padding:1px 8px;font-size:10px">analyze</button></span>
+              <span class="ai-competitor-scores"><button class="trading-btn trading-btn--compact">analyze</button></span>
             </div>
           </div>
         </div>
       </div>
+    </div>
     </div>
   </main>
 </div>

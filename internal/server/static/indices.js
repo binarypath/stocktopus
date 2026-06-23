@@ -53,6 +53,32 @@
 
     function esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
+    function buildIndexSparkClusterHtml(symbol) {
+        var specs = window.MINI_SPARK_SPECS || [];
+        var hosts = specs.map(function (s) {
+            return '<div class="wl-spark" data-range="' + s.key + '"></div>';
+        }).join('');
+        return '<div class="wl-sparks" data-spark-sym="' + esc(symbol) + '">' + hosts + '</div>';
+    }
+
+    function hydrateIndexSparks(symbol) {
+        var cluster = document.querySelector('.wl-sparks[data-spark-sym="' + symbol + '"]');
+        if (!cluster) return;
+        var specs = window.MINI_SPARK_SPECS || [];
+        function run() {
+            if (!window.LightweightCharts || !window._loadMiniSpark) {
+                setTimeout(run, 200);
+                return;
+            }
+            specs.forEach(function (spec) {
+                var host = cluster.querySelector('.wl-spark[data-range="' + spec.key + '"]');
+                if (!host) return;
+                window._loadMiniSpark(host, null, symbol, spec);
+            });
+        }
+        run();
+    }
+
     // Load indices
     fetch('/api/indices')
         .then(function (r) { return r.json(); })
@@ -71,7 +97,7 @@
 
             // Render table shell
             var html = '<table class="fin-table indices-table" id="indices-table"><thead><tr>';
-            html += '<th>Index</th><th>2D</th><th>Price</th><th>Change</th><th>% Change</th><th>Local Time</th>';
+            html += '<th>Index</th><th>Trend</th><th>Price</th><th>Change</th><th>% Change</th><th>Local Time</th>';
             html += '</tr></thead><tbody>';
             indices.forEach(function (idx) {
                 var local = getLocalTime(idx.exchange);
@@ -80,7 +106,7 @@
                 var safeId = idx.symbol.replace('^', '');
                 html += '<tr class="idx-row" data-symbol="' + esc(idx.symbol) + '" data-exchange="' + esc(idx.exchange) + '">'
                     + '<td class="idx-name"><span class="idx-sym">' + esc(idx.symbol) + '</span> <span class="idx-label">' + esc(idx.name) + '</span></td>'
-                    + '<td><div class="idx-spark" data-spark-sym="' + esc(idx.symbol) + '"></div></td>'
+                    + '<td class="wl-spark-cell">' + buildIndexSparkClusterHtml(idx.symbol) + '</td>'
                     + '<td class="idx-price" id="price-' + safeId + '">—</td>'
                     + '<td class="idx-change" id="change-' + safeId + '">—</td>'
                     + '<td class="idx-pct" id="pct-' + safeId + '">—</td>'
@@ -93,8 +119,8 @@
             // Fetch quotes for each index
             indices.forEach(function (idx) { fetchIndexQuote(idx.symbol); });
 
-            // Load sparklines
-            loadIndexSparklines(indices);
+            // Load spark cluster (2d / 6M / 1y via MINI_SPARK_SPECS)
+            indices.forEach(function (idx) { hydrateIndexSparks(idx.symbol); });
 
             // Update local times every minute
             setInterval(function () { updateLocalTimes(indices); }, 60000);
@@ -128,43 +154,6 @@
                 if (pctEl) { pctEl.textContent = (q.changePercentage >= 0 ? '+' : '') + q.changePercentage.toFixed(2) + '%'; pctEl.className = 'idx-pct ' + chgClass; }
             })
             .catch(function () {});
-    }
-
-    function loadIndexSparklines(indices) {
-        function tryRender() {
-            if (!window.LightweightCharts) { setTimeout(tryRender, 200); return; }
-            var from = new Date(); from.setDate(from.getDate() - 5);
-            var fromStr = from.toISOString().slice(0, 10);
-            var toStr = new Date().toISOString().slice(0, 10);
-
-            document.querySelectorAll('.idx-spark').forEach(function (el) {
-                var sym = el.dataset.sparkSym;
-                if (!sym) return;
-                fetch('/api/chart/eod/' + encodeURIComponent(sym) + '?from=' + fromStr + '&to=' + toStr)
-                    .then(function (r) { return r.json(); })
-                    .then(function (data) {
-                        if (!data || data.length < 2) return;
-                        var first = data[0].close, last = data[data.length - 1].close;
-                        var color = last >= first ? '#00cc66' : '#ff4444';
-                        var chart = LightweightCharts.createChart(el, {
-                            width: 80, height: 24,
-                            layout: { background: { color: 'transparent' }, textColor: 'transparent', attributionLogo: false },
-                            grid: { vertLines: { visible: false }, horzLines: { visible: false } },
-                            rightPriceScale: { visible: false }, timeScale: { visible: false },
-                            handleScroll: false, handleScale: false,
-                            crosshair: { vertLine: { visible: false }, horzLine: { visible: false } },
-                        });
-                        var series = chart.addSeries(LightweightCharts.AreaSeries, {
-                            lineColor: color, topColor: color.replace(')', ',0.15)').replace('rgb', 'rgba'),
-                            bottomColor: 'transparent', lineWidth: 1,
-                            priceLineVisible: false, lastValueVisible: false,
-                        });
-                        series.setData(data.map(function (d) { return { time: d.date, value: d.close }; }));
-                        chart.timeScale().fitContent();
-                    }).catch(function () {});
-            });
-        }
-        tryRender();
     }
 
     function updateLocalTimes(indices) {

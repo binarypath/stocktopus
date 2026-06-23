@@ -1,19 +1,29 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stocktopus — Chart (Tron preview)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="_real-style.css">
+<!-- Live base — keep DOM/classes in sync with internal/server/templates/stock.html -->
+<link rel="stylesheet" href="../../../internal/server/static/style.css">
 <link rel="stylesheet" href="tron.css" id="tron">
 <style>
   body{font-family:'Fira Code',var(--font-mono)}
   #t{position:fixed;top:6px;right:10px;z-index:9999;font:11px 'Fira Code',monospace;background:var(--bg-tertiary);color:var(--accent-orange);border:1px solid var(--accent-orange);border-radius:5px;padding:4px 9px;cursor:pointer}
+  .chart-placeholder{display:flex;align-items:center;justify-content:center;color:var(--text-muted);min-height:360px}
 </style></head>
 <body>
 <button id="t" onclick="var x=document.getElementById('tron');x.disabled=!x.disabled;this.textContent=x.disabled?'tron OFF':'tron ON'">tron ON</button>
 <header class="terminal-header">
-  <span class="brand">STOCKTOPUS</span>
-  <div class="cmd-bar"><span class="cmd-prompt">&gt;</span><input class="cmd-input" placeholder="enter command..." value="" spellcheck="false"></div>
+  <span class="brand" title="Stocktopus">
+    <svg class="brand-octopus" viewBox="0 0 40 24" role="img" aria-label="Stocktopus" fill="currentColor">
+      <path d="M5 16.5 C5 8.8 11 2.5 20 2.5 C29 2.5 35 8.8 35 16.5 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 a1.875 5 0 0 0 -3.75 0 Z"/>
+      <circle cx="15" cy="12.5" r="2" fill="var(--bg-secondary)"/>
+      <circle cx="25" cy="12.5" r="2" fill="var(--bg-secondary)"/>
+    </svg>
+  </span>
+  <div class="cmd-bar"><span class="cmd-prompt">&gt;</span><input class="cmd-input" placeholder="enter command..." spellcheck="false"></div>
   <div class="security-selector"><input class="security-input" value="KR" spellcheck="false"></div>
   <span class="watchlist-picker">Default</span>
   <div class="conn-status connected">CONNECTED</div>
@@ -25,36 +35,47 @@
       <span class="cpanel-name">The Kroger Co.</span>
       <span class="cpanel-price">56.61</span>
       <span class="cpanel-change price-down">-5.21 (-8.43%)</span>
-      <span class="cpanel-spark-wrap"><span class="cpanel-spark-label price-down">6m</span></span>
     </div>
-    <div class="chart-container-wrap">
+    <div class="page-header">
       <div class="chart-range-bar st-tab-row st-tab-row--blue" id="chart-range-bar">
-        <button class="chart-range-btn chart-intraday-btn st-tab" data-range="1m">1m</button>
-        <button class="chart-range-btn chart-intraday-btn st-tab" data-range="5m">5m</button>
-        <button class="chart-range-btn chart-intraday-btn st-tab" data-range="15m">15m</button>
-        <button class="chart-range-btn chart-intraday-btn st-tab" data-range="30m">30m</button>
-        <button class="chart-range-btn chart-intraday-btn st-tab" data-range="1h">1h</button>
-        <button class="chart-range-btn chart-intraday-btn st-tab" data-range="4h">4h</button>
+        <button class="chart-range-btn chart-intraday-btn st-tab" data-range="1m" data-interval="1min">1m</button>
+        <button class="chart-range-btn chart-intraday-btn st-tab" data-range="5m" data-interval="5min">5m</button>
+        <button class="chart-range-btn chart-intraday-btn st-tab" data-range="15m" data-interval="15min">15m</button>
+        <button class="chart-range-btn chart-intraday-btn st-tab" data-range="30m" data-interval="30min">30m</button>
+        <button class="chart-range-btn chart-intraday-btn st-tab" data-range="1h" data-interval="1hour">1h</button>
+        <button class="chart-range-btn chart-intraday-btn st-tab" data-range="4h" data-interval="4hour">4h</button>
+        <button class="chart-range-btn chart-intraday-btn st-tab" data-range="2d" data-interval="5min">2d</button>
+        <button class="chart-auto-refresh active" id="chart-auto-refresh" title="Auto-refresh">&#8635;</button>
         <span class="chart-range-sep">|</span>
         <button class="chart-range-btn chart-eod-btn st-tab" data-range="1W">1w</button>
         <button class="chart-range-btn chart-eod-btn st-tab" data-range="1M">1m</button>
         <button class="chart-range-btn chart-eod-btn st-tab" data-range="3M">3m</button>
         <button class="chart-range-btn chart-eod-btn st-tab active st-tab--active" data-range="6M">6m</button>
+        <button class="chart-range-btn chart-eod-btn st-tab" data-range="1Y">1y</button>
+        <button class="chart-range-btn chart-eod-btn st-tab" data-range="5Y">5y</button>
+        <button class="chart-range-btn chart-eod-btn st-tab" data-range="10Y">10y</button>
+        <button class="chart-range-btn chart-eod-btn st-tab" data-range="MAX">max</button>
         <span class="chart-range-sep">|</span>
-        <button class="chart-toggle" data-indicator="sma">SMA</button>
-        <button class="chart-toggle" data-indicator="ema">EMA</button>
-        <button class="chart-toggle" data-indicator="macd">MACD</button>
-        <button class="chart-toggle" data-indicator="rsi">RSI</button>
-        <button class="chart-toggle" data-indicator="news">News</button>
+        <button class="chart-toggle" id="toggle-sma" data-indicator="sma" title=":sma">SMA</button>
+        <button class="chart-toggle" id="toggle-ema" data-indicator="ema" title=":ema">EMA</button>
+        <button class="chart-toggle" id="toggle-macd" data-indicator="macd" title=":macd">MACD</button>
+        <button class="chart-toggle" id="toggle-rsi" data-indicator="rsi" title=":rsi">RSI</button>
+        <button class="chart-toggle" id="toggle-news" data-indicator="news" title=":sn">News</button>
       </div>
-      <div class="chart-container" style="height:360px;display:flex;align-items:center;justify-content:center;color:var(--text-muted)">[ candlestick chart ]</div>
+    </div>
+    <div id="chart-container" class="chart-container" data-symbol="KR">
+      <div class="chart-placeholder">[ candlestick chart ]</div>
     </div>
   </main>
 </div>
 <footer class="terminal-footer">
   <span class="footer-mode normal">NORMAL</span>
-  <span class="footer-view">graph</span>
-  <span class="footer-help">/ cmd &middot; s security &middot; hjkl nav &middot; : chart cmd</span>
-  <div class="footer-clocks"><span class="tz-block"><span class="tz-label">ET</span>09:41</span></div>
+  <span class="footer-view">GRAPH</span>
+  <span class="footer-help">/ cmd · s security · hjkl nav · : chart cmd</span>
+  <div class="footer-clocks">
+    <span class="tz-block"><span class="tz-label">ET</span>09:41</span>
+    <span class="tz-block"><span class="tz-label">UTC</span>13:41</span>
+    <span class="tz-block"><span class="tz-label">JST</span>22:41</span>
+  </div>
 </footer>
 </body></html>
