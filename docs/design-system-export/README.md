@@ -9,6 +9,7 @@ Source: `Stocktopus Design System (3).zip` (2026-06-21). Static preview pages + 
 | `INTEGRATION.md` | How to ship `tron.css` (Option A: second `<link>`; Option B: merge into `style.css`) |
 | `_real-style.css` | Snapshot of app `style.css` at export time (~99k) |
 | `tron.css` | Tron glow / panel overlay (now merged into live `internal/server/static/style.css`) |
+| `favicon.svg` | Lives in live app at `internal/server/static/favicon.svg` — octopus brand mark for browser tabs (see `layout.html`) |
 | `tweaks-panel.jsx` | React tweaks UI for Overview density / focus / stat highlight experiments |
 | `preview-*.html` | Full-page mocks (open in browser; toggle **tron ON/OFF** where provided) |
 

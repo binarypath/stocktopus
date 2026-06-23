@@ -1,0 +1,10 @@
+---
+description: Git branching workflow — never commit directly to master
+alwaysApply: true
+---
+
+All code on this project must land via a **feature branch**, never committed directly to `master`.
+
+- Create a branch before making commits (e.g. `feature/…`, `fix/…`)
+- Open a PR to merge into `master`; do not push commits straight to `master`
+- When starting new work, branch from an up-to-date `master`
