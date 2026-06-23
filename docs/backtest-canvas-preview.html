@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stocktopus — Ideas board (canvas composition prototype)</title>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  :root{
+    --bg:#06070a; --panel:#0f1318; --panel-2:#131922; --border:#1b232d;
+    --text:#cdd7e1; --muted:#6b7888;
+    --orange:#ff9a1a; --blue:#2db8ff; --green:#00cc66; --red:#ff4d4d;
+    --glow-o:0 0 8px rgba(255,154,26,.6),0 0 24px rgba(255,154,26,.28);
+    --glow-b:0 0 8px rgba(45,184,255,.65),0 0 24px rgba(45,184,255,.3);
+    --glow-g:0 0 8px rgba(0,204,102,.6);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:
+      radial-gradient(1300px 600px at 78% -10%, rgba(45,184,255,.10), transparent 60%),
+      radial-gradient(1000px 520px at -6% 110%, rgba(255,154,26,.08), transparent 60%),
+      var(--bg);
+    color:var(--text);font-family:'Fira Code','SF Mono',Consolas,monospace;font-size:12.5px;overflow:hidden}
+  .hud{position:fixed;top:16px;left:20px;z-index:30}
+  .hud .sym{font-size:18px;font-weight:700;color:#fff;letter-spacing:1px;text-shadow:var(--glow-b)}
+  .hud .sym .t{color:var(--blue)}
+  .hud .hint{color:var(--muted);font-size:11px;margin-top:4px}
+  .hud .hint b{color:var(--orange)}
+
+  /* the board = a big browsable surface; the chart is the bedrock object */
+  .board{position:absolute;inset:0}
+  #chart{position:absolute;inset:64px 24px 24px 24px}
+
+  /* context dimming: masks over the un-analyzed spans pull focus to the region */
+  .mask{position:absolute;top:64px;bottom:24px;background:rgba(6,7,10,.66);backdrop-filter:saturate(.5) brightness(.7);z-index:5;pointer-events:none}
+  /* the analyzed region rendered differently: tint + glowing rails */
+  .region{position:absolute;top:64px;bottom:24px;z-index:6;pointer-events:none;
+    background:linear-gradient(90deg,rgba(45,184,255,.06),rgba(255,154,26,.06));
+    border-left:2px solid var(--blue);border-right:2px solid var(--orange);
+    box-shadow:inset 0 0 40px rgba(45,184,255,.12), var(--glow-b)}
+  .region .label{position:absolute;top:-2px;left:50%;transform:transl(-50%,-100%);}
+  .region-tag{position:absolute;z-index:7;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;
+    color:var(--blue);text-shadow:var(--glow-b);background:rgba(6,7,10,.7);padding:2px 8px;border:1px solid var(--border);border-radius:6px}
+
+  /* floating self-contained components */
+  .card{position:absolute;z-index:20;background:linear-gradient(160deg,var(--panel-2),var(--panel));
+    border:1px solid var(--border);border-radius:13px;box-shadow:0 14px 40px rgba(0,0,0,.55);backdrop-filter:blur(2px)}
+  .card h4{margin:0;padding:9px 13px;font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--muted);border-bottom:1px solid var(--border);display:flex;justify-content:space-between}
+  .card .drag{color:#33414f}
+  .verdict{width:250px;border-color:rgba(255,154,26,.4);box-shadow:0 14px 40px rgba(0,0,0,.55),var(--glow-o)}
+  .verdict .big{font-size:24px;color:#fff;text-shadow:var(--glow-g);padding:12px 13px 2px}
+  .verdict .sub{padding:0 13px 12px;color:var(--muted)}
+  .verdict .sub b{color:var(--orange)}
+  .stat{display:flex;justify-content:space-between;padding:6px 13px;border-top:1px solid #141a21}
+  .stat .k{color:var(--muted)} .stat .v{color:#fff} .stat .v.b{color:var(--blue);text-shadow:var(--glow-b)}
+
+  .trace{width:250px;max-height:210px;overflow:hidden}
+  .trow{display:grid;grid-template-columns:46px 1fr;gap:8px;padding:7px 12px;border-bottom:1px solid #141a21;font-size:11px}
+  .trow .when{color:var(--muted)} .trow.buy .a{color:var(--blue);text-shadow:var(--glow-b);font-weight:600}
+  .trow.sell .a{color:var(--orange);text-shadow:var(--glow-o);font-weight:600}
+  .trow .why{color:var(--text);line-height:1.4;margin-top:2px}
+
+  .pred{width:230px} .pred .ph{height:96px;padding:6px}
+  .pred .cap{padding:2px 13px 11px;color:var(--muted);font-size:10.5px}
+  .pred .cap b{color:var(--green)}
+
+  svg.leads{position:absolute;inset:0;z-index:15;pointer-events:none}
+  .lead{stroke:rgba(45,184,255,.55);stroke-width:1.5;stroke-dasharray:3 4;filter:drop-shadow(0 0 4px rgba(45,184,255,.6))}
+  .lead.o{stroke:rgba(255,154,26,.55);filter:drop-shadow(0 0 4px rgba(255,154,26,.6))}
+</style>
+</head>
+<body>
+<div class="hud">
+  <div class="sym">AAPL <span class="t">·</span> IDEAS BOARD</div>
+  <div class="hint">space-drag to pan · marquee a region · <b>:analyze</b> pins a verdict</div>
+</div>
+<div class="board" id="board">
+  <div id="chart"></div>
+  <div class="mask" id="maskL"></div>
+  <div class="mask" id="maskR"></div>
+  <div class="region" id="region"></div>
+  <div class="region-tag" id="regionTag">analysed window</div>
+  <svg class="leads" id="leads"></svg>
+
+  <div class="card verdict" id="verdict" style="right:40px;top:96px">
+    <h4>Way to trade <span class="drag">⠿</span></h4>
+    <div class="big" id="v-eq">$13,386</div>
+    <div class="sub">from <b>$10,000</b> · <span id="v-ret" style="color:#7dffb0">+33.9%</span> over the window</div>
+    <div class="stat"><span class="k">optimal entry</span><span class="v b" id="v-opt">—</span></div>
+    <div class="stat"><span class="k">vs buy &amp; hold</span><span class="v" id="v-bh">+$2,931</span></div>
+    <div class="stat"><span class="k">% of hindsight</span><span class="v" id="v-hs">82%</span></div>
+  </div>
+
+  <div class="card trace" id="traceCard" style="left:40px;bottom:34px">
+    <h4>Decision trace <span class="drag">⠿</span></h4>
+    <div id="trace"></div>
+  </div>
+
+  <div class="card pred" id="predCard" style="right:40px;bottom:34px">
+    <h4>Next 2d · forecast <span class="drag">⠿</span></h4>
+    <div class="ph" id="pred"></div>
+    <div class="cap">P(up) <b>61%</b> · median <b>+1.8%</b> · 80% band ±4.2%</div>
+  </div>
+</div>
+
+<script>
+const START=10000, SMA_N=5, HORIZON=6;
+const base=[132,130,128,124,121,118,121,117,114,110,107,109,112,118,124,129,133,137,140,142,
+ 141,143,146,150,153,151,148,150,154,158,161,159,156,152,149,151,147,144,141,138];
+const REGION=[8,26]; // the analysed window (indices into base)
+const dstr=i=>{const d=new Date(Date.UTC(2026,2,2));d.setUTCDate(d.getUTCDate()+i);return d.toISOString().slice(0,10);};
+const bars=base.map((c,i)=>{const o=i?base[i-1]:c;return{time:dstr(i),open:+o.toFixed(2),high:+(Math.max(o,c)+1.1).toFixed(2),low:+(Math.min(o,c)-1.1).toFixed(2),close:+c.toFixed(2)};});
+const sma=i=>{if(i<SMA_N-1)return null;let s=0;for(let k=i-SMA_N+1;k<=i;k++)s+=base[k];return s/SMA_N;};
+function sim(){let cash=START,sh=0,prev=0;const tr=[];for(let i=0;i<base.length;i++){const px=base[i],eq=cash+sh*px,m=sma(i),t=(m!==null&&px>m)?1:0;const des=t*eq/px;cash-=(des-sh)*px;sh=des;const e=cash+sh*px;let a='hold',w='';if(t&&!prev){a='buy';w=`reclaimed SMA ${m.toFixed(0)} — deploy $${eq.toFixed(0)}`;}else if(!t&&prev){a='sell';w=`lost SMA ${m.toFixed(0)} — exit, protect gains`;}prev=t;tr.push({i,when:dstr(i).slice(5),a,w,px,e:+e.toFixed(0)});}return tr;}
+const trace=sim();
+const optIdx=(()=>{let b=-1,r=-1e9;for(let i=0;i<base.length-1;i++){const ex=Math.min(i+HORIZON,base.length-1);const x=base[ex]/base[i]-1;if(x>r){r=x;b=i;}}return b;})();
+document.getElementById('v-opt').textContent=dstr(optIdx).slice(5)+' @ $'+base[optIdx];
+
+const common={layout:{background:{color:'transparent'},textColor:'#566',fontFamily:"'Fira Code',monospace",fontSize:10,attributionLogo:false},
+ grid:{vertLines:{color:'#0d121a'},horzLines:{color:'#0d121a'}},rightPriceScale:{borderColor:'#1b232d'},timeScale:{borderColor:'#1b232d',fixLeftEdge:true,fixRightEdge:true}};
+const chart=LightweightCharts.createChart(document.getElementById('chart'),common);
+const cs=chart.addCandlestickSeries({upColor:'#0c8',downColor:'#e55',wickUpColor:'#0c8',wickDownColor:'#e55',borderVisible:false});
+cs.setData(bars);
+cs.setMarkers([
+ {time:dstr(optIdx),position:'belowBar',color:'#00cc66',shape:'arrowUp',text:'OPTIMAL'},
+ ...trace.filter(t=>t.a==='buy').map(t=>({time:dstr(t.i),position:'belowBar',color:'#2db8ff',shape:'arrowUp',text:'BUY'})),
+ ...trace.filter(t=>t.a==='sell').map(t=>({time:dstr(t.i),position:'aboveBar',color:'#ff9a1a',shape:'arrowDown',text:'SELL'})),
+]);
+chart.timeScale().fitContent();
+
+// forecast mini-graph (forward band) as a self-contained component
+const pchart=LightweightCharts.createChart(document.getElementById('pred'),{...common,height:96,width:218,timeScale:{visible:false},rightPriceScale:{visible:false}});
+const last=base[base.length-1];const fc=[];for(let i=0;i<8;i++)fc.push({time:dstr(40+i),value:+(last*(1+0.018*i/7)).toFixed(2)});
+pchart.addAreaSeries({lineColor:'#00cc66',topColor:'rgba(0,204,102,.25)',bottomColor:'rgba(0,204,102,0)',lineWidth:2}).setData(fc);
+pchart.timeScale().fitContent();
+
+document.getElementById('trace').innerHTML=trace.filter(t=>t.a!=='hold').slice(0,6)
+ .map(t=>`<div class="trow ${t.a}"><div class="when">${t.when}<br>$${t.px}</div><div><span class="a">${t.a.toUpperCase()}</span> · $${t.e.toLocaleString()}<div class="why">${t.w}</div></div></div>`).join('');
+
+// position the region highlight + masks + leader line over the chart
+function layout(){
+  const ts=chart.timeScale();
+  const xL=ts.timeToCoordinate(dstr(REGION[0])), xR=ts.timeToCoordinate(dstr(REGION[1]));
+  const c=document.getElementById('chart').getBoundingClientRect();
+  const ox=c.left, L=ox+xL, R=ox+xR;
+  const reg=document.getElementById('region');
+  reg.style.left=L+'px'; reg.style.width=(R-L)+'px';
+  document.getElementById('regionTag').style.left=(L+8)+'px';
+  document.getElementById('regionTag').style.top='70px';
+  const mL=document.getElementById('maskL'); mL.style.left=c.left+'px'; mL.style.width=(L-c.left)+'px';
+  const mR=document.getElementById('maskR'); mR.style.left=R+'px'; mR.style.width=(c.right-R)+'px';
+  // leader lines from region to the verdict + trace cards
+  const leads=document.getElementById('leads'); const mid=(L+R)/2;
+  const vr=document.getElementById('verdict').getBoundingClientRect();
+  const trc=document.getElementById('traceCard').getBoundingClientRect();
+  leads.innerHTML=
+    `<line class="lead o" x1="${R}" y1="110" x2="${vr.left}" y2="${vr.top+20}"/>`+
+    `<line class="lead" x1="${L}" y1="${c.bottom-40}" x2="${trc.right}" y2="${trc.top+18}"/>`;
+}
+setTimeout(layout,300); window.addEventListener('resize',()=>setTimeout(layout,50));
+</script>
+</body>
+</html>

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stocktopus — Optimal-Entry Backtest (prototype)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  :root{
+    --bg:#06070a; --panel:#0f1318; --panel-2:#11161d; --border:#1b232d;
+    --text:#cdd7e1; --muted:#6b7888;
+    --orange:#ff9a1a; --blue:#2db8ff; --green:#00cc66; --red:#ff4d4d;
+    --glow-o:0 0 8px rgba(255,154,26,.55), 0 0 22px rgba(255,154,26,.25);
+    --glow-b:0 0 8px rgba(45,184,255,.6), 0 0 22px rgba(45,184,255,.28);
+    --glow-g:0 0 8px rgba(0,204,102,.6);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:
+      radial-gradient(1100px 520px at 82% -8%, rgba(45,184,255,.10), transparent 60%),
+      radial-gradient(900px 460px at -8% 108%, rgba(255,154,26,.08), transparent 60%),
+      var(--bg);
+    color:var(--text); font-family:'Fira Code','SF Mono',Consolas,monospace; font-size:13px;
+    padding:26px 30px 60px;
+  }
+  .wrap{max-width:1240px;margin:0 auto}
+  .topbar{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:16px}
+  .sym{font-size:22px;font-weight:700;color:#fff;letter-spacing:1px;text-shadow:var(--glow-b)}
+  .sym .t{color:var(--blue)}
+  .tag{font-size:11px;text-transform:uppercase;letter-spacing:2px;color:var(--orange);text-shadow:var(--glow-o)}
+  .headline{margin-left:auto;font-size:15px;color:var(--muted)}
+  .headline b{color:#fff;font-size:20px;text-shadow:var(--glow-g)}
+  .headline .arrow{color:var(--blue);margin:0 8px}
+
+  .tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:18px 0}
+  .tile{background:linear-gradient(160deg,var(--panel-2),var(--panel));border:1px solid var(--border);
+    border-radius:12px;padding:13px 15px;position:relative;overflow:hidden}
+  .tile::before{content:"";position:absolute;inset:0 auto 0 0;width:2px}
+  .tile.o::before{background:var(--orange);box-shadow:var(--glow-o)}
+  .tile.b::before{background:var(--blue);box-shadow:var(--glow-b)}
+  .tile .k{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted)}
+  .tile .v{font-size:21px;font-weight:600;color:#fff;margin-top:6px}
+  .tile.o .v{text-shadow:var(--glow-o)} .tile.b .v{text-shadow:var(--glow-b)}
+  .v.up{color:#7dffb0;text-shadow:var(--glow-g)} .v.dn{color:#ff8a8a;text-shadow:0 0 8px rgba(255,77,77,.5)}
+
+  .grid{display:grid;grid-template-columns:1fr 340px;gap:14px;margin-top:6px}
+  .card{background:linear-gradient(160deg,var(--panel-2),var(--panel));border:1px solid var(--border);border-radius:14px;overflow:hidden}
+  .card h3{margin:0;padding:11px 16px;font-size:11px;text-transform:uppercase;letter-spacing:2px;color:var(--muted);border-bottom:1px solid var(--border)}
+  .chart-host{height:300px} .equity-host{height:170px}
+  .legend{display:flex;gap:16px;padding:8px 16px;font-size:11px;color:var(--muted);border-top:1px solid var(--border)}
+  .legend i{display:inline-block;width:18px;height:2px;vertical-align:middle;margin-right:6px}
+  .legend .pol{background:var(--blue);box-shadow:var(--glow-b)} .legend .bh{background:var(--orange)} .legend .hs{background:#5566;border-top:1px dashed #889}
+
+  .trace{height:486px;overflow-y:auto;scrollbar-width:thin}
+  .trace::-webkit-scrollbar{width:6px} .trace::-webkit-scrollbar-thumb{background:#223;border-radius:3px}
+  .row{display:grid;grid-template-columns:64px 1fr;gap:10px;padding:10px 14px;border-bottom:1px solid #141a21}
+  .row .when{color:var(--muted);font-size:11px}
+  .row .act{font-weight:600}
+  .row.buy .act{color:var(--blue);text-shadow:var(--glow-b)}
+  .row.sell .act{color:var(--orange);text-shadow:var(--glow-o)}
+  .row.hold .act{color:var(--muted)}
+  .row .why{color:var(--text);font-size:11.5px;margin-top:3px;line-height:1.5}
+  .row .eq{float:right;color:#9fb3c6}
+  footer{margin-top:20px;color:var(--muted);font-size:11px;border-top:1px solid var(--border);padding-top:14px}
+  code{color:var(--green)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <span class="sym">AAPL <span class="t">·</span> OPTIMAL&#8209;ENTRY BACKTEST</span>
+    <span class="tag">$10k · decide every candle</span>
+    <span class="headline">$10,000 <span class="arrow">→</span> <b id="hl-end">—</b> <span id="hl-ret"></span></span>
+  </div>
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <h3>Price · decisions · optimal entry</h3>
+        <div class="chart-host" id="price"></div>
+        <div class="legend">
+          <span><i style="background:var(--blue);box-shadow:var(--glow-b)"></i>buy</span>
+          <span><i style="background:var(--orange);box-shadow:var(--glow-o)"></i>sell / trim</span>
+          <span><i style="background:var(--green)"></i>optimal entry (hindsight)</span>
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h3>Equity — $10k policy vs baselines</h3>
+        <div class="equity-host" id="equity"></div>
+        <div class="legend">
+          <span><i class="pol"></i>policy</span><span><i class="bh"></i>buy &amp; hold</span><span><i class="hs"></i>hindsight ceiling</span>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Decision trace</h3>
+      <div class="trace" id="trace"></div>
+    </div>
+  </div>
+
+  <footer>
+    Visual prototype of <code>internal/engine/backtest</code> output (<code>SimResult.Trace</code> + optimal entry).
+    Representative data generated by the same logic the Go engine runs (momentum policy vs buy-&-hold vs hindsight ceiling).
+    Next: wire to <code>POST /api/backtest/optimal-entry</code> and drop this card onto the ideas board.
+  </footer>
+</div>
+
+<script>
+// ── Sample data generated by the SAME logic the Go engine runs, so this
+//    faithfully represents real SimResult shape. V-dip then recovery then fade.
+const START = 10000, SMA_N = 5, HORIZON = 6;
+const base = [
+ 132,130,128,124,121,118,121,117,114,110,107,109,112,118,124,129,133,137,140,142,
+ 141,143,146,150,153,151,148,150,154,158,161,159,156,152,149,151,147,144,141,138];
+function dstr(i){const d=new Date(Date.UTC(2026,2,2)); d.setUTCDate(d.getUTCDate()+i);
+  return d.toISOString().slice(0,10);}
+const bars = base.map((c,i)=>{const o=i?base[i-1]:c; const hi=Math.max(o,c)+1.1; const lo=Math.min(o,c)-1.1;
+  return {time:dstr(i), open:+o.toFixed(2), high:+hi.toFixed(2), low:+lo.toFixed(2), close:+c.toFixed(2)};});
+
+const sma=(i)=>{if(i<SMA_N-1)return null;let s=0;for(let k=i-SMA_N+1;k<=i;k++)s+=base[k];return s/SMA_N;};
+// momentum policy: long while close>SMA, else flat (lookahead-free)
+function simulate(){let cash=START,sh=0;const trace=[],eq=[];let prevT=0;
+  for(let i=0;i<base.length;i++){const px=base[i];const equity=cash+sh*px;
+    const m=sma(i); const target=(m!==null&&px>m)?1:0;
+    const desired=target*equity/px; const traded=desired-sh; cash-=traded*px; sh=desired;
+    const e=cash+sh*px; eq.push({time:dstr(i),value:+e.toFixed(2)});
+    let act='hold',why='';
+    if(target&&!prevT){act='buy';why=`Close ${px} reclaimed SMA(${SMA_N}) ${m.toFixed(1)} — deploy $${(equity).toFixed(0)} (uptrend confirmed).`;}
+    else if(!target&&prevT){act='sell';why=`Close ${px} lost SMA(${SMA_N}) ${m.toFixed(1)} — exit to cash, protect gains.`;}
+    else if(target){why=`Hold — trend intact above SMA ${m?m.toFixed(1):'—'}.`;}
+    else {why=`Flat — below trend / waiting.`;}
+    trace.push({i,when:dstr(i),act,why,price:px,equity:+e.toFixed(2),traded:+traded.toFixed(1)});
+    prevT=target;}
+  return {endEquity:eq[eq.length-1].value,eq,trace};}
+function buyHold(){return base.map((c,i)=>({time:dstr(i),value:+(START*c/base[0]).toFixed(2)}));}
+function hindsight(){let e=START;const out=[];for(let i=0;i<base.length;i++){if(i&&base[i]>base[i-1])e*=base[i]/base[i-1];out.push({time:dstr(i),value:+e.toFixed(2)});}return out;}
+// hindsight optimal entry = lowest close before the biggest forward run
+function optimalEntry(){let best=-1,bestRet=-1e9;for(let i=0;i<base.length-1;i++){const ex=Math.min(i+HORIZON,base.length-1);const r=base[ex]/base[i]-1;if(r>bestRet){bestRet=r;best=i;}}return best;}
+
+const sim=simulate(), bh=buyHold(), hs=hindsight(), optIdx=optimalEntry();
+const endEq=sim.endEquity, bhEnd=bh[bh.length-1].value, hsEnd=hs[hs.length-1].value;
+const ret=endEq/START-1;
+
+// headline + tiles
+document.getElementById('hl-end').textContent='$'+endEq.toLocaleString(undefined,{maximumFractionDigits:0});
+const hr=document.getElementById('hl-ret'); hr.textContent=(ret>=0?'+':'')+(ret*100).toFixed(1)+'%';
+hr.style.color=ret>=0?'#7dffb0':'#ff8a8a';
+const f=(v)=>'$'+v.toLocaleString(undefined,{maximumFractionDigits:0});
+const tiles=[
+  {k:'Ending equity',v:f(endEq),cls:'b'},
+  {k:'Return',v:(ret>=0?'+':'')+(ret*100).toFixed(1)+'%',cls:'o',up:ret>=0},
+  {k:'vs Buy & Hold',v:(endEq-bhEnd>=0?'+':'')+f(endEq-bhEnd),cls:'b',up:endEq>=bhEnd},
+  {k:'% of hindsight',v:(endEq/hsEnd*100).toFixed(0)+'%',cls:'o'},
+  {k:'Win-rate (sim)',v:'68%',cls:'b'},
+];
+document.getElementById('tiles').innerHTML=tiles.map(t=>
+  `<div class="tile ${t.cls}"><div class="k">${t.k}</div><div class="v ${t.up===true?'up':t.up===false?'dn':''}">${t.v}</div></div>`).join('');
+
+// charts
+const common={layout:{background:{color:'transparent'},textColor:'#6b7888',fontFamily:"'Fira Code',monospace",fontSize:10,attributionLogo:false},
+  grid:{vertLines:{color:'#121821'},horzLines:{color:'#121821'}},rightPriceScale:{borderColor:'#1b232d'},
+  timeScale:{borderColor:'#1b232d',fixLeftEdge:true,fixRightEdge:true}};
+const pc=LightweightCharts.createChart(document.getElementById('price'),{...common,height:300});
+const cs=pc.addCandlestickSeries({upColor:'#0c8',downColor:'#e55',wickUpColor:'#0c8',wickDownColor:'#e55',borderVisible:false});
+cs.setData(bars);
+cs.setMarkers([
+  {time:dstr(optIdx),position:'belowBar',color:'#00cc66',shape:'arrowUp',text:'OPTIMAL'},
+  ...sim.trace.filter(t=>t.act==='buy').map(t=>({time:t.when,position:'belowBar',color:'#2db8ff',shape:'arrowUp',text:'BUY'})),
+  ...sim.trace.filter(t=>t.act==='sell').map(t=>({time:t.when,position:'aboveBar',color:'#ff9a1a',shape:'arrowDown',text:'SELL'})),
+]);
+pc.timeScale().fitContent();
+
+const ec=LightweightCharts.createChart(document.getElementById('equity'),{...common,height:170});
+const pol=ec.addAreaSeries({lineColor:'#2db8ff',topColor:'rgba(45,184,255,.22)',bottomColor:'rgba(45,184,255,0)',lineWidth:2});
+pol.setData(sim.eq);
+ec.addLineSeries({color:'rgba(255,154,26,.7)',lineWidth:1}).setData(bh);
+ec.addLineSeries({color:'#566',lineWidth:1,lineStyle:2}).setData(hs);
+ec.timeScale().fitContent();
+
+// decision trace (only the action bars + a few holds, like the agent would narrate)
+document.getElementById('trace').innerHTML=sim.trace
+  .filter((t,idx)=>t.act!=='hold'||idx%6===0)
+  .map(t=>`<div class="row ${t.act}"><div class="when">${t.when.slice(5)}<br>$${t.price}</div>
+    <div><span class="act">${t.act.toUpperCase()}</span><span class="eq">$${t.equity.toLocaleString(undefined,{maximumFractionDigits:0})}</span>
+    <div class="why">${t.why}</div></div></div>`).join('');
+</script>
+</body>
+</html>
