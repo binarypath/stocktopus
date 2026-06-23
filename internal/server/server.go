@@ -147,6 +147,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/article", s.handleArticle)
 	mux.HandleFunc("GET /api/article/entities", s.handleArticleEntities)
 	mux.HandleFunc("GET /api/chart/intraday/{interval}/{symbol}", s.handleChartIntraday)
+	mux.HandleFunc("GET /api/backtest/optimal-entry/{symbol}", s.handleBacktestOptimalEntry)
 	mux.HandleFunc("GET /api/security/{symbol}/profile", s.handleSecurityProfile)
 	mux.HandleFunc("GET /api/security/{symbol}/quote", s.handleSecurityQuote)
 	mux.HandleFunc("GET /api/security/{symbol}/etf-holdings", s.handleETFHoldings)
