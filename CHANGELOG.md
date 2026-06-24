@@ -7,6 +7,15 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and
 automatically by [release-please](https://github.com/googleapis/release-please)
 on merge to `master`.
 
+## [2.1.0](https://github.com/binarypath/stocktopus/compare/v2.0.0...v2.1.0) (2026-06-24)
+
+
+### Features
+
+* **engine:** optimal-entry backtest engine + endpoint ([#156](https://github.com/binarypath/stocktopus/issues/156)) ([eb8c264](https://github.com/binarypath/stocktopus/commit/eb8c264e2ea53070876ceeeaa96eccd315d37fa8))
+* **ideas:** React Flow ideas-board island (M2 scaffold) ([#157](https://github.com/binarypath/stocktopus/issues/157)) ([c25cf3b](https://github.com/binarypath/stocktopus/commit/c25cf3b1ffb4190ba8c600fb9fa38fdb7d15ec28))
+* **ideas:** vim navigation + visual-mode region select ([#160](https://github.com/binarypath/stocktopus/issues/160)) ([47b9fc2](https://github.com/binarypath/stocktopus/commit/47b9fc2e872ea93439440aa2b54bca4ade817219))
+
 ## [2.0.0](https://github.com/binarypath/stocktopus/compare/v1.17.0...v2.0.0) (2026-06-22)
 
 
