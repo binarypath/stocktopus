@@ -55,6 +55,11 @@
   .wl-body{padding:4px 0}
   .wl-row{padding:6px 12px;color:var(--text-primary,#cdd7e1);border-bottom:1px solid #141a21;cursor:pointer}
   .wl-row:hover{background:rgba(45,184,255,.08);color:#fff}
+  /* vim HUD + selected-node ring */
+  .vimhud{position:fixed;top:14px;right:18px;z-index:40;background:rgba(6,7,10,.8);border:1px solid var(--panel-border,#1b232d);
+    border-radius:8px;padding:6px 12px;font-size:12px;color:var(--text-muted,#6b7888);pointer-events:none}
+  .vimhud .vmode{font-weight:700;letter-spacing:1.5px;margin-right:8px}
+  .react-flow__node.selected .node{outline:2px solid var(--accent-blue,#2db8ff);outline-offset:2px;box-shadow:0 0 0 1px rgba(45,184,255,.4),0 0 22px rgba(45,184,255,.35)!important}
   .analyze-btn{color:var(--accent-orange,#ff9a1a);cursor:pointer;text-shadow:var(--text-glow-amber,0 0 8px rgba(255,154,26,.5));padding:0 4px;border:1px solid transparent;border-radius:4px}
   .analyze-btn:hover{border-color:var(--accent-orange,#ff9a1a);background:rgba(255,154,26,.1)}
   .node.wtt{width:280px;border-left:2px solid var(--accent-orange,#ff9a1a);box-shadow:0 12px 34px rgba(0,0,0,.5),var(--glow-amber,0 0 14px rgba(255,154,26,.2))}
