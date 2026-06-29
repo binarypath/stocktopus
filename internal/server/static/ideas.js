@@ -311,6 +311,17 @@
         infoPanelsEl.innerHTML = lastInfoPanels.map(function (p) {
             var pctClass = p.changePercentage >= 0 ? 'price-up' : 'price-down';
             var pctStr = (p.changePercentage >= 0 ? '+' : '') + (p.changePercentage || 0).toFixed(2) + '%';
+            var preRow = '';
+            if (p.hasPreMarket) {
+                var preClass = p.preMarketChange >= 0 ? 'price-up' : 'price-down';
+                var preChg = (p.preMarketChange >= 0 ? '+' : '') + (p.preMarketChange || 0).toFixed(2) + '%';
+                preRow = '<div class="ideas-info-quote ideas-info-premkt">'
+                    + '<span class="ideas-info-price">' + fmtPrice(p.preMarketPrice) + '</span>'
+                    + '<span class="ideas-info-tag">:pre:</span>'
+                    + '<span class="ideas-info-pct ' + preClass + '">' + preChg + '</span>'
+                    + '<span class="ideas-info-tag">:premkt:</span>'
+                    + '</div>';
+            }
             var newsBadge = p.newsCount24h > 0
                 ? '<span class="ideas-info-news-badge" title="news items last 24h">' + p.newsCount24h + ' news</span>'
                 : '';
@@ -348,6 +359,7 @@
                 +      '<span class="ideas-info-pct ' + pctClass + '">' + pctStr + '</span>'
                 +      '<span class="ideas-info-tag">:1d:</span>'
                 +    '</div>'
+                +    preRow
                 +    '<div class="ideas-info-stats">'
                 +      '<span><label>Open</label>' + fmtPrice(p.open) + '</span>'
                 +      '<span><label>Day H</label>' + fmtPrice(p.dayHigh) + '</span>'

@@ -4698,6 +4698,18 @@ details.screener-group > summary.vim-selected {
     margin-left: -4px;
 }
 
+/* Pre-market quote row: same layout as the live row but dimmed and smaller,
+   since it qualifies the regular session rather than replacing it. */
+.ideas-info-quote.ideas-info-premkt {
+    opacity: 0.8;
+    margin-top: 2px;
+}
+.ideas-info-quote.ideas-info-premkt .ideas-info-price {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary, #aaa);
+}
+
 .ideas-info-stats {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
