@@ -418,7 +418,7 @@ window.onerror = function (msg, src, line, col, err) {
         // for (e.g. an FMP plan that doesn't cover this exchange). Keeps the
         // row visible so the user can still `d` it from the watchlist.
         var safe = escapeHtml(symbol);
-        var html = '<tr id="quote-' + safe + '" class="quote-row-ghost">'
+        var html = '<tr id="quote-' + safe + '" class="quote-row-ghost" data-vim-row data-vim-action="navigate" data-vim-href="/security/' + encodeURIComponent(symbol) + '">'
             + '<td><span class="sym-link" data-symbol="' + safe + '">' + safe + '</span></td>'
             + '<td id="quote-' + safe + '-price" class="quote-na">—</td>'
             + '<td id="quote-' + safe + '-change" class="quote-na">—</td>'
@@ -478,7 +478,7 @@ window.onerror = function (msg, src, line, col, err) {
                     // precisely without touching the 1W / 6M / sparkline
                     // cells. Those static cells get populated by
                     // hydrateWatchlistHistorical() once the row is in the DOM.
-                    var html = '<tr id="quote-' + sym + '">'
+                    var html = '<tr id="quote-' + sym + '" data-vim-row data-vim-action="navigate" data-vim-href="/security/' + encodeURIComponent(sym) + '">'
                         + '<td><span class="sym-link" data-symbol="' + sym + '">' + sym + '</span></td>'
                         + '<td id="quote-' + sym + '-price" class="' + chgClass + '">' + (q.price ? q.price.toFixed(2) : '') + '</td>'
                         + '<td id="quote-' + sym + '-change" class="' + chgClass + '">' + chg + '</td>'
@@ -773,7 +773,7 @@ window.onerror = function (msg, src, line, col, err) {
         listEl.innerHTML = watchlistData.map(function (wl) {
             var active = wl.id === activeWatchlistId ? ' wl-tab-active active' : '';
             var count = wl.symbols ? wl.symbols.length : 0;
-            return '<li class="watchlist-list-item wl-tab' + active + '" data-id="' + wl.id + '" style="--wl-color:' + wl.color + '">'
+            return '<li class="watchlist-list-item wl-tab' + active + '" data-id="' + wl.id + '" data-vim-item style="--wl-color:' + wl.color + '">'
                 + '<span class="watchlist-list-name">' + escapeHtml(wl.name) + '</span>'
                 + '<span class="watchlist-list-meta">' + count + ' securities</span>'
                 + '</li>';
@@ -2627,14 +2627,11 @@ window.onerror = function (msg, src, line, col, err) {
                 }
             },
             graph: function () {
-                var items = this.getItems();
-                if (vimSelectedIndex < 0 || vimSelectedIndex >= items.length) return;
-                var sym = items[vimSelectedIndex].querySelector('[data-symbol]');
-                if (sym) {
-                    setSecurity(sym.dataset.symbol);
-                    onViewLeave(currentView);
-                    navigate('graph', sym.dataset.symbol);
-                }
+                var sym = this._selectedSymbol();
+                if (!sym) return;
+                setSecurity(sym);
+                onViewLeave(currentView);
+                navigate('graph', sym);
             },
             // ── Vim row ops (idea #12) ──
             //
@@ -2644,10 +2641,12 @@ window.onerror = function (msg, src, line, col, err) {
             //   y → yank to another list via picker (does not delete source);
             //       on confirm the dest list re-renders so the new color sticks
             _selectedSymbol: function () {
-                var items = this.getItems();
-                if (vimSelectedIndex < 0 || vimSelectedIndex >= items.length) return null;
-                var el = items[vimSelectedIndex].querySelector('[data-symbol]');
-                return el ? el.dataset.symbol : null;
+                // Selection is owned by the declarative VimNav engine now; the
+                // selected element is the symbol <tr> (its own data-vim-row).
+                var sel = window.VimNav && window.VimNav.getSelected();
+                if (!sel || !sel.el) return null;
+                var link = sel.el.querySelector ? sel.el.querySelector('[data-symbol]') : null;
+                return link ? link.dataset.symbol : null;
             },
             deleteSelected: function () {
                 var sym = this._selectedSymbol();
@@ -3202,11 +3201,12 @@ window.onerror = function (msg, src, line, col, err) {
             var readerOpen = false;
             var readerEl = document.getElementById('article-reader');
             if (readerEl && !readerEl.classList.contains('hidden')) readerOpen = true;
-            // Ideas and watchlist use custom two-column pane models.
-            // ideas / watchlist still use bespoke two-pane handlers (migrating
-            // post-2.0). Everything else — including news, now declarative —
-            // goes through the common VimNav engine.
-            if (!readerOpen && currentView !== 'ideas' && currentView !== 'watchlist' && window.VimNav.handleKey(e.key, e)) return;
+            // Ideas still uses a custom two-column pane model. Everything
+            // else — including news and watchlist, now declarative — goes
+            // through the common VimNav engine. The watchlist's per-view
+            // handler keeps only the legacy row-ops (d/y/p cut/yank/paste,
+            // c=chart, p=preview), which fall through below.
+            if (!readerOpen && currentView !== 'ideas' && window.VimNav.handleKey(e.key, e)) return;
         }
 
         switch (e.key) {
