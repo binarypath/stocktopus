@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	_ "time/tzdata" // embed the IANA tz database so America/New_York always resolves
 )
 
 // SearchResult represents a security from the FMP search API.
@@ -526,6 +527,36 @@ func (c *Client) GetIntradayChart(ctx context.Context, symbol, interval, from, t
 	}
 
 	return items, nil
+}
+
+// etLocation resolves America/New_York. The embedded tzdata import guarantees
+// the zone is available even on minimal containers without a system tz database.
+func etLocation() *time.Location {
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		return time.UTC
+	}
+	return loc
+}
+
+// GetPreMarket fetches today's 5-minute intraday bars and extracts the
+// pre-market session quote (last bar in 04:00–09:30 ET) along with its percent
+// change versus the previous regular-session close.
+//
+// FMP's /stable/quote does not carry pre-market data, so we derive it from
+// /stable/historical-chart/5min. The "today" date is computed in ET so the
+// from/to window aligns with the pre-market session and only one trading day's
+// bars are returned. prevClose is the previous regular-session close (from the
+// realtime quote). Returns PreMarket{Found:false} when no pre-market bars exist.
+func (c *Client) GetPreMarket(ctx context.Context, symbol string, prevClose float64) (model.PreMarket, error) {
+	loc := etLocation()
+	today := time.Now().In(loc).Format("2006-01-02")
+
+	bars, err := c.GetIntradayChart(ctx, symbol, "5min", today, today)
+	if err != nil {
+		return model.PreMarket{}, err
+	}
+	return model.ExtractPreMarket(bars, prevClose, loc), nil
 }
 
 // GetSICList fetches the full Standard Industrial Classification list.

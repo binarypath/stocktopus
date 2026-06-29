@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"stocktopus/internal/model"
 	"stocktopus/internal/news"
 )
 
@@ -15,17 +16,20 @@ import (
 // live quote, news pulse, and which of the company's metrics are pinned on this
 // sketch (for the metric-chip strip).
 type CompanyInfoPanel struct {
-	Symbol            string   `json:"symbol"`
-	CompanyName       string   `json:"companyName"`
-	Price             float64  `json:"price"`
-	PreviousClose     float64  `json:"previousClose"`
-	ChangePercentage  float64  `json:"changePercentage"`
-	DayHigh           float64  `json:"dayHigh"`
-	DayLow            float64  `json:"dayLow"`
-	Volume            float64  `json:"volume"`
-	Open              float64  `json:"open"`
-	NewsCount24h      int      `json:"newsCount24h"`
-	PinnedMetrics     []string `json:"pinnedMetrics"`
+	Symbol           string   `json:"symbol"`
+	CompanyName      string   `json:"companyName"`
+	Price            float64  `json:"price"`
+	PreviousClose    float64  `json:"previousClose"`
+	ChangePercentage float64  `json:"changePercentage"`
+	DayHigh          float64  `json:"dayHigh"`
+	DayLow           float64  `json:"dayLow"`
+	Volume           float64  `json:"volume"`
+	Open             float64  `json:"open"`
+	HasPreMarket     bool     `json:"hasPreMarket"`
+	PreMarketPrice   float64  `json:"preMarketPrice"`
+	PreMarketChange  float64  `json:"preMarketChange"`
+	NewsCount24h     int      `json:"newsCount24h"`
+	PinnedMetrics    []string `json:"pinnedMetrics"`
 }
 
 // handleSketchInfoPanels: GET /api/sketches/{id}/info-panels
@@ -98,6 +102,7 @@ func (s *Server) handleSketchInfoPanels(w http.ResponseWriter, r *http.Request) 
 	type enrichment struct {
 		companyName  string
 		newsCount24h int
+		preMarket    model.PreMarket
 	}
 	enrichments := make(map[string]enrichment, len(symbols))
 	var mu sync.Mutex
@@ -117,6 +122,12 @@ func (s *Server) handleSketchInfoPanels(w http.ResponseWriter, r *http.Request) 
 			}
 			if q, ok := quotes[sym]; ok {
 				en.companyName = q.Name
+				// Derive pre-market price/% from intraday 5-min bars; FMP's
+				// /stable/quote carries no pre-market data. Best-effort: a
+				// failure (or no pre-market session) just leaves it absent.
+				if pm, perr := s.news.GetPreMarket(ctx, sym, q.PreviousClose); perr == nil {
+					en.preMarket = pm
+				}
 			}
 			mu.Lock()
 			enrichments[sym] = en
@@ -139,6 +150,9 @@ func (s *Server) handleSketchInfoPanels(w http.ResponseWriter, r *http.Request) 
 			DayLow:           q.DayLow,
 			Volume:           q.Volume,
 			Open:             q.Open,
+			HasPreMarket:     en.preMarket.Found,
+			PreMarketPrice:   en.preMarket.Price,
+			PreMarketChange:  en.preMarket.ChangePercent,
 			NewsCount24h:     en.newsCount24h,
 			PinnedMetrics:    g.metrics,
 		})
