@@ -1155,8 +1155,8 @@ window.onerror = function (msg, src, line, col, err) {
         });
 
         // Card open: delegated so it survives re-renders. VimNav fires the
-        // selected card's data-vim-action="click" → card.click() bubbles here,
-        // marking it read and opening the reader. Mouse clicks land here too.
+        // selected card's data-vim-action="open-reader" → _openReader (which
+        // marks it read). Mouse clicks land here, marking read + opening too.
         var container = document.getElementById('news-cards');
         if (container && !container.dataset.cardClickWired) {
             container.dataset.cardClickWired = '1';
@@ -1380,7 +1380,7 @@ window.onerror = function (msg, src, line, col, err) {
         var symbolBadge = item.symbol ? '<span class="news-symbol">' + escapeHtml(item.symbol) + '</span>' : '';
         var unreadClass = unread ? ' news-unread' : '';
 
-        return '<div class="news-card' + unreadClass + '" data-url="' + escapeHtml(item.url) + '" data-vim-region data-vim-action="click">'
+        return '<div class="news-card' + unreadClass + '" data-url="' + escapeHtml(item.url) + '" data-vim-row data-vim-action="open-reader" data-vim-url="' + escapeHtml(item.url) + '" data-vim-title="' + escapeHtml(item.title) + '">'
             + '<div class="news-card-title"><a href="' + escapeHtml(item.url) + '" onclick="event.preventDefault();if(window._openReader)window._openReader(this.href,this.textContent)">' + escapeHtml(item.title) + '</a></div>'
             + '<div class="news-card-meta">'
             +   symbolBadge
@@ -3407,7 +3407,7 @@ window.onerror = function (msg, src, line, col, err) {
                     return;
                 }
                 // /news: open the article reader on the highlighted card —
-                // same effect as Enter (the card's data-vim-action="click"),
+                // same effect as Enter (the card's data-vim-action="open-reader"),
                 // mapped to 'p' for the 'p = preview' muscle-memory convention.
                 if (currentView === 'news') {
                     var nsel = window.VimNav && window.VimNav.getSelected();
